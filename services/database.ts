@@ -1,72 +1,108 @@
-
 import type { Book } from '../types';
+import { supabase } from './supabase';
 
-const DB_NAME = 'BiblioTechDB';
-const DB_VERSION = 1;
-const STORE_NAME = 'books';
+const TABLE_NAME = 'books';
+const LOCAL_STORAGE_KEY = 'biblio_tech_local_db';
 
 export class DatabaseService {
-  private db: IDBDatabase | null = null;
+  private useLocalStorage = false;
 
-  async initDB(): Promise<IDBDatabase> {
-    if (this.db) return this.db;
+  private getLocalBooks(): Book[] {
+    const data = localStorage.getItem(LOCAL_STORAGE_KEY);
+    return data ? JSON.parse(data) : [];
+  }
 
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-      request.onupgradeneeded = (event: any) => {
-        const db = event.target.result;
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        }
-      };
-
-      request.onsuccess = (event: any) => {
-        this.db = event.target.result;
-        resolve(this.db!);
-      };
-
-      request.onerror = (event) => {
-        console.error('IndexedDB error:', event);
-        reject('Failed to open IndexedDB');
-      };
-    });
+  private saveLocalBooks(books: Book[]): void {
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(books));
   }
 
   async getAllBooks(): Promise<Book[]> {
-    const db = await this.initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readonly');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.getAll();
+    try {
+      // Usamos aspas duplas na ordenação caso a coluna tenha sido criada como case-sensitive
+      const { data, error } = await supabase
+        .from(TABLE_NAME)
+        .select('*')
+        .order('dateAdded', { ascending: false });
 
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject('Failed to fetch books');
-    });
+      if (error) {
+        // Erro 42P01: Tabela não existe | 42703: Coluna não existe
+        if (error.code === '42P01' || error.code === 'PGRST116' || error.message?.includes('relation "books" does not exist')) {
+          this.logSchemaAdvice();
+          this.useLocalStorage = true;
+          return this.getLocalBooks();
+        }
+        throw error;
+      }
+      
+      this.useLocalStorage = false;
+      return (data as Book[]) || [];
+    } catch (err: any) {
+      console.warn('Fallback para Armazenamento Local:', err.message);
+      this.useLocalStorage = true;
+      return this.getLocalBooks();
+    }
   }
 
   async saveBook(book: Book): Promise<void> {
-    const db = await this.initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.put(book);
+    if (this.useLocalStorage) {
+      this.updateLocalEntry(book);
+      return;
+    }
 
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject('Failed to save book');
-    });
+    try {
+      const { error } = await supabase
+        .from(TABLE_NAME)
+        .upsert(book);
+
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Erro de sincronização, salvando localmente:', err.message);
+      this.updateLocalEntry(book);
+    }
+  }
+
+  private updateLocalEntry(book: Book) {
+    const books = this.getLocalBooks();
+    const index = books.findIndex(b => b.id === book.id);
+    if (index >= 0) {
+      books[index] = book;
+    } else {
+      books.unshift(book);
+    }
+    this.saveLocalBooks(books);
   }
 
   async deleteBook(id: string): Promise<void> {
-    const db = await this.initDB();
-    return new Promise((resolve, reject) => {
-      const transaction = db.transaction(STORE_NAME, 'readwrite');
-      const store = transaction.objectStore(STORE_NAME);
-      const request = store.delete(id);
+    if (this.useLocalStorage) {
+      const books = this.getLocalBooks().filter(b => b.id !== id);
+      this.saveLocalBooks(books);
+      return;
+    }
 
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject('Failed to delete book');
-    });
+    try {
+      const { error } = await supabase
+        .from(TABLE_NAME)
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+    } catch (err: any) {
+      console.error('Erro ao deletar:', err.message);
+    }
+  }
+
+  private logSchemaAdvice() {
+    console.log(`
+%c 💡 CONFIGURAÇÃO NECESSÁRIA %c
+O Supabase não encontrou a tabela 'books'. 
+Abra o SQL Editor no Supabase e execute o conteúdo do arquivo 'schema.sql'.
+
+%c Importante: %c As colunas em camelCase DEVEM estar entre aspas duplas no SQL.
+`, 
+'color: #ffffff; background: #2563eb; padding: 2px 5px; border-radius: 3px; font-weight: bold;', 
+'color: #475569;',
+'color: #e11d48; font-weight: bold;',
+'color: #475569;');
   }
 }
 

@@ -26,7 +26,9 @@ export default function App() {
     setSelectedYear,
     availableYears,
     customRange,
-    setCustomRange 
+    setCustomRange,
+    isLocalMode,
+    isLoading
   } = useBookData();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -46,7 +48,7 @@ export default function App() {
       await addBook(newBook);
       setIsModalOpen(false);
       setEditingBook(null);
-      showToast(`"${newBook.title}" salvo no banco de dados!`);
+      showToast(`"${newBook.title}" salvo com sucesso!`);
     } catch (error) {
       showToast("Erro ao salvar o livro.");
     }
@@ -60,7 +62,7 @@ export default function App() {
       if (updatedBook.status === BookStatus.Read) {
           showToast(`Progresso salvo: Parabéns por concluir "${updatedBook.title}"!`);
       } else {
-          showToast(`"${updatedBook.title}" atualizado com sucesso.`);
+          showToast(`"${updatedBook.title}" atualizado.`);
       }
     } catch (error) {
       showToast("Erro ao atualizar o livro.");
@@ -71,12 +73,6 @@ export default function App() {
     setEditingBook(null);
     setDefaultStatusForModal(defaultStatus);
     setIsModalOpen(true);
-  };
-
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setEditingBook(null);
-    setDefaultStatusForModal(undefined);
   };
 
   const shelfBooks = useMemo(() => books.filter(book => book.status !== BookStatus.Wishlist), [books]);
@@ -94,47 +90,60 @@ export default function App() {
     }
   };
 
-  const renderContent = () => {
-    switch(view) {
-      case 'dashboard':
-        return <Dashboard 
-                  stats={stats} 
-                  currentlyReading={currentlyReading} 
-                  updateBook={handleUpdateBook}
-                  dateFilter={dateFilter}
-                  setDateFilter={setDateFilter} 
-                  selectedYear={selectedYear}
-                  setSelectedYear={setSelectedYear}
-                  availableYears={availableYears}
-                  customRange={customRange}
-                  setCustomRange={setCustomRange}
-                />;
-      case 'list':
-        return <BookList 
-                  books={shelfBooks} 
-                  onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} 
-                  onDelete={setDeletingBook} 
-                  onUpdateBook={handleUpdateBook}
-                />;
-      case 'wishlist':
-        return <Wishlist 
-                  books={wishlistBooks} 
-                  onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} 
-                  onDelete={setDeletingBook} 
-                  onMoveToShelf={(b) => handleUpdateBook({ ...b, status: BookStatus.TBR })} 
-                  onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)}
-                />;
-      default:
-        return null;
-    }
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Sincronizando Biblioteca...</p>
+      </div>
+    );
   }
 
   return (
     <div className="min-h-screen bg-background text-text-main pb-24 relative">
       <Header onLogoClick={() => handleSetView('dashboard')} />
       
+      {isLocalMode && (
+        <div className="bg-amber-50 border-b border-amber-100 px-6 py-2 flex items-center justify-center gap-3">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            <p className="text-[9px] font-black uppercase tracking-widest text-amber-700">
+                Modo Local Ativo: Configure a tabela 'books' no Supabase para sincronização em nuvem.
+            </p>
+        </div>
+      )}
+
       <main className={`p-4 md:p-8 transition-all duration-300 transform ${isFading ? 'opacity-0 -translate-y-2' : 'opacity-100 translate-y-0'}`}>
-        {renderContent()}
+        {view === 'dashboard' && (
+          <Dashboard 
+            stats={stats} 
+            currentlyReading={currentlyReading} 
+            updateBook={handleUpdateBook}
+            dateFilter={dateFilter}
+            setDateFilter={setDateFilter} 
+            selectedYear={selectedYear}
+            setSelectedYear={setSelectedYear}
+            availableYears={availableYears}
+            customRange={customRange}
+            setCustomRange={setCustomRange}
+          />
+        )}
+        {view === 'list' && (
+          <BookList 
+            books={shelfBooks} 
+            onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} 
+            onDelete={setDeletingBook} 
+            onUpdateBook={handleUpdateBook}
+          />
+        )}
+        {view === 'wishlist' && (
+          <Wishlist 
+            books={wishlistBooks} 
+            onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} 
+            onDelete={setDeletingBook} 
+            onMoveToShelf={(b) => handleUpdateBook({ ...b, status: BookStatus.TBR })} 
+            onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)}
+          />
+        )}
       </main>
       
       <button
@@ -154,7 +163,7 @@ export default function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <p className="text-[11px] font-black uppercase tracking-widest whitespace-nowrap">
+            <p className="text-[11px] font-black uppercase tracking-widest">
               {toastMessage}
             </p>
           </div>
@@ -163,7 +172,7 @@ export default function App() {
 
       {isModalOpen && (
         <AddBookModal
-          onClose={closeModal}
+          onClose={() => { setIsModalOpen(false); setEditingBook(null); }}
           onAddBook={handleAddBook}
           onUpdateBook={handleUpdateBook}
           bookToEdit={editingBook}
@@ -180,10 +189,10 @@ export default function App() {
             const title = deletingBook.title;
             await deleteBook(deletingBook.id); 
             setDeletingBook(null); 
-            showToast(`Livro "${title}" removido permanentemente.`);
+            showToast(`"${title}" removido.`);
           }}
-          title="Confirmar Exclusão"
-          message={`Tem certeza que deseja excluir "${deletingBook.title}"? Esta ação não pode ser desfeita.`}
+          title="Excluir Registro"
+          message={`Tem certeza que deseja apagar "${deletingBook.title}"?`}
         />
       )}
     </div>

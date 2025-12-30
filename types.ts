@@ -56,9 +56,9 @@ export interface Book {
   estimatedPrice?: number;
   buyLink?: string;
   currentPage?: number;
-  dateAdded: string; // ISO string format (YYYY-MM-DD)
-  dateStarted?: string; // ISO string format (YYYY-MM-DD)
-  dateFinished?: string; // ISO string format (YYYY-MM-DD)
+  dateAdded: string;
+  dateStarted?: string;
+  dateFinished?: string;
 }
 
 export type NewBook = Omit<Book, 'id' | 'monthRead'>;

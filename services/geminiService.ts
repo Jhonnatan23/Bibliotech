@@ -1,19 +1,16 @@
-
 import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 
-// Fixed: Initialize GoogleGenAI with process.env.API_KEY directly as per guidelines.
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+// Initialize GoogleGenAI with process.env.API_KEY directly as per guidelines.
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateBookSummary = async (title: string, author: string): Promise<string> => {
-  if (!process.env.API_KEY) return "AI-powered summaries are currently unavailable.";
+  if (!process.env.API_KEY) return "A IA está indisponível no momento.";
   try {
-    const prompt = `Write a short, engaging, one-paragraph summary in Portuguese for the book titled "${title}" by ${author}. Do not include spoilers.`;
-    // Fixed: Updated model to 'gemini-3-flash-preview' for text generation tasks.
+    const prompt = `Escreva um resumo curto (um parágrafo) e envolvente em Português para o livro "${title}" de ${author}. Não dê spoilers.`;
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: prompt,
     });
-    // Fixed: Use .text property directly.
     return response.text || "Não foi possível gerar um resumo.";
   } catch (error) {
     console.error("Error generating book summary:", error);
@@ -24,9 +21,8 @@ export const generateBookSummary = async (title: string, author: string): Promis
 export const generateBookCover = async (title: string, genre: string, type: string): Promise<string> => {
   if (!process.env.API_KEY) return `https://picsum.photos/seed/${encodeURIComponent(title)}/400/600`;
   try {
-    const prompt = `Create a minimalist, abstract book cover for a ${type} titled "${title}" in the ${genre} genre. The style should be elegant and modern, focusing on symbolic imagery rather than literal depiction. High contrast, clean typography.`;
+    const prompt = `Capa de livro minimalista e moderna para "${title}", gênero ${genre}, formato ${type}. Arte abstrata, elegante, alta qualidade.`;
     
-    // Fixed: Using gemini-2.5-flash-image for image generation tasks.
     const response: GenerateContentResponse = await ai.models.generateContent({
         model: 'gemini-2.5-flash-image',
         contents: {
@@ -39,7 +35,6 @@ export const generateBookCover = async (title: string, genre: string, type: stri
         }
     });
 
-    // Fixed: Iterate through parts to find the image part.
     if (response.candidates?.[0]?.content?.parts) {
       for (const part of response.candidates[0].content.parts) {
           if (part.inlineData) {
@@ -49,9 +44,7 @@ export const generateBookCover = async (title: string, genre: string, type: stri
       }
     }
     
-    // Fallback if no image part is found
     return `https://picsum.photos/seed/${encodeURIComponent(title)}/400/600`;
-
   } catch (error) {
     console.error("Error generating book cover:", error);
     return `https://picsum.photos/seed/${encodeURIComponent(title)}/400/600`;
