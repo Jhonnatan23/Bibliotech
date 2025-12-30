@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import type { ReadingStats, Book, DateFilter } from '../types';
 import { StatCard } from './StatCard';
 import { CurrentlyReading } from './CurrentlyReading';
@@ -13,6 +13,9 @@ interface DashboardProps {
   updateBook: (book: Book) => void;
   dateFilter: DateFilter;
   setDateFilter: (filter: DateFilter) => void;
+  selectedYear: number;
+  setSelectedYear: (year: number) => void;
+  availableYears: number[];
   customRange?: { start: string; end: string };
   setCustomRange?: (range: { start: string; end: string }) => void;
 }
@@ -23,6 +26,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
   updateBook, 
   dateFilter, 
   setDateFilter,
+  selectedYear,
+  setSelectedYear,
+  availableYears,
   customRange,
   setCustomRange 
 }) => {
@@ -36,11 +42,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const periodTitle = useMemo(() => {
     if (dateFilter === 'thisYear') return 'Ano Atual';
     if (dateFilter === 'allTime') return 'Todo o Período';
+    if (dateFilter === 'specificYear') return `Ano de ${selectedYear}`;
     if (dateFilter === 'custom' && customRange) {
         return `De ${formatDate(customRange.start)} a ${formatDate(customRange.end)}`;
     }
     return '';
-  }, [dateFilter, customRange]);
+  }, [dateFilter, customRange, selectedYear]);
 
   return (
     <div className="max-w-7xl mx-auto space-y-10 pb-16">
@@ -60,6 +67,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     Ano
                 </button>
                 <button
+                    onClick={() => setDateFilter('specificYear')}
+                    className={`px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${dateFilter === 'specificYear' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-primary'}`}
+                >
+                    Anos
+                </button>
+                <button
                     onClick={() => setDateFilter('allTime')}
                     className={`px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${dateFilter === 'allTime' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-primary'}`}
                 >
@@ -69,9 +82,23 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     onClick={() => setDateFilter('custom')}
                     className={`px-4 py-2 text-xs font-black uppercase tracking-wider rounded-lg transition-all ${dateFilter === 'custom' ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-primary'}`}
                 >
-                    Calendário
+                    Agenda
                 </button>
             </div>
+
+            {dateFilter === 'specificYear' && (
+                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-500">
+                    <select 
+                        value={selectedYear}
+                        onChange={(e) => setSelectedYear(Number(e.target.value))}
+                        className="bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-xs font-black uppercase tracking-widest text-slate-700 outline-none focus:border-primary transition-colors cursor-pointer"
+                    >
+                        {availableYears.map(year => (
+                            <option key={year} value={year}>{year}</option>
+                        ))}
+                    </select>
+                </div>
+            )}
 
             {dateFilter === 'custom' && customRange && setCustomRange && (
                 <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-4 duration-500">
@@ -183,5 +210,3 @@ export const Dashboard: React.FC<DashboardProps> = ({
     </div>
   );
 };
-
-import { useMemo } from 'react';

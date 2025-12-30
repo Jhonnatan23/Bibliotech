@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Book } from '../types';
+import { BookStatus } from '../types';
 
 interface CurrentlyReadingProps {
   book: Book;
@@ -54,10 +55,19 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
         updateBook({ ...book, currentPage, dateStarted });
     };
 
+    const handleFinishReading = () => {
+        updateBook({ 
+            ...book, 
+            currentPage: book.pages, 
+            status: BookStatus.Read,
+            dateFinished: new Date().toISOString().split('T')[0]
+        });
+    };
+
     const genresList = book.genre ? book.genre.split(',').map(g => g.trim()).filter(g => g !== '') : [];
 
   return (
-    <div className="bg-white p-8 rounded-[2.5rem] shadow-soft border border-slate-100 h-full flex flex-col relative overflow-hidden group">
+    <div className="bg-white p-8 rounded-[2.5rem] shadow-soft border border-slate-100 h-full flex flex-col relative overflow-hidden group animate-in zoom-in-95 duration-500">
       <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/5 rounded-full blur-3xl pointer-events-none"></div>
       
       <div className="flex justify-between items-center mb-8 relative z-10">
@@ -131,18 +141,26 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
           </div>
 
           <div className="flex flex-col sm:flex-row gap-4">
-            <input 
-                type="number"
-                value={currentPage}
-                onChange={handleProgressChange}
-                className="flex-1 bg-white border border-slate-200 rounded-2xl px-5 py-3 text-slate-900 font-black focus:border-primary transition-all outline-none"
-                aria-label="Página atual"
-            />
+            <div className="flex flex-1 gap-2">
+                <input 
+                    type="number"
+                    value={currentPage}
+                    onChange={handleProgressChange}
+                    className="w-24 bg-white border border-slate-200 rounded-2xl px-4 py-3 text-slate-900 font-black focus:border-primary transition-all outline-none text-center"
+                    aria-label="Página atual"
+                />
+                <button
+                    onClick={handleUpdateClick}
+                    className="flex-1 px-4 py-3 text-[10px] font-black rounded-2xl bg-slate-900 text-white hover:bg-primary shadow-xl transition-all active:scale-95 uppercase tracking-widest"
+                >
+                    Salvar Progresso
+                </button>
+            </div>
             <button
-                onClick={handleUpdateClick}
-                className="px-8 py-3 text-sm font-black rounded-2xl bg-slate-900 text-white hover:bg-primary shadow-xl transition-all active:scale-95 uppercase tracking-widest"
+                onClick={handleFinishReading}
+                className="px-8 py-3 text-[10px] font-black rounded-2xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-xl shadow-emerald-200 transition-all active:scale-95 uppercase tracking-widest"
             >
-                Salvar Progresso
+                Concluir Leitura
             </button>
           </div>
         </div>

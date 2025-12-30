@@ -22,6 +22,9 @@ export default function App() {
     deleteBook, 
     dateFilter, 
     setDateFilter,
+    selectedYear,
+    setSelectedYear,
+    availableYears,
     customRange,
     setCustomRange 
   } = useBookData();
@@ -42,12 +45,18 @@ export default function App() {
     addBook(newBook);
     setIsModalOpen(false);
     setEditingBook(null);
+    showToast(`"${newBook.title}" adicionado com sucesso!`);
   };
   
   const handleUpdateBook = (updatedBook: Book) => {
     updateBook(updatedBook);
     setIsModalOpen(false);
     setEditingBook(null);
+    if (updatedBook.status === BookStatus.Read) {
+        showToast(`Parabéns por concluir "${updatedBook.title}"!`);
+    } else {
+        showToast(`"${updatedBook.title}" atualizado.`);
+    }
   };
 
   const openAddModal = (defaultStatus?: BookStatus) => {
@@ -86,17 +95,25 @@ export default function App() {
                   updateBook={updateBook}
                   dateFilter={dateFilter}
                   setDateFilter={setDateFilter} 
+                  selectedYear={selectedYear}
+                  setSelectedYear={setSelectedYear}
+                  availableYears={availableYears}
                   customRange={customRange}
                   setCustomRange={setCustomRange}
                 />;
       case 'list':
-        return <BookList books={shelfBooks} onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} onDelete={setDeletingBook} />;
+        return <BookList 
+                  books={shelfBooks} 
+                  onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} 
+                  onDelete={setDeletingBook} 
+                  onUpdateBook={handleUpdateBook}
+                />;
       case 'wishlist':
         return <Wishlist 
                   books={wishlistBooks} 
                   onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} 
                   onDelete={setDeletingBook} 
-                  onMoveToShelf={(b) => updateBook({ ...b, status: BookStatus.TBR })} 
+                  onMoveToShelf={(b) => handleUpdateBook({ ...b, status: BookStatus.TBR })} 
                   onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)}
                 />;
       default:
@@ -121,7 +138,6 @@ export default function App() {
 
       <BottomNav view={view} setView={handleSetView} />
 
-      {/* Toast Notification */}
       {toastMessage && (
         <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-bottom-4 duration-500">
           <div className="bg-slate-900/95 backdrop-blur-md text-white px-6 py-3.5 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3">

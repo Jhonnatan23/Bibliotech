@@ -8,6 +8,7 @@ interface BookListItemProps {
   book: Book;
   onEdit: (book: Book) => void;
   onDelete: (book: Book) => void;
+  onUpdateStatus?: (book: Book, status: BookStatus) => void;
   statusConfigs?: StatusConfigs;
 }
 
@@ -30,7 +31,6 @@ const formatDate = (dateStr: string) => {
     return `${day}/${month}/${year}`;
 }
 
-// Função auxiliar para gerar cores baseadas no nome do gênero
 const getGenreColor = (genre: string) => {
     const palettes = [
         { bg: 'bg-indigo-50', text: 'text-indigo-600', border: 'border-indigo-100' },
@@ -50,29 +50,48 @@ const getGenreColor = (genre: string) => {
     return palettes[Math.abs(hash) % palettes.length];
 };
 
-export const BookListItem: React.FC<BookListItemProps> = ({ book, onEdit, onDelete, statusConfigs = STATUS_CONFIGS }) => {
+export const BookListItem: React.FC<BookListItemProps> = ({ 
+  book, 
+  onEdit, 
+  onDelete, 
+  onUpdateStatus,
+  statusConfigs = STATUS_CONFIGS 
+}) => {
   const config = statusConfigs[book.status];
   const colorStyles = STATUS_COLORS[config.color as keyof typeof STATUS_COLORS];
   
   const genresList = book.genre ? book.genre.split(',').map(g => g.trim()).filter(g => g !== '') : [];
-  const hasTooManyGenres = genresList.length > 5;
-  const visibleGenres = hasTooManyGenres ? genresList.slice(0, 4) : genresList;
-  const hiddenGenresCount = genresList.length - visibleGenres.length;
+  
+  const THRESHOLD = 5;
+  const isOverLimit = genresList.length > THRESHOLD;
+  const hiddenCount = genresList.length - 1;
 
-  const renderGenreTag = (g: string) => {
+  const handleQuickRead = () => {
+    if (onUpdateStatus) {
+      onUpdateStatus({
+        ...book,
+        dateStarted: new Date().toISOString().split('T')[0],
+        currentPage: 0
+      }, BookStatus.Reading);
+    }
+  };
+
+  const renderGenreTag = (g: string, isTrigger: boolean = false) => {
     const palette = getGenreColor(g);
     return (
       <span 
         key={g} 
-        className={`px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider border shadow-sm transition-transform hover:scale-105 cursor-default whitespace-nowrap ${palette.bg} ${palette.text} ${palette.border}`}
+        className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border shadow-sm transition-all whitespace-nowrap ${
+            isTrigger ? 'cursor-help ring-2 ring-transparent hover:ring-primary/20 bg-white' : 'cursor-default ' + palette.bg
+        } ${palette.text} ${palette.border}`}
       >
-          {g}
+          {g} {isTrigger && <span className="ml-1 opacity-60 font-bold">(+{hiddenCount})</span>}
       </span>
     );
   };
 
   return (
-    <article className="bg-white p-6 md:p-7 rounded-[2.5rem] shadow-soft border border-slate-100 flex flex-col md:flex-row items-center gap-8 transition-all duration-500 hover:shadow-xl hover:-translate-y-1.5 hover:border-primary/10 group">
+    <article className="bg-white p-6 md:p-7 rounded-[2.5rem] shadow-soft border border-slate-100 flex flex-col md:flex-row items-center gap-8 transition-all duration-500 hover:shadow-xl hover:-translate-y-1.5 hover:border-primary/10 group animate-in fade-in slide-in-from-bottom-4">
       
       <div className="relative flex-shrink-0 perspective-1000">
         <div className="relative group/cover transition-transform duration-700 ease-out group-hover:rotate-y-12">
@@ -106,33 +125,28 @@ export const BookListItem: React.FC<BookListItemProps> = ({ book, onEdit, onDele
                 {book.type}
             </span>
             
-            {/* Renderização das tags de gênero com Tooltip para excesso */}
-            {visibleGenres.map(renderGenreTag)}
-            
-            {hasTooManyGenres && (
-              <div className="relative group/more-genres">
-                <span className="px-3 py-2 rounded-2xl text-[10px] font-black uppercase tracking-wider border bg-slate-100 text-slate-500 border-slate-200 cursor-help shadow-sm hover:bg-slate-200 transition-colors">
-                  +{hiddenGenresCount}
-                </span>
-                
-                {/* Tooltip */}
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 opacity-0 group-hover/more-genres:opacity-100 transition-opacity pointer-events-none z-50">
-                   <div className="bg-slate-900 text-white p-4 rounded-2xl shadow-2xl min-w-[180px] max-w-[240px]">
-                      <p className="text-[9px] font-black uppercase tracking-[0.2em] mb-2 text-slate-400 border-b border-white/10 pb-2">
-                        Gêneros Adicionais
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {genresList.map(g => (
-                          <span key={g} className="text-[10px] font-bold text-white/90">
-                            • {g}
-                          </span>
-                        ))}
-                      </div>
-                   </div>
-                   {/* Seta do Tooltip */}
-                   <div className="absolute top-full left-1/2 -translate-x-1/2 border-8 border-transparent border-t-slate-900"></div>
+            {!isOverLimit ? (
+                genresList.map(g => renderGenreTag(g))
+            ) : (
+                <div className="relative group/genre-tooltip">
+                    {renderGenreTag(genresList[0], true)}
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-3 opacity-0 group-hover/genre-tooltip:opacity-100 transition-all duration-300 pointer-events-none z-50 transform translate-y-2 group-hover/genre-tooltip:translate-y-0">
+                        <div className="bg-slate-900/95 backdrop-blur-md text-white p-4 rounded-2xl shadow-2xl min-w-[200px] max-w-[280px] border border-white/10">
+                            <p className="text-[9px] font-black uppercase tracking-[0.2em] mb-3 text-slate-400 border-b border-white/10 pb-2 flex justify-between items-center">
+                                <span>Gêneros do Livro</span>
+                                <span className="bg-white/10 px-1.5 py-0.5 rounded">{genresList.length}</span>
+                            </p>
+                            <div className="flex flex-wrap gap-1.5">
+                                {genresList.map((g, idx) => (
+                                    <span key={g} className={`text-[10px] font-bold px-2 py-1 rounded-lg border ${idx === 0 ? 'bg-primary/20 border-primary/40 text-primary-light' : 'bg-white/5 border-white/5 text-white/90'}`}>
+                                        {g}
+                                    </span>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-slate-900/95"></div>
+                    </div>
                 </div>
-              </div>
             )}
         </div>
 
@@ -145,7 +159,15 @@ export const BookListItem: React.FC<BookListItemProps> = ({ book, onEdit, onDele
       </div>
 
       <div className="flex flex-row md:flex-col gap-3 w-full md:w-44 mt-4 md:mt-0">
-        <button onClick={() => onEdit(book)} className="flex-1 px-6 py-3 text-[11px] font-black rounded-2xl bg-slate-900 text-white hover:bg-primary shadow-lg transition-all active:scale-95 uppercase tracking-widest">
+        {book.status === BookStatus.TBR && (
+          <button 
+            onClick={handleQuickRead}
+            className="flex-1 px-6 py-3 text-[11px] font-black rounded-2xl bg-primary text-white hover:bg-slate-900 shadow-xl shadow-primary/20 transition-all active:scale-95 uppercase tracking-widest animate-pulse"
+          >
+            Ler Agora
+          </button>
+        )}
+        <button onClick={() => onEdit(book)} className="flex-1 px-6 py-3 text-[11px] font-black rounded-2xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition-all active:scale-95 uppercase tracking-widest">
           Editar
         </button>
         <button onClick={() => onDelete(book)} className="flex-1 px-6 py-3 text-[11px] font-black rounded-2xl bg-white text-red-400 hover:bg-red-50 border border-red-100 transition-all active:scale-95 uppercase tracking-widest">

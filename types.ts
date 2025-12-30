@@ -91,4 +91,4 @@ export interface ReadingStats {
   byType: TypeStat[];
 }
 
-export type DateFilter = 'thisYear' | 'allTime' | 'custom';
+export type DateFilter = 'thisYear' | 'allTime' | 'custom' | 'specificYear';
