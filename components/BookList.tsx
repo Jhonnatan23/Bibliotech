@@ -1,0 +1,143 @@
+
+import React, { useState, useMemo } from 'react';
+import type { Book } from '../types';
+import { BookStatus } from '../types';
+import { BookListItem } from './BookListItem';
+
+interface BookListProps {
+  books: Book[];
+  onEdit: (book: Book) => void;
+  onDelete: (book: Book) => void;
+}
+
+type FilterStatus = 'all' | BookStatus;
+type SortOrder = 'title' | 'dateAdded';
+
+export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete }) => {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
+  const [sortBy, setSortBy] = useState<SortOrder>('dateAdded');
+
+  const filteredBooks = useMemo(() => {
+    let result = [...books];
+
+    // Ordenação inicial
+    if (sortBy === 'title') {
+      result.sort((a, b) => a.title.localeCompare(b.title));
+    } else {
+      // Ordena por data de adição (mais recente primeiro)
+      result.sort((a, b) => b.dateAdded.localeCompare(a.dateAdded));
+    }
+
+    // Filtrar por Status
+    if (statusFilter !== 'all') {
+      result = result.filter(book => book.status === statusFilter);
+    }
+
+    // Filtrar por Busca
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      result = result.filter(book =>
+        book.title.toLowerCase().includes(query) ||
+        book.author.toLowerCase().includes(query)
+      );
+    }
+
+    return result;
+  }, [books, searchQuery, statusFilter, sortBy]);
+
+  const filterButtons = [
+    { label: 'Todos', value: 'all' as FilterStatus },
+    { label: 'Lendo', value: BookStatus.Reading as FilterStatus },
+    { label: 'Lidos', value: BookStatus.Read as FilterStatus },
+    { label: 'Quero Ler', value: BookStatus.TBR as FilterStatus },
+  ];
+
+  return (
+    <div className="space-y-8">
+      {/* Header e Busca */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+        <div>
+          <h2 className="text-3xl font-bold font-serif text-slate-900 tracking-tight">
+            Minha Estante <span className="text-primary/50 text-xl ml-2">({filteredBooks.length})</span>
+          </h2>
+          <p className="text-slate-500 text-sm font-medium mt-1">Gerencie seus livros físicos e digitais.</p>
+        </div>
+        
+        <div className="relative w-full lg:w-96 group">
+          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-slate-400 group-focus-within:text-primary transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+          </div>
+          <input
+            type="text"
+            placeholder="Título ou autor..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="w-full bg-white border border-slate-200 rounded-2xl py-3 pl-11 pr-4 text-slate-900 placeholder:text-slate-400 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all shadow-sm"
+          />
+        </div>
+      </div>
+
+      {/* Filtros e Ordenação */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-100">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mr-2">Filtrar:</span>
+          {filterButtons.map((btn) => (
+            <button
+              key={btn.value}
+              onClick={() => setStatusFilter(btn.value)}
+              className={`px-4 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                statusFilter === btn.value
+                  ? 'bg-primary text-white border-primary shadow-lg shadow-primary/20'
+                  : 'bg-white text-slate-500 border-slate-200 hover:border-primary/30 hover:bg-slate-50'
+              }`}
+            >
+              {btn.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-3">
+          <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em]">Ordenar:</span>
+          <select 
+            value={sortBy} 
+            onChange={(e) => setSortBy(e.target.value as SortOrder)}
+            className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-600 outline-none focus:ring-2 focus:ring-primary/10 focus:border-primary transition-all cursor-pointer"
+          >
+            <option value="dateAdded">Mais Recentes</option>
+            <option value="title">Título (A-Z)</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Lista de Livros */}
+      <div className="space-y-4">
+        {filteredBooks.length > 0 ? (
+          filteredBooks.map(book => (
+            <BookListItem key={book.id} book={book} onEdit={onEdit} onDelete={onDelete} />
+          ))
+        ) : (
+          <div className="text-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-100">
+            <div className="bg-slate-50 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+            </div>
+            <h3 className="text-lg font-bold text-slate-900">Nenhum livro encontrado</h3>
+            <p className="text-slate-400 mt-1 max-w-xs mx-auto">Tente ajustar sua busca ou mudar o filtro de status selecionado.</p>
+            {statusFilter !== 'all' || searchQuery !== '' ? (
+                <button 
+                    onClick={() => { setStatusFilter('all'); setSearchQuery(''); }}
+                    className="mt-6 text-primary font-bold text-sm hover:underline"
+                >
+                    Limpar todos os filtros
+                </button>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};

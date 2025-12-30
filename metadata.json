@@ -1,0 +1,5 @@
+{
+  "name": "Biblioteca Virtual",
+  "description": "A virtual library to manage and track your reading progress, with statistics and AI-powered book suggestions and cover generation.",
+  "requestFramePermissions": []
+}
