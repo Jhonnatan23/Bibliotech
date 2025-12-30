@@ -41,21 +41,29 @@ export default function App() {
     setTimeout(() => setToastMessage(null), 3500);
   };
 
-  const handleAddBook = (newBook: NewBook) => {
-    addBook(newBook);
-    setIsModalOpen(false);
-    setEditingBook(null);
-    showToast(`"${newBook.title}" adicionado com sucesso!`);
+  const handleAddBook = async (newBook: NewBook) => {
+    try {
+      await addBook(newBook);
+      setIsModalOpen(false);
+      setEditingBook(null);
+      showToast(`"${newBook.title}" salvo no banco de dados!`);
+    } catch (error) {
+      showToast("Erro ao salvar o livro.");
+    }
   };
   
-  const handleUpdateBook = (updatedBook: Book) => {
-    updateBook(updatedBook);
-    setIsModalOpen(false);
-    setEditingBook(null);
-    if (updatedBook.status === BookStatus.Read) {
-        showToast(`Parabéns por concluir "${updatedBook.title}"!`);
-    } else {
-        showToast(`"${updatedBook.title}" atualizado.`);
+  const handleUpdateBook = async (updatedBook: Book) => {
+    try {
+      await updateBook(updatedBook);
+      setIsModalOpen(false);
+      setEditingBook(null);
+      if (updatedBook.status === BookStatus.Read) {
+          showToast(`Progresso salvo: Parabéns por concluir "${updatedBook.title}"!`);
+      } else {
+          showToast(`"${updatedBook.title}" atualizado com sucesso.`);
+      }
+    } catch (error) {
+      showToast("Erro ao atualizar o livro.");
     }
   };
 
@@ -92,7 +100,7 @@ export default function App() {
         return <Dashboard 
                   stats={stats} 
                   currentlyReading={currentlyReading} 
-                  updateBook={updateBook}
+                  updateBook={handleUpdateBook}
                   dateFilter={dateFilter}
                   setDateFilter={setDateFilter} 
                   selectedYear={selectedYear}
@@ -168,14 +176,14 @@ export default function App() {
         <ConfirmationModal
           isOpen={!!deletingBook}
           onClose={() => setDeletingBook(null)}
-          onConfirm={() => { 
+          onConfirm={async () => { 
             const title = deletingBook.title;
-            deleteBook(deletingBook.id); 
+            await deleteBook(deletingBook.id); 
             setDeletingBook(null); 
-            showToast(`Livro "${title}" excluído com sucesso`);
+            showToast(`Livro "${title}" removido permanentemente.`);
           }}
           title="Confirmar Exclusão"
-          message={`Tem certeza que deseja excluir "${deletingBook.title}"?`}
+          message={`Tem certeza que deseja excluir "${deletingBook.title}"? Esta ação não pode ser desfeita.`}
         />
       )}
     </div>

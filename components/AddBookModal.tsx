@@ -7,8 +7,8 @@ import { generateBookSummary, generateBookCover } from '../services/geminiServic
 
 interface AddBookModalProps {
   onClose: () => void;
-  onAddBook: (book: NewBook) => void;
-  onUpdateBook: (book: Book) => void;
+  onAddBook: (book: NewBook) => Promise<void>;
+  onUpdateBook: (book: Book) => Promise<void>;
   bookToEdit?: Book | null;
   defaultStatus?: BookStatus;
   existingBooks: Book[];
@@ -49,6 +49,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const [coverImageUrl, setCoverImageUrl] = useState<string | undefined>(bookToEdit?.coverImageUrl);
   const [isGeneratingCover, setIsGeneratingCover] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [dateAdded] = useState(bookToEdit?.dateAdded || new Date().toISOString().split('T')[0]);
   const [errors, setErrors] = useState<FormErrors>({});
   const [isShaking, setIsShaking] = useState(false);
@@ -77,9 +78,10 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    if (isSubmitting) return;
+
     const newErrors: FormErrors = {};
     if (!title.trim()) newErrors.title = "O título é obrigatório";
     if (!author.trim()) newErrors.author = "O autor é obrigatório";
@@ -92,23 +94,37 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
       return;
     }
 
-    const bookData = { 
-        title: title.trim(), 
-        author: author.trim(), 
-        pages, 
-        genre: selectedGenres.join(', '), 
-        type, 
-        status, 
-        summary, 
-        rating: rating ? parseInt(rating, 10) : undefined,
-        estimatedPrice: estimatedPrice ? parseFloat(estimatedPrice) : undefined,
-        buyLink: buyLink.trim() || undefined,
-        coverImageUrl, 
-        dateAdded
-    };
+    setIsSubmitting(true);
+    try {
+        const bookData = { 
+            title: title.trim(), 
+            author: author.trim(), 
+            pages, 
+            genre: selectedGenres.join(', '), 
+            type, 
+            status, 
+            summary, 
+            rating: rating ? parseInt(rating, 10) : undefined,
+            estimatedPrice: estimatedPrice ? parseFloat(estimatedPrice) : undefined,
+            buyLink: buyLink.trim() || undefined,
+            coverImageUrl, 
+            dateAdded,
+            // Mantém os dados de leitura se for edição
+            currentPage: bookToEdit?.currentPage,
+            dateStarted: bookToEdit?.dateStarted,
+            dateFinished: bookToEdit?.dateFinished
+        };
 
-    if (isEditMode) onUpdateBook({ ...bookToEdit, ...bookData });
-    else onAddBook(bookData);
+        if (isEditMode) {
+            await onUpdateBook({ ...bookToEdit, ...bookData });
+        } else {
+            await onAddBook(bookData);
+        }
+    } catch (err) {
+        console.error("Submit error:", err);
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   const handleGenerateCover = useCallback(async () => {
@@ -146,14 +162,14 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
         `}</style>
         
         <div className="p-7 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
-            <h2 className="text-2xl font-black font-serif text-slate-900 tracking-tight">{isEditMode ? 'Editar Livro' : 'Novo Livro'}</h2>
-            <button onClick={onClose} className="p-2.5 rounded-full hover:bg-slate-200 text-slate-400 transition-all hover:rotate-90">
+            <h2 className="text-2xl font-black font-serif text-slate-900 tracking-tight">{isEditMode ? 'Editar Registro' : 'Novo Registro'}</h2>
+            <button onClick={onClose} disabled={isSubmitting} className="p-2.5 rounded-full hover:bg-slate-200 text-slate-400 transition-all hover:rotate-90 disabled:opacity-30">
                 <XMarkIcon className="h-5 w-5" />
             </button>
         </div>
         
         <form onSubmit={handleSubmit} className="p-8 space-y-8 overflow-y-auto custom-scrollbar">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className={`grid grid-cols-1 md:grid-cols-2 gap-8 ${isSubmitting ? 'opacity-50 pointer-events-none' : ''}`}>
                 <div className="md:col-span-2">
                     <label className={labelClass(true)}>
                       Título <span className="text-red-500">*</span>
@@ -246,19 +262,28 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                         <option value={BookType.HQ}>HQ</option>
                     </select>
                 </div>
-                
-                {status === BookStatus.Wishlist && (
-                  <>
-                    <div>
-                        <label className={labelClass(false)}>Preço Estimado (R$)</label>
-                        <input type="number" step="0.01" value={estimatedPrice} onChange={(e) => setEstimatedPrice(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold" placeholder="0,00" />
-                    </div>
-                    <div>
-                        <label className={labelClass(false)}>Link de Compra</label>
-                        <input type="url" value={buyLink} onChange={(e) => setBuyLink(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-medium" placeholder="https://..." />
-                    </div>
-                  </>
-                )}
+
+                <div>
+                    <label className={labelClass(false)}>Valor Estimado (R$)</label>
+                    <input 
+                      type="number" 
+                      step="0.01" 
+                      value={estimatedPrice} 
+                      onChange={(e) => setEstimatedPrice(e.target.value)} 
+                      placeholder="0,00"
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold" 
+                    />
+                </div>
+                <div>
+                    <label className={labelClass(false)}>Link de Compra</label>
+                    <input 
+                      type="text" 
+                      value={buyLink} 
+                      onChange={(e) => setBuyLink(e.target.value)} 
+                      placeholder="https://..."
+                      className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold" 
+                    />
+                </div>
             </div>
 
             <div className="p-7 bg-blue-50/40 rounded-[2rem] border border-blue-100 flex flex-col sm:flex-row items-center gap-8 shadow-inner">
@@ -277,7 +302,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                     <button 
                         type="button" 
                         onClick={handleGenerateCover} 
-                        disabled={isGeneratingCover || !title || selectedGenres.length === 0} 
+                        disabled={isGeneratingCover || isSubmitting || !title || selectedGenres.length === 0} 
                         className="px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl bg-white text-primary border border-blue-200 hover:bg-primary hover:text-white transition-all shadow-md active:scale-95 disabled:opacity-50"
                     >
                         {isGeneratingCover ? 'Criando Arte...' : 'Gerar Arte Visual'}
@@ -298,7 +323,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                   <button 
                     type="button" 
                     onClick={handleGenerateSummary} 
-                    disabled={isGeneratingSummary || !title || !author} 
+                    disabled={isGeneratingSummary || isSubmitting || !title || !author} 
                     className="mt-3 flex items-center gap-2 text-[10px] font-black text-primary uppercase tracking-[0.15em] hover:bg-primary/5 px-4 py-2 rounded-lg transition-all disabled:opacity-50"
                   >
                       {isGeneratingSummary ? 'Processando...' : '✦ Gerar Resumo com IA'}
@@ -310,15 +335,23 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                 <button 
                   type="button" 
                   onClick={onClose} 
-                  className="px-8 py-3.5 rounded-2xl text-slate-500 font-black text-[11px] uppercase tracking-widest hover:bg-slate-100 transition-all"
+                  disabled={isSubmitting}
+                  className="px-8 py-3.5 rounded-2xl text-slate-500 font-black text-[11px] uppercase tracking-widest hover:bg-slate-100 transition-all disabled:opacity-30"
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit" 
-                  className="px-10 py-3.5 rounded-2xl bg-slate-900 text-white font-black text-[11px] uppercase tracking-widest hover:bg-primary shadow-2xl transition-all active:scale-95 shadow-primary/20"
+                  disabled={isSubmitting}
+                  className="px-10 py-3.5 rounded-2xl bg-slate-900 text-white font-black text-[11px] uppercase tracking-widest hover:bg-primary shadow-2xl transition-all active:scale-95 shadow-primary/20 disabled:bg-slate-400 flex items-center gap-3"
                 >
-                  {isEditMode ? 'Salvar Alterações' : 'Adicionar Livro'}
+                  {isSubmitting && (
+                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  )}
+                  {isSubmitting ? 'Salvando...' : (isEditMode ? 'Salvar Alterações' : 'Salvar no Banco')}
                 </button>
             </div>
         </form>
