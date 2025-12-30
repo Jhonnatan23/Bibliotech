@@ -40,8 +40,16 @@ export const STATUS_CONFIGS: StatusConfigs = {
   [BookStatus.Wishlist]: { label: 'Wishlist', color: 'pink' },
 };
 
+export interface Profile {
+  id: string;
+  fullName: string;
+  avatarUrl?: string;
+  readingGoal?: number;
+}
+
 export interface Book {
   id: string;
+  user_id: string;
   title: string;
   author: string;
   pages: number;
@@ -51,17 +59,26 @@ export interface Book {
   rating?: number;
   coverImageUrl?: string;
   summary?: string;
-  yearRead?: number;
-  monthRead?: string;
+  notes?: string;
   estimatedPrice?: number;
   buyLink?: string;
   currentPage?: number;
   dateAdded: string;
   dateStarted?: string;
   dateFinished?: string;
+  daysToFinish?: number;
+  timesRead?: number;
 }
 
-export type NewBook = Omit<Book, 'id' | 'monthRead'>;
+export interface Recommendation {
+  title: string;
+  author: string;
+  reason: string;
+  genre: string;
+  buyLink?: string;
+}
+
+export type NewBook = Omit<Book, 'id' | 'user_id'>;
 
 export interface MonthlyStat {
   month: string;

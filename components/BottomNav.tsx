@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { BookOpenIcon, ChartBarIcon, HeartIcon } from './Icons';
 
@@ -15,7 +14,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ view, setView }) => {
   ] as const;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-lg border-t border-slate-200/60 z-40 pb-safe shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200/60 dark:border-slate-800 z-40 pb-safe shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
       <div className="max-w-md mx-auto flex justify-around items-center px-4 h-20">
         {navItems.map((item) => {
           const isActive = view === item.id;
@@ -24,7 +23,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ view, setView }) => {
               key={item.id}
               onClick={() => setView(item.id)}
               className={`flex flex-col items-center justify-center gap-1.5 transition-all duration-300 w-20 relative ${
-                isActive ? 'text-primary' : 'text-slate-400 hover:text-slate-600'
+                isActive ? 'text-primary' : 'text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-400'
               }`}
             >
               <div className={`transition-transform duration-300 ${isActive ? 'scale-110 -translate-y-1' : ''}`}>
