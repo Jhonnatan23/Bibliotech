@@ -19,16 +19,13 @@ export const GENRES = [
   'Religiosos', 'Economia', 'Mistério', 'Mitologia', 'Misticismo'
 ].sort();
 
-// Added missing StatusConfig type definition
 export interface StatusConfig {
   label: string;
   color: 'blue' | 'green' | 'amber' | 'pink';
 }
 
-// Added missing StatusConfigs type definition
 export type StatusConfigs = Record<BookStatus, StatusConfig>;
 
-// Added missing STATUS_COLORS constant for status badges styling
 export const STATUS_COLORS = {
   blue: { bg: 'bg-blue-50', text: 'text-primary', border: 'border-blue-100' },
   green: { bg: 'bg-green-50', text: 'text-green-600', border: 'border-green-100' },
@@ -36,7 +33,6 @@ export const STATUS_COLORS = {
   pink: { bg: 'bg-pink-50', text: 'text-pink-600', border: 'border-pink-100' },
 } as const;
 
-// Added missing STATUS_CONFIGS constant to map status to labels and colors
 export const STATUS_CONFIGS: StatusConfigs = {
   [BookStatus.Reading]: { label: 'Lendo', color: 'blue' },
   [BookStatus.TBR]: { label: 'Quero Ler', color: 'amber' },
@@ -67,7 +63,6 @@ export interface Book {
 
 export type NewBook = Omit<Book, 'id' | 'monthRead'>;
 
-
 export interface MonthlyStat {
   month: string;
   booksRead: number;
@@ -96,4 +91,4 @@ export interface ReadingStats {
   byType: TypeStat[];
 }
 
-export type DateFilter = 'thisYear' | 'allTime';
+export type DateFilter = 'thisYear' | 'allTime' | 'custom';

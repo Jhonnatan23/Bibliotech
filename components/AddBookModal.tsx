@@ -40,6 +40,8 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({ onClose, onAddBook, 
   const [status, setStatus] = useState<BookStatus>(bookToEdit?.status || defaultStatus || BookStatus.TBR);
   const [rating, setRating] = useState(bookToEdit?.rating?.toString() || '');
   const [summary, setSummary] = useState(bookToEdit?.summary || '');
+  const [estimatedPrice, setEstimatedPrice] = useState(bookToEdit?.estimatedPrice?.toString() || '');
+  const [buyLink, setBuyLink] = useState(bookToEdit?.buyLink || '');
   const [coverImageUrl, setCoverImageUrl] = useState<string | undefined>(bookToEdit?.coverImageUrl);
   const [isGeneratingCover, setIsGeneratingCover] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
@@ -77,6 +79,8 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({ onClose, onAddBook, 
         status, 
         summary, 
         rating: rating ? parseInt(rating, 10) : undefined,
+        estimatedPrice: estimatedPrice ? parseFloat(estimatedPrice) : undefined,
+        buyLink: buyLink.trim() || undefined,
         coverImageUrl, 
         dateAdded
     };
@@ -189,6 +193,19 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({ onClose, onAddBook, 
                         <option value={BookType.HQ}>HQ</option>
                     </select>
                 </div>
+                
+                {status === BookStatus.Wishlist && (
+                  <>
+                    <div>
+                        <label className={labelClass}>Preço Estimado (R$)</label>
+                        <input type="number" step="0.01" value={estimatedPrice} onChange={(e) => setEstimatedPrice(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-primary" placeholder="0,00" />
+                    </div>
+                    <div>
+                        <label className={labelClass}>Link de Compra</label>
+                        <input type="url" value={buyLink} onChange={(e) => setBuyLink(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:border-primary" placeholder="https://amazon.com.br/..." />
+                    </div>
+                  </>
+                )}
             </div>
 
             <div className="p-6 bg-blue-50/50 rounded-2xl border border-blue-100 flex items-center gap-6">

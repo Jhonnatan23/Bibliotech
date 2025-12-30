@@ -2,6 +2,7 @@
 import React from 'react';
 import type { Book } from '../types';
 import { BookStatus } from '../types';
+import { ExternalLinkIcon } from './Icons';
 
 interface WishlistItemProps {
   book: Book;
@@ -70,6 +71,17 @@ export const WishlistItem: React.FC<WishlistItemProps> = ({ book, onEdit, onDele
             <span className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-[0.1em] border bg-slate-50 text-slate-500 border-slate-100">
                 {book.pages} páginas
             </span>
+            
+            {book.buyLink && (
+              <a 
+                href={book.buyLink} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border bg-blue-600 text-white hover:bg-blue-700 transition-colors flex items-center gap-2 shadow-sm"
+              >
+                Comprar <ExternalLinkIcon className="h-3 w-3" />
+              </a>
+            )}
         </div>
         
         {book.summary && (

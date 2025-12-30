@@ -3,26 +3,17 @@ import React from 'react';
 import { BookOpenIcon } from './Icons';
 
 interface HeaderProps {
-  view: 'dashboard' | 'list' | 'wishlist';
-  setView: (view: 'dashboard' | 'list' | 'wishlist') => void;
+  onLogoClick: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ view, setView }) => {
-  const navItems = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'list', label: 'Estante' },
-    { id: 'wishlist', label: 'Wishlist' },
-  ] as const;
-
-  const activeIndex = navItems.findIndex(item => item.id === view);
-
+export const Header: React.FC<HeaderProps> = ({ onLogoClick }) => {
   return (
     <header className="bg-white/80 backdrop-blur-md border-b border-slate-200/60 sticky top-0 z-30 px-6 py-4">
-      <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="max-w-7xl mx-auto flex items-center justify-between">
         {/* Logo Section */}
         <div 
           className="flex items-center gap-3 cursor-pointer group" 
-          onClick={() => setView('dashboard')}
+          onClick={onLogoClick}
         >
             <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20 group-hover:rotate-6 transition-transform duration-500">
                 <BookOpenIcon className="h-6 w-6 text-white" />
@@ -31,32 +22,13 @@ export const Header: React.FC<HeaderProps> = ({ view, setView }) => {
               Biblio<span className="text-primary">Tech</span>
             </h1>
         </div>
-
-        {/* Navigation with Refined Aesthetic */}
-        <nav className="relative flex items-center bg-slate-100/80 p-1.5 rounded-2xl border border-slate-200/50 shadow-inner overflow-hidden min-w-[300px]">
-            {/* Elevated Background Indicator */}
-            <div 
-              className="absolute top-1.5 bottom-1.5 left-1.5 rounded-xl bg-gradient-to-br from-primary to-blue-700 shadow-lg shadow-primary/30 transition-all duration-500 cubic-bezier(0.4, 0, 0.2, 1) z-0"
-              style={{ 
-                width: `calc((100% - 12px) / 3)`,
-                transform: `translateX(calc(${activeIndex} * 100%))` 
-              }}
-            />
-
-            {navItems.map((item) => (
-              <button 
-                key={item.id}
-                onClick={() => setView(item.id)}
-                className={`relative z-10 flex-1 px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider transition-all duration-300 whitespace-nowrap active:scale-95 ${
-                  view === item.id 
-                    ? 'text-white' 
-                    : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/50'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-        </nav>
+        
+        {/* Espaço reservado para ações rápidas futuras ou perfil */}
+        <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+            <path fillRule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clipRule="evenodd" />
+          </svg>
+        </div>
       </div>
     </header>
   );
