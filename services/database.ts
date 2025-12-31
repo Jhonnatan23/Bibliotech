@@ -27,7 +27,8 @@ const mapBookToDb = (book: any) => {
         date_started: book.dateStarted || null,
         date_finished: book.dateFinished || null,
         days_to_finish: (book.daysToFinish !== undefined && book.daysToFinish !== null) ? parseInt(String(book.daysToFinish), 10) : null,
-        times_read: (book.times_read !== undefined && book.times_read !== null) ? parseInt(String(book.times_read), 10) : (book.timesRead || 1)
+        times_read: (book.times_read !== undefined && book.times_read !== null) ? parseInt(String(book.times_read), 10) : (book.timesRead || 1),
+        was_wishlist: book.wasWishlist || false
     };
 };
 
@@ -51,7 +52,8 @@ const mapDbToBook = (db: any): Book => ({
     dateStarted: db.date_started,
     dateFinished: db.date_finished,
     daysToFinish: db.days_to_finish,
-    timesRead: db.times_read || 1
+    timesRead: db.times_read || 1,
+    wasWishlist: db.was_wishlist || false
 });
 
 const mapDbToProfile = (db: any): Profile => ({
@@ -129,9 +131,6 @@ export class DatabaseService {
     }
   }
 
-  /**
-   * Busca estatísticas rápidas via agregação no banco para otimizar o carregamento inicial.
-   */
   async getQuickStatsSummary() {
     if (this.isSchemaBroken) return null;
     
@@ -139,7 +138,6 @@ export class DatabaseService {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return null;
 
-      // Executa múltiplas contagens em paralelo no banco
       const [read, tbr, wishlist] = await Promise.all([
         supabase.from(TABLE_NAME).select('*', { count: 'exact', head: true }).eq('status', 'Lido').eq('user_id', user.id),
         supabase.from(TABLE_NAME).select('*', { count: 'exact', head: true }).eq('status', 'Não lido').eq('user_id', user.id),

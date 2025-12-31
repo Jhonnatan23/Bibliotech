@@ -13,6 +13,7 @@ import { BookStatus } from './types';
 import { Wishlist } from './components/Wishlist';
 import { BottomNav } from './components/BottomNav';
 import { Auth } from './components/Auth';
+import { StatsView } from './components/StatsView'; // Novo componente
 import { supabase } from './services/supabase';
 import { dbService } from './services/database';
 
@@ -38,7 +39,6 @@ export default function App() {
       dbService.getProfile().then(profile => {
         if (profile) {
           setUserProfile(profile);
-          // Injeta a chave do usuário globalmente para os serviços
           if (profile.geminiApiKey) {
             (window as any).__BIBLIOTECH_USER_KEY = profile.geminiApiKey;
             setHasApiKey(true);
@@ -55,7 +55,6 @@ export default function App() {
         const selected = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(selected);
     } else {
-        // Fallback para process.env.API_KEY
         const envKey = process.env.API_KEY;
         setHasApiKey(!!(envKey && envKey !== 'undefined'));
     }
@@ -87,7 +86,7 @@ export default function App() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats'>('dashboard');
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [deletingBook, setDeletingBook] = useState<Book | null>(null);
   const [defaultStatusForModal, setDefaultStatusForModal] = useState<BookStatus | undefined>();
@@ -142,7 +141,8 @@ export default function App() {
       <main className="p-4 md:p-8">
         {view === 'dashboard' && <Dashboard stats={stats} currentlyReading={currentlyReading} updateBook={handleUpdateBook} dateFilter={dateFilter} setDateFilter={setDateFilter} selectedYear={selectedYear} setSelectedYear={setSelectedYear} availableYears={availableYears} books={books} customRange={customRange} setCustomRange={setCustomRange} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} />}
         {view === 'list' && <BookList books={books.filter(b => b.status !== BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} onDelete={setDeletingBook} onUpdateBook={handleUpdateBook} />}
-        {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} onDelete={setDeletingBook} onMoveToShelf={(b) => handleUpdateBook({ ...b, status: BookStatus.TBR })} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
+        {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} onDelete={setDeletingBook} onMoveToShelf={(b) => handleUpdateBook({ ...b, status: BookStatus.TBR, wasWishlist: true })} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
+        {view === 'stats' && <StatsView books={books} availableYears={availableYears} />}
       </main>
       
       <div className="fixed bottom-24 right-6 flex flex-col gap-3">

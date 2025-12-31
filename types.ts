@@ -69,6 +69,7 @@ export interface Book {
   dateFinished?: string;
   daysToFinish?: number;
   timesRead?: number;
+  wasWishlist?: boolean; // Novo campo para rastreio
 }
 
 export interface Recommendation {

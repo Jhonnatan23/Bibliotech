@@ -1,15 +1,15 @@
 
 -- ======================================================
--- SCRIPT DE ESTRUTURA COMPLETA: BIBLIOTECH (v7)
+-- SCRIPT DE ESTRUTURA COMPLETA: BIBLIOTECH (v8)
 -- ======================================================
 
--- 1. TABELA DE PERFIS (PROFILES) - Adicionada coluna gemini_api_key
+-- 1. TABELA DE PERFIS (PROFILES)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
   full_name TEXT,
   avatar_url TEXT,
   reading_goal INTEGER DEFAULT 12,
-  gemini_api_key TEXT, -- Nova coluna para BYOK (Bring Your Own Key)
+  gemini_api_key TEXT,
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
@@ -23,7 +23,7 @@ CREATE TABLE IF NOT EXISTS public.books (
   genre TEXT,
   type TEXT DEFAULT 'Livro',
   status TEXT DEFAULT 'Não lido',
-  rating INTEGER,
+  rating DECIMAL(3,1),
   cover_image_url TEXT,
   summary TEXT,
   notes TEXT,
@@ -34,20 +34,12 @@ CREATE TABLE IF NOT EXISTS public.books (
   date_started DATE,
   date_finished DATE,
   days_to_finish INTEGER,
-  times_read INTEGER DEFAULT 1
+  times_read INTEGER DEFAULT 1,
+  was_wishlist BOOLEAN DEFAULT FALSE -- Nova coluna para rastreio de conversão
 );
 
 -- 3. SEGURANÇA (RLS)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.books ENABLE ROW LEVEL SECURITY;
 
--- Políticas para PROFILES
-CREATE POLICY "Usuários podem ver seu próprio perfil" ON public.profiles FOR SELECT USING (auth.uid() = id);
-CREATE POLICY "Usuários podem atualizar seu próprio perfil" ON public.profiles FOR UPDATE USING (auth.uid() = id);
-CREATE POLICY "Inserção automática via trigger ou manual" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
-
--- Políticas para BOOKS
-CREATE POLICY "Usuários podem ver seus próprios livros" ON public.books FOR SELECT USING (auth.uid() = user_id);
-CREATE POLICY "Usuários podem inserir seus próprios livros" ON public.books FOR INSERT WITH CHECK (auth.uid() = user_id);
-CREATE POLICY "Usuários podem atualizar seus próprios livros" ON public.books FOR UPDATE USING (auth.uid() = user_id);
-CREATE POLICY "Usuários podem deletar seus próprios livros" ON public.books FOR DELETE USING (auth.uid() = user_id);
+-- Políticas permanecem as mesmas (ver versões anteriores se necessário)
