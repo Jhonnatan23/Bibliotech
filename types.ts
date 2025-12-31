@@ -45,6 +45,7 @@ export interface Profile {
   fullName: string;
   avatarUrl?: string;
   readingGoal?: number;
+  geminiApiKey?: string;
 }
 
 export interface Book {

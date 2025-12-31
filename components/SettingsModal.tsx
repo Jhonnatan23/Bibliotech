@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { XMarkIcon, Cog6ToothIcon } from './Icons';
+import { XMarkIcon, Cog6ToothIcon, StarIcon } from './Icons';
 import type { Profile } from '../types';
 
 interface SettingsModalProps {
@@ -20,14 +20,23 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [localGoal, setLocalGoal] = useState(readingGoal);
   const [fullName, setFullName] = useState(profile?.fullName || '');
+  const [apiKey, setApiKey] = useState(profile?.geminiApiKey || '');
   const [isSaving, setIsSaving] = useState(false);
 
   const handleSave = async () => {
     setIsSaving(true);
     try {
         onSetReadingGoal(localGoal);
-        if (fullName !== profile?.fullName) {
-            await onUpdateProfile({ fullName: fullName });
+        const updates: Partial<Profile> = {};
+        if (fullName !== profile?.fullName) updates.fullName = fullName;
+        if (apiKey !== profile?.geminiApiKey) updates.geminiApiKey = apiKey;
+        
+        if (Object.keys(updates).length > 0) {
+            await onUpdateProfile(updates);
+            // Injeta a chave na window para uso imediato pelo serviço
+            if (updates.geminiApiKey) {
+                (window as any).__BIBLIOTECH_USER_KEY = updates.geminiApiKey;
+            }
         }
         onClose();
     } catch (err) {
@@ -52,7 +61,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </button>
         </div>
 
-        <div className="p-8 space-y-8">
+        <div className="p-8 space-y-8 max-h-[70vh] overflow-y-auto custom-scrollbar">
           <section className="space-y-4">
              <label className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1 ml-1">Perfil do Leitor</label>
              <input 
@@ -65,49 +74,48 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           </section>
 
           <section className="space-y-4">
-            <div className="flex justify-between items-end">
-              <div>
-                <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1">Meta de Leitura Anual</h3>
-                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Quantos livros deseja ler este ano?</p>
-              </div>
-              <span className="text-3xl font-black text-primary">{localGoal}</span>
+            <div className="flex justify-between items-center bg-amber-50 dark:bg-amber-900/10 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/30">
+                <div className="flex items-center gap-3">
+                    <StarIcon className="h-5 w-5 text-amber-500" />
+                    <h3 className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">Configuração de IA</h3>
+                </div>
             </div>
-            
-            <div className="space-y-4">
-              <input 
-                type="range" 
-                min="1" 
-                max="100" 
-                value={localGoal}
-                onChange={(e) => setLocalGoal(parseInt(e.target.value, 10))}
-                className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary"
-              />
-              <div className="flex justify-between text-[9px] font-black text-slate-400 uppercase tracking-widest px-1">
-                <span>1 Livro</span>
-                <span>50</span>
-                <span>100 Livros</span>
-              </div>
+            <div>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3">Chave de API do Gemini</p>
+                <input 
+                    type="password"
+                    placeholder="Cole sua API Key aqui..."
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-amber-400 font-mono text-xs transition-all"
+                />
+                <p className="text-[9px] text-slate-400 mt-2 italic px-1">
+                    Obtenha uma chave gratuita em: <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-primary hover:underline">AI Studio</a>
+                </p>
             </div>
           </section>
 
-          <div className="p-5 bg-blue-50/40 dark:bg-blue-900/10 rounded-2xl border border-blue-100 dark:border-blue-800/50">
-            <p className="text-[10px] text-blue-600 dark:text-blue-400 leading-relaxed font-bold uppercase tracking-tight">
-              ✦ Dica: Manter uma meta realista ajuda a manter a motivação. Você pode ajustar este valor a qualquer momento.
-            </p>
-          </div>
+          <section className="space-y-4 pt-4 border-t border-slate-50 dark:border-slate-800">
+            <div className="flex justify-between items-end">
+              <div>
+                <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1">Meta de Leitura Anual</h3>
+                <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Livros desejados este ano</p>
+              </div>
+              <span className="text-3xl font-black text-primary">{localGoal}</span>
+            </div>
+            <input 
+              type="range" min="1" max="100" value={localGoal}
+              onChange={(e) => setLocalGoal(parseInt(e.target.value, 10))}
+              className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-primary"
+            />
+          </section>
         </div>
 
         <div className="p-7 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+          <button onClick={onClose} className="px-6 py-3 rounded-xl text-slate-500 font-black text-[10px] uppercase tracking-widest">Cancelar</button>
           <button 
-            onClick={onClose}
-            className="px-6 py-3 rounded-xl text-slate-500 dark:text-slate-400 font-black text-[10px] uppercase tracking-widest hover:bg-slate-200 dark:hover:bg-slate-700 transition-all"
-          >
-            Cancelar
-          </button>
-          <button 
-            onClick={handleSave}
-            disabled={isSaving}
-            className="px-8 py-3 rounded-xl bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 dark:hover:bg-white dark:hover:text-slate-900 shadow-xl shadow-primary/20 transition-all active:scale-95 disabled:opacity-50"
+            onClick={handleSave} disabled={isSaving}
+            className="px-8 py-3 rounded-xl bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 shadow-xl transition-all disabled:opacity-50"
           >
             {isSaving ? 'Salvando...' : 'Salvar Configurações'}
           </button>

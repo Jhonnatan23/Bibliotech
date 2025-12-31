@@ -13,99 +13,113 @@ const stringifyError = (err: any): string => {
     }
 };
 
-export const generateBookSummary = async (title: string, author: string): Promise<string> => {
+/**
+ * Recupera a melhor chave disponível (Prioridade: Manual > Ambiente > Bridge)
+ */
+const getEffectiveApiKey = (): string | null => {
+  // 1. Tenta a chave injetada via window pelo App.tsx (vinda do Supabase)
+  const savedKey = (window as any).__BIBLIOTECH_USER_KEY;
+  if (savedKey && savedKey !== 'undefined') return savedKey;
+
+  // 2. Tenta a chave do ambiente de compilação/deploy
+  const envKey = process.env.API_KEY;
+  if (envKey && envKey !== 'undefined' && envKey !== '') return envKey;
+
+  return null;
+};
+
+/**
+ * Helper robusto para inicializar e lidar com erros de chave da IA
+ */
+const callGenAI = async (task: (ai: GoogleGenAI) => Promise<any>) => {
+  const apiKey = getEffectiveApiKey();
+  
+  if (!apiKey) {
+    if (window.aistudio) {
+        await window.aistudio.openSelectKey();
+    }
+    throw new Error("API_KEY_MISSING");
+  }
+
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Escreva um resumo curto (um parágrafo) e envolvente em Português para o livro "${title}" de ${author}. Não dê spoilers.`;
-    const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-    });
-    return response.text || "Não foi possível gerar um resumo.";
+    const ai = new GoogleGenAI({ apiKey });
+    return await task(ai);
   } catch (error: any) {
     const errorMsg = stringifyError(error);
-    console.error("Error generating book summary:", errorMsg);
-    if (errorMsg.includes("Requested entity was not found")) {
-        if (window.aistudio) window.aistudio.openSelectKey();
+    if (errorMsg.includes("Requested entity was not found") || errorMsg.includes("404")) {
+        if (window.aistudio) await window.aistudio.openSelectKey();
     }
-    return `A IA não conseguiu processar o resumo no momento.`;
+    throw error;
+  }
+};
+
+export const generateBookSummary = async (title: string, author: string): Promise<string> => {
+  try {
+    return await callGenAI(async (ai) => {
+      const prompt = `Escreva um resumo curto (um parágrafo) e envolvente em Português para o livro "${title}" de ${author}. Não dê spoilers.`;
+      const response: GenerateContentResponse = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+      });
+      return response.text || "Não foi possível gerar um resumo.";
+    });
+  } catch (error: any) {
+    return `A IA não conseguiu processar o resumo no momento. Verifique sua chave de API nas Configurações.`;
   }
 };
 
 export const generateBookCover = async (title: string, genre: string, type: string): Promise<string> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const prompt = `Capa de livro profissional para a obra "${title}". 
-    Gênero principal: ${genre}. 
-    Formato: ${type}. 
-    Estilo visual: Minimalista, cinematográfico e evocativo. 
-    A arte deve capturar a essência do título e ser esteticamente agradável. Sem texto na imagem, apenas arte conceitual de alta qualidade.`;
-    
-    const response: GenerateContentResponse = await ai.models.generateContent({
-        model: 'gemini-2.5-flash-image',
-        contents: prompt,
-        config: {
-            imageConfig: {
-                aspectRatio: "3:4"
-            }
-        }
-    });
+    return await callGenAI(async (ai) => {
+      const prompt = `Capa de livro profissional para a obra "${title}". Gênero: ${genre}. Sem texto na imagem. Arte conceitual de alta qualidade.`;
+      const response: GenerateContentResponse = await ai.models.generateContent({
+          model: 'gemini-2.5-flash-image',
+          contents: prompt,
+          config: { imageConfig: { aspectRatio: "3:4" } }
+      });
 
-    if (response.candidates?.[0]?.content?.parts) {
-      for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-              const base64EncodeString: string = part.inlineData.data;
-              return `data:image/png;base64,${base64EncodeString}`;
-          }
+      if (response.candidates?.[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
+            if (part.inlineData) return `data:image/png;base64,${part.inlineData.data}`;
+        }
       }
-    }
-    
-    return `https://picsum.photos/seed/${encodeURIComponent(title)}/400/600`;
+      return `https://picsum.photos/seed/${encodeURIComponent(title)}/400/600`;
+    });
   } catch (error: any) {
-    const errorMsg = stringifyError(error);
-    console.error("Error generating book cover:", errorMsg);
-    if (errorMsg.includes("Requested entity was not found")) {
-        if (window.aistudio) window.aistudio.openSelectKey();
-    }
     return `https://picsum.photos/seed/${encodeURIComponent(title)}/400/600`;
   }
 };
 
 export const getAIRecommendations = async (readBooks: { title: string, genre: string }[]): Promise<Recommendation[]> => {
   if (readBooks.length === 0) return [];
-  
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const booksDescription = readBooks.map(b => `${b.title} (${b.genre})`).join(', ');
-    const prompt = `Com base nos seguintes livros que eu já li: ${booksDescription}. Recomende 3 livros novos que eu possa gostar. Para cada livro, sugira um link de busca/compra direto na Amazon Brasil ou Google Books. Explique o motivo de forma curta e direta em Português.`;
-
-    const response: GenerateContentResponse = await ai.models.generateContent({
-      model: 'gemini-3-flash-preview',
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              author: { type: Type.STRING },
-              reason: { type: Type.STRING },
-              genre: { type: Type.STRING },
-              buyLink: { type: Type.STRING, description: "URL sugerida para compra ou busca do livro" },
-            },
-            propertyOrdering: ["title", "author", "reason", "genre", "buyLink"],
-            required: ["title", "author", "reason", "genre", "buyLink"]
+    return await callGenAI(async (ai) => {
+      const booksDescription = readBooks.map(b => `${b.title} (${b.genre})`).join(', ');
+      const prompt = `Com base em: ${booksDescription}. Recomende 3 livros novos em Português com links de busca na Amazon Brasil.`;
+      const response: GenerateContentResponse = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                author: { type: Type.STRING },
+                reason: { type: Type.STRING },
+                genre: { type: Type.STRING },
+                buyLink: { type: Type.STRING },
+              },
+              required: ["title", "author", "reason", "genre", "buyLink"]
+            }
           }
         }
-      }
+      });
+      return JSON.parse(response.text || '[]');
     });
-
-    return JSON.parse(response.text || '[]');
   } catch (error: any) {
-    const errorMsg = stringifyError(error);
-    console.error("Error fetching AI recommendations:", errorMsg);
     return [];
   }
 };

@@ -11,9 +11,18 @@ interface HeaderProps {
   theme: 'light' | 'dark';
   toggleTheme: () => void;
   isConnected?: boolean;
+  hasApiKey?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ profile, onLogoClick, onSettingsClick, theme, toggleTheme, isConnected = true }) => {
+export const Header: React.FC<HeaderProps> = ({ 
+  profile, 
+  onLogoClick, 
+  onSettingsClick, 
+  theme, 
+  toggleTheme, 
+  isConnected = true,
+  hasApiKey = true
+}) => {
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
@@ -49,14 +58,20 @@ export const Header: React.FC<HeaderProps> = ({ profile, onLogoClick, onSettings
             </span>
           </div>
 
-          {/* Botão de Chave de API para Deploys Externos */}
+          {/* Botão de Chave de API - Destaque se estiver faltando */}
           <button 
             onClick={handleKeyClick}
-            className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 text-amber-600 dark:text-amber-400 hover:bg-amber-100 transition-all active:scale-95 flex items-center gap-2 group"
-            title="Configurar Chave Gemini"
+            className={`p-2.5 rounded-xl border transition-all active:scale-95 flex items-center gap-2 group ${
+              !hasApiKey 
+                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 animate-pulse ring-2 ring-red-500/20' 
+                : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/50 text-amber-600 dark:text-amber-400 hover:bg-amber-100'
+            }`}
+            title={!hasApiKey ? "CONFIGURAR CHAVE OBRIGATÓRIA" : "Configurar Chave Gemini"}
           >
-            <StarIcon className="h-5 w-5 group-hover:rotate-12 transition-transform" />
-            <span className="hidden md:inline text-[9px] font-black uppercase tracking-widest">IA Key</span>
+            <StarIcon className={`h-5 w-5 group-hover:rotate-12 transition-transform ${!hasApiKey ? 'animate-spin-slow' : ''}`} />
+            <span className="hidden md:inline text-[9px] font-black uppercase tracking-widest">
+              {hasApiKey ? 'IA Key' : 'Fix IA Key'}
+            </span>
           </button>
 
           <button 

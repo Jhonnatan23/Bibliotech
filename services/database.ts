@@ -58,7 +58,8 @@ const mapDbToProfile = (db: any): Profile => ({
     id: db.id,
     fullName: db.full_name,
     avatarUrl: db.avatar_url,
-    readingGoal: db.reading_goal || 12
+    readingGoal: db.reading_goal || 12,
+    geminiApiKey: db.gemini_api_key || ''
 });
 
 export class DatabaseService {
@@ -93,21 +94,14 @@ export class DatabaseService {
       const data = JSON.stringify(books);
       localStorage.setItem(key, data);
     } catch (e: any) {
-      // Se a cota do LocalStorage for atingida (QuotaExceededError)
       if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-        console.warn("BiblioTech: Limite de armazenamento local atingido. Otimizando cache...");
-        
-        // Removemos apenas as imagens base64 (pesadas) do cache local
-        // Elas continuarão salvas no Supabase, apenas o cache local fica "leve"
         const leanBooks = books.map(book => ({
           ...book,
           coverImageUrl: (book.coverImageUrl?.startsWith('data:')) ? null : book.coverImageUrl
         }));
-        
         try {
           localStorage.setItem(key, JSON.stringify(leanBooks));
         } catch (innerError) {
-          // Se nem os textos couberem, limpamos o cache desse usuário
           localStorage.removeItem(key);
         }
       }
@@ -137,7 +131,7 @@ export class DatabaseService {
 
   async saveBook(book: Partial<Book>): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Acesso negado: Usuário não autenticado.");
+    if (!user) throw new Error("Acesso negado.");
 
     const dbPayload = mapBookToDb(book);
     dbPayload.user_id = user.id;
@@ -152,27 +146,17 @@ export class DatabaseService {
     await this.saveLocalBooks(books);
 
     if (this.isSchemaBroken) return;
-
     try {
-      const { error } = await supabase.from(TABLE_NAME).upsert(dbPayload);
-      if (error) {
-        this.handleSupabaseError(error);
-        throw error;
-      }
-    } catch (err: any) {
-      console.error("Erro ao salvar no banco:", err.message);
-      throw err;
-    }
+      await supabase.from(TABLE_NAME).upsert(dbPayload);
+    } catch (err) {}
   }
 
   async deleteBook(id: string): Promise<void> {
     const books = (await this.getLocalBooks()).filter(b => b.id !== id);
     await this.saveLocalBooks(books);
-
     if (this.isSchemaBroken) return;
     try {
-      const { error } = await supabase.from(TABLE_NAME).delete().eq('id', id);
-      if (error) this.handleSupabaseError(error);
+      await supabase.from(TABLE_NAME).delete().eq('id', id);
     } catch (err) {}
   }
 
@@ -180,11 +164,7 @@ export class DatabaseService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     try {
-      await supabase.from('profiles').upsert({ 
-        id: user.id, 
-        reading_goal: parseInt(String(goal), 10), 
-        updated_at: new Date().toISOString() 
-      });
+      await supabase.from('profiles').upsert({ id: user.id, reading_goal: goal, updated_at: new Date().toISOString() });
     } catch (err) {}
   }
 
@@ -192,10 +172,10 @@ export class DatabaseService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     try {
-      const { fullName, avatarUrl } = profile;
       const dbPayload: any = { id: user.id, updated_at: new Date().toISOString() };
-      if (fullName !== undefined) dbPayload.full_name = fullName;
-      if (avatarUrl !== undefined) dbPayload.avatar_url = avatarUrl;
+      if (profile.fullName !== undefined) dbPayload.full_name = profile.fullName;
+      if (profile.avatarUrl !== undefined) dbPayload.avatar_url = profile.avatarUrl;
+      if (profile.geminiApiKey !== undefined) dbPayload.gemini_api_key = profile.geminiApiKey;
       
       await supabase.from('profiles').upsert(dbPayload);
     } catch (err) {}
@@ -205,13 +185,8 @@ export class DatabaseService {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
     try {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
-        
-        if (error || !data) return { id: user.id, fullName: 'Leitor', readingGoal: 12 };
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (!data) return { id: user.id, fullName: 'Leitor', readingGoal: 12 };
         return mapDbToProfile(data);
     } catch (err) {
         return { id: user.id, fullName: 'Leitor', readingGoal: 12 };
@@ -219,15 +194,7 @@ export class DatabaseService {
   }
 
   private handleSupabaseError(error: any) {
-    if (error.code === '42P01') {
-      this.isSchemaBroken = true;
-      this.onSchemaErrorCallback?.('table');
-    } else if (error.code === '42501') {
-      this.onSchemaErrorCallback?.('permission');
-    } else if (error.code === '42703') {
-       const columnName = error.message.match(/"(.*?)"/)?.[1] || 'desconhecida';
-       this.onSchemaErrorCallback?.('column', columnName);
-    }
+    if (error.code === '42P01') this.isSchemaBroken = true;
   }
 }
 
