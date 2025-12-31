@@ -19,6 +19,7 @@ const formatDate = (dateStr: string) => {
 
 export const WishlistItem: React.FC<WishlistItemProps> = ({ book, onEdit, onDelete, onMoveToShelf }) => {
   const genresList = book.genre ? book.genre.split(',').map(g => g.trim()).filter(g => g !== '') : [];
+  const authorsList = book.author ? book.author.split(',').map(a => a.trim()).filter(a => a !== '') : [];
 
   return (
     <article className="bg-white dark:bg-slate-900 p-6 md:p-7 rounded-[2rem] shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center md:items-stretch gap-8 transition-all duration-500 hover:shadow-[0_25px_50px_-12px_rgba(0,0,0,0.08)] hover:-translate-y-1.5 hover:border-primary/20 dark:hover:border-primary/30 group">
@@ -40,7 +41,16 @@ export const WishlistItem: React.FC<WishlistItemProps> = ({ book, onEdit, onDele
               <h3 className="text-2xl font-black text-slate-900 dark:text-slate-50 leading-tight font-serif italic mb-1 group-hover:text-primary transition-colors">
                 {book.title}
               </h3>
-              <p className="text-lg text-slate-400 dark:text-slate-500 font-semibold">{book.author}</p>
+              <div className="flex flex-wrap justify-center md:justify-start items-center gap-1.5">
+                {authorsList.map((author, idx) => (
+                  <React.Fragment key={author}>
+                    <p className="text-lg text-slate-400 dark:text-slate-500 font-semibold">{author}</p>
+                    {idx < authorsList.length - 1 && (
+                      <span className="text-slate-300 dark:text-slate-700 text-sm">•</span>
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
             </div>
             
             <div className="flex flex-col items-center md:items-end gap-2">

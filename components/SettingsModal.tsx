@@ -2,6 +2,7 @@
 import React, { useState } from 'react';
 import { XMarkIcon, Cog6ToothIcon, StarIcon } from './Icons';
 import type { Profile } from '../types';
+import { supabase } from '../services/supabase';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -23,6 +24,12 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [apiKey, setApiKey] = useState(profile?.geminiApiKey || '');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Estados para alteração de senha
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordLoading, setPasswordLoading] = useState(false);
+  const [passwordMessage, setPasswordMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
   const handleSave = async () => {
     setIsSaving(true);
     try {
@@ -33,16 +40,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         
         if (Object.keys(updates).length > 0) {
             await onUpdateProfile(updates);
-            // Injeta a chave na window para uso imediato pelo serviço
             if (updates.geminiApiKey) {
                 (window as any).__BIBLIOTECH_USER_KEY = updates.geminiApiKey;
             }
         }
-        onClose();
+        if (!passwordMessage || passwordMessage.type === 'success') {
+            onClose();
+        }
     } catch (err) {
         console.error(err);
     } finally {
         setIsSaving(false);
+    }
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPasswordMessage(null);
+
+    if (newPassword.length < 6) {
+        setPasswordMessage({ text: 'A senha deve ter pelo menos 6 caracteres.', type: 'error' });
+        return;
+    }
+
+    if (newPassword !== confirmPassword) {
+        setPasswordMessage({ text: 'As senhas não coincidem.', type: 'error' });
+        return;
+    }
+
+    setPasswordLoading(true);
+    try {
+        const { error } = await supabase.auth.updateUser({ password: newPassword });
+        if (error) throw error;
+        setPasswordMessage({ text: 'Senha atualizada com sucesso!', type: 'success' });
+        setNewPassword('');
+        setConfirmPassword('');
+    } catch (error: any) {
+        setPasswordMessage({ text: error.message || 'Erro ao atualizar senha.', type: 'error' });
+    } finally {
+        setPasswordLoading(false);
     }
   };
 
@@ -73,7 +109,57 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
              />
           </section>
 
-          <section className="space-y-4">
+          <section className="space-y-4 pt-6 border-t border-slate-50 dark:border-slate-800">
+            <div className="flex items-center gap-3 bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-slate-500">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                </svg>
+                <h3 className="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">Segurança e Senha</h3>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-4">
+                <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Nova Senha</p>
+                    <input 
+                        type="password"
+                        placeholder="Mínimo 6 caracteres"
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-medium dark:text-white transition-all shadow-sm"
+                    />
+                </div>
+                <div>
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2 ml-1">Confirmar Senha</p>
+                    <input 
+                        type="password"
+                        placeholder="Repita a nova senha"
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-medium dark:text-white transition-all shadow-sm"
+                    />
+                </div>
+                
+                {passwordMessage && (
+                    <div className={`p-4 rounded-xl text-[10px] font-black uppercase tracking-widest border animate-in slide-in-from-top-2 ${
+                        passwordMessage.type === 'success' 
+                        ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400' 
+                        : 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800 text-red-600 dark:text-red-400'
+                    }`}>
+                        {passwordMessage.text}
+                    </div>
+                )}
+
+                <button 
+                    onClick={handleUpdatePassword}
+                    disabled={passwordLoading || !newPassword}
+                    className="w-full py-3.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest hover:bg-primary dark:hover:bg-primary dark:hover:text-white transition-all disabled:opacity-30 active:scale-95 flex items-center justify-center gap-2 shadow-lg"
+                >
+                    {passwordLoading ? 'Processando...' : 'Atualizar Senha'}
+                </button>
+            </div>
+          </section>
+
+          <section className="space-y-4 pt-6 border-t border-slate-50 dark:border-slate-800">
             <div className="flex justify-between items-center bg-amber-50 dark:bg-amber-900/10 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/30">
                 <div className="flex items-center gap-3">
                     <StarIcon className="h-5 w-5 text-amber-500" />
@@ -95,7 +181,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             </div>
           </section>
 
-          <section className="space-y-4 pt-4 border-t border-slate-50 dark:border-slate-800">
+          <section className="space-y-4 pt-6 border-t border-slate-50 dark:border-slate-800">
             <div className="flex justify-between items-end">
               <div>
                 <h3 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mb-1">Meta de Leitura Anual</h3>

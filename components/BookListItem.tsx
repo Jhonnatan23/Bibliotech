@@ -16,17 +16,25 @@ const StarRating: React.FC<{ rating: number }> = ({ rating }) => {
   return (
     <div className="flex items-center gap-0.5">
       {[...Array(10)].map((_, index) => {
-        const isActive = index < rating;
-        return isActive ? (
-            <StarIconFilled
-              key={index}
-              className="h-3.5 w-3.5 text-amber-400"
-            />
-        ) : (
-            <StarIcon
-              key={index}
-              className="h-3.5 w-3.5 text-slate-200 dark:text-slate-700"
-            />
+        const starIndex = index + 1;
+        const diff = rating - index;
+        const isFull = diff >= 1;
+        const isPartial = diff > 0 && diff < 1;
+        const fillPercentage = isPartial ? diff * 100 : (isFull ? 100 : 0);
+
+        return (
+          <div key={index} className="relative h-3.5 w-3.5">
+            {/* Estrela de Fundo (Vazia) */}
+            <StarIcon className="absolute inset-0 h-3.5 w-3.5 text-slate-200 dark:text-slate-700" />
+            
+            {/* Estrela Preenchida com Clip Lateral */}
+            <div 
+              className="absolute inset-0 overflow-hidden" 
+              style={{ width: `${fillPercentage}%` }}
+            >
+              <StarIconFilled className="h-3.5 w-3.5 text-amber-400" />
+            </div>
+          </div>
         );
       })}
     </div>
@@ -67,6 +75,8 @@ export const BookListItem: React.FC<BookListItemProps> = ({
   const config = statusConfigs[book.status];
   const colorStyles = STATUS_COLORS[config.color as keyof typeof STATUS_COLORS];
   const genresList = book.genre ? book.genre.split(',').map(g => g.trim()).filter(g => g !== '') : [];
+  const authorsList = book.author ? book.author.split(',').map(a => a.trim()).filter(a => a !== '') : [];
+  
   const THRESHOLD = 5;
   const isOverLimit = genresList.length > THRESHOLD;
   const hiddenCount = genresList.length - 1;
@@ -113,7 +123,16 @@ export const BookListItem: React.FC<BookListItemProps> = ({
                 <h3 className="text-2xl font-black text-slate-900 dark:text-slate-50 leading-tight font-serif italic group-hover:text-primary transition-colors">
                   {book.title}
                 </h3>
-                <p className="text-lg text-slate-400 dark:text-slate-500 font-semibold">{book.author}</p>
+                <div className="flex flex-wrap justify-center md:justify-start items-center gap-1.5">
+                  {authorsList.map((author, idx) => (
+                    <React.Fragment key={author}>
+                      <p className="text-lg text-slate-400 dark:text-slate-500 font-semibold">{author}</p>
+                      {idx < authorsList.length - 1 && (
+                        <span className="text-slate-300 dark:text-slate-700 text-sm">•</span>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
             </div>
             <div className="flex flex-col items-end gap-1">
                 <span className="text-[10px] font-bold text-slate-300 dark:text-slate-600 uppercase tracking-widest whitespace-nowrap">
@@ -177,11 +196,13 @@ export const BookListItem: React.FC<BookListItemProps> = ({
           </div>
         )}
 
-        {book.rating && book.status === BookStatus.Read && (
+        {book.rating !== undefined && book.status === BookStatus.Read && (
             <div className="flex justify-center md:justify-start items-center gap-4 mb-4 bg-amber-50 dark:bg-amber-900/10 p-2.5 rounded-2xl w-fit border border-amber-100 dark:border-amber-900/30">
                 <div className="flex items-center gap-2">
                     <span className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-widest ml-1">Nota Final</span>
-                    <span className="bg-amber-500 text-white text-[11px] font-black px-2 py-0.5 rounded-lg shadow-sm">{book.rating}</span>
+                    <span className="bg-amber-500 text-white text-[11px] font-black px-2 py-0.5 rounded-lg shadow-sm">
+                      {book.rating % 1 === 0 ? book.rating : book.rating.toFixed(1)}
+                    </span>
                 </div>
                 <div className="h-4 w-px bg-amber-200 dark:bg-amber-900/50 mx-1"></div>
                 <StarRating rating={book.rating} />

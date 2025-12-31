@@ -20,17 +20,27 @@ export const useBookData = () => {
     end: new Date().toISOString().split('T')[0]
   });
   
+  // Estado para estatísticas rápidas vindo direto do banco (agregados)
+  const [quickSummary, setQuickSummary] = useState<{readCount: number, tbrCount: number, wishlistCount: number} | null>(null);
+  
   const autoGenRunning = useRef(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
+    setSchemaError(null);
     try {
       dbService.setSchemaErrorCallback((type, detail) => {
           setSchemaError({ type, detail });
           setIsLocalMode(true);
       });
 
-      const storedBooks = await dbService.getAllBooks();
+      // OTIMIZAÇÃO: Busca paralela de agregados (rápido) e lista completa (pesado)
+      const [storedBooks, quickStats] = await Promise.all([
+        dbService.getAllBooks(),
+        dbService.getQuickStatsSummary()
+      ]);
+
+      if (quickStats) setQuickSummary(quickStats);
       setBooks(storedBooks);
     } catch (error: any) {
       console.error('Erro crítico ao carregar dados:', error.message);
@@ -52,14 +62,13 @@ export const useBookData = () => {
       ...newBook,
       id: crypto.randomUUID(),
       user_id: user.id,
-      dateAdded: new Date().toISOString().split('T')[0],
+      // Prioriza a data de adição vinda do formulário, fallback para a data atual
+      dateAdded: newBook.dateAdded || new Date().toISOString().split('T')[0],
     };
     
-    // Atualiza o estado local primeiro (UI instantânea)
     setBooks(prev => [book, ...prev]);
     
     try {
-        // Tenta salvar no banco
         await dbService.saveBook(book);
     } catch (err) {
         console.error("Erro ao persistir novo livro:", err);
@@ -67,11 +76,9 @@ export const useBookData = () => {
   }, []);
 
   const updateBook = useCallback(async (updatedBook: Book) => {
-    // Atualiza o estado local primeiro (UI instantânea)
     setBooks(prev => prev.map(b => b.id === updatedBook.id ? updatedBook : b));
     
     try {
-        // Tenta salvar no banco
         await dbService.saveBook(updatedBook);
     } catch (err) {
         console.error("Erro ao persistir atualização:", err);
@@ -97,24 +104,23 @@ export const useBookData = () => {
       );
 
       if (booksWithoutCover.length > 0) {
-        // Processa um por um para não sobrecarregar
         for (const book of booksWithoutCover) {
           try {
             const newCoverUrl = await generateBookCover(book.title, book.genre, book.type);
-            // Se gerou uma capa real (não placeholder)
             if (newCoverUrl && !newCoverUrl.includes('picsum.photos')) {
               await updateBook({ ...book, coverImageUrl: newCoverUrl });
             }
           } catch (err) {
             console.error(`Erro ao gerar capa para ${book.title}:`, err);
-            // Se falhou por cota ou erro de IA, não tentamos novamente nesta sessão
+            break; // Interrompe se houver erro de API (limite atingido)
           }
         }
       }
       autoGenRunning.current = false;
     };
 
-    generateCovers();
+    const timer = setTimeout(generateCovers, 3000); // Debounce para não travar a carga inicial
+    return () => clearTimeout(timer);
   }, [isLoading, books.length, updateBook]);
 
   const availableYears = useMemo(() => {
@@ -122,7 +128,7 @@ export const useBookData = () => {
     years.add(new Date().getFullYear());
     books.forEach(book => {
       if (book.dateFinished) years.add(new Date(book.dateFinished).getFullYear());
-      if (book.dateAdded) years.add(new Date(book.dateAdded).getFullYear());
+      else if (book.dateAdded) years.add(new Date(book.dateAdded).getFullYear());
     });
     return Array.from(years).sort((a, b) => b - a);
   }, [books]);
@@ -149,51 +155,83 @@ export const useBookData = () => {
   }, [books, dateFilter, selectedYear, customRange]);
 
   const stats: ReadingStats = useMemo(() => {
-    const readBooks = filteredBooks.filter(b => b.status === BookStatus.Read);
+    // Inicialização - Usa o sumário rápido se os livros ainda não carregaram
+    let tbrCount = quickSummary?.tbrCount || 0;
+    let wishlistCount = quickSummary?.wishlistCount || 0;
     
-    const yearly = {
-      booksRead: readBooks.length,
-      pagesRead: readBooks.reduce((acc, b) => acc + (b.pages || 0), 0),
-      avgRating: readBooks.length > 0 
-        ? readBooks.reduce((acc, b) => acc + (b.rating || 0), 0) / (readBooks.filter(b => b.rating).length || 1)
-        : 0
+    // Se temos os livros carregados localmente, recalculamos para maior precisão
+    if (books.length > 0) {
+      tbrCount = 0;
+      wishlistCount = 0;
+      books.forEach(book => {
+        if (book.status === BookStatus.TBR) tbrCount++;
+        if (book.status === BookStatus.Wishlist) wishlistCount++;
+      });
+    }
+
+    const yearly = { booksRead: 0, pagesRead: 0, totalRating: 0, ratingCount: 0 };
+    const monthlyDataMap = MONTHS.map(month => ({ month, booksRead: 0, pagesRead: 0, totalRating: 0, ratingCount: 0 }));
+    const byTypeMap: Record<string, { type: BookType, count: number, pages: number, totalRating: 0, ratingCount: 0 }> = {
+      [BookType.Book]: { type: BookType.Book, count: 0, pages: 0, totalRating: 0, ratingCount: 0 },
+      [BookType.HQ]: { type: BookType.HQ, count: 0, pages: 0, totalRating: 0, ratingCount: 0 }
     };
 
-    const monthly: MonthlyStat[] = MONTHS.map((month, index) => {
-      const monthBooks = readBooks.filter(b => {
-        if (!b.dateFinished) return false;
-        return new Date(b.dateFinished).getMonth() === index;
-      });
-      return {
-        month,
-        booksRead: monthBooks.length,
-        pagesRead: monthBooks.reduce((acc, b) => acc + (b.pages || 0), 0),
-        avgRating: monthBooks.length > 0 
-          ? monthBooks.reduce((acc, b) => acc + (b.rating || 0), 0) / (monthBooks.filter(b => b.rating).length || 1)
-          : 0
-      };
-    });
+    filteredBooks.forEach(book => {
+      if (book.status === BookStatus.Read) {
+        yearly.booksRead++;
+        yearly.pagesRead += (book.pages || 0);
+        if (book.rating) {
+          yearly.totalRating += book.rating;
+          yearly.ratingCount++;
+        }
 
-    const byType: TypeStat[] = [BookType.Book, BookType.HQ].map(type => {
-      const typeBooks = readBooks.filter(b => b.type === type);
-      return {
-        type,
-        count: typeBooks.length,
-        pages: typeBooks.reduce((acc, b) => acc + (b.pages || 0), 0),
-        avgRating: typeBooks.length > 0 
-          ? typeBooks.reduce((acc, b) => acc + (b.rating || 0), 0) / (typeBooks.filter(b => b.rating).length || 1)
-          : 0
-      };
+        if (book.dateFinished) {
+          const monthIndex = new Date(book.dateFinished).getMonth();
+          const mData = monthlyDataMap[monthIndex];
+          if (mData) {
+            mData.booksRead++;
+            mData.pagesRead += (book.pages || 0);
+            if (book.rating) {
+              mData.totalRating += book.rating;
+              mData.ratingCount++;
+            }
+          }
+        }
+
+        const tData = byTypeMap[book.type];
+        if (tData) {
+          tData.count++;
+          tData.pages += (book.pages || 0);
+          if (book.rating) {
+            tData.totalRating += book.rating;
+            tData.ratingCount++;
+          }
+        }
+      }
     });
 
     return {
-      tbrCount: books.filter(b => b.status === BookStatus.TBR).length,
-      wishlistCount: books.filter(b => b.status === BookStatus.Wishlist).length,
-      yearly,
-      monthly,
-      byType
+      tbrCount,
+      wishlistCount,
+      yearly: {
+        booksRead: books.length === 0 && quickSummary ? quickSummary.readCount : yearly.booksRead,
+        pagesRead: yearly.pagesRead,
+        avgRating: yearly.ratingCount > 0 ? yearly.totalRating / yearly.ratingCount : 0
+      },
+      monthly: monthlyDataMap.map(m => ({
+        month: m.month,
+        booksRead: m.booksRead,
+        pagesRead: m.pagesRead,
+        avgRating: m.ratingCount > 0 ? m.totalRating / m.ratingCount : 0
+      })),
+      byType: Object.values(byTypeMap).map(t => ({
+        type: t.type,
+        count: t.count,
+        pages: t.pages,
+        avgRating: t.ratingCount > 0 ? t.totalRating / t.ratingCount : 0
+      }))
     };
-  }, [books, filteredBooks]);
+  }, [books, filteredBooks, quickSummary]);
 
   const currentlyReading = useMemo(() => {
     return books.find(b => b.status === BookStatus.Reading) || null;

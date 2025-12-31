@@ -16,7 +16,7 @@ const mapBookToDb = (book: any) => {
         genre: book.genre || '',
         type: book.type || 'Livro',
         status: book.status || 'Não lido',
-        rating: (book.rating !== undefined && book.rating !== null && book.rating !== 0) ? parseInt(String(book.rating), 10) : null,
+        rating: (book.rating !== undefined && book.rating !== null && book.rating !== 0) ? parseFloat(String(book.rating)) : null,
         cover_image_url: book.coverImageUrl || null,
         summary: book.summary || null,
         notes: book.notes || null,
@@ -27,7 +27,7 @@ const mapBookToDb = (book: any) => {
         date_started: book.dateStarted || null,
         date_finished: book.dateFinished || null,
         days_to_finish: (book.daysToFinish !== undefined && book.daysToFinish !== null) ? parseInt(String(book.daysToFinish), 10) : null,
-        times_read: (book.timesRead !== undefined && book.timesRead !== null) ? parseInt(String(book.timesRead), 10) : 1
+        times_read: (book.times_read !== undefined && book.times_read !== null) ? parseInt(String(book.times_read), 10) : (book.timesRead || 1)
     };
 };
 
@@ -40,7 +40,7 @@ const mapDbToBook = (db: any): Book => ({
     genre: db.genre || '',
     type: db.type,
     status: db.status,
-    rating: db.rating,
+    rating: db.rating ? parseFloat(String(db.rating)) : undefined,
     coverImageUrl: db.cover_image_url,
     summary: db.summary,
     notes: db.notes,
@@ -126,6 +126,33 @@ export class DatabaseService {
       return books;
     } catch (err) {
       return await this.getLocalBooks();
+    }
+  }
+
+  /**
+   * Busca estatísticas rápidas via agregação no banco para otimizar o carregamento inicial.
+   */
+  async getQuickStatsSummary() {
+    if (this.isSchemaBroken) return null;
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      // Executa múltiplas contagens em paralelo no banco
+      const [read, tbr, wishlist] = await Promise.all([
+        supabase.from(TABLE_NAME).select('*', { count: 'exact', head: true }).eq('status', 'Lido').eq('user_id', user.id),
+        supabase.from(TABLE_NAME).select('*', { count: 'exact', head: true }).eq('status', 'Não lido').eq('user_id', user.id),
+        supabase.from(TABLE_NAME).select('*', { count: 'exact', head: true }).eq('status', 'Lista de Desejos').eq('user_id', user.id)
+      ]);
+
+      return {
+        readCount: read.count || 0,
+        tbrCount: tbr.count || 0,
+        wishlistCount: wishlist.count || 0
+      };
+    } catch (err) {
+      return null;
     }
   }
 

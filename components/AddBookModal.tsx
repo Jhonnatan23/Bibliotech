@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import type { NewBook, Book, StatusConfigs } from '../types';
 import { BookStatus, BookType, GENRES, STATUS_CONFIGS } from '../types';
-import { XMarkIcon, BookOpenIcon, StarIcon, StarIconFilled } from './Icons';
+import { XMarkIcon, BookOpenIcon, StarIcon, StarIconFilled, PlusIcon } from './Icons';
 import { generateBookSummary, generateBookCover } from '../services/geminiService';
 
 interface AddBookModalProps {
@@ -17,7 +17,7 @@ interface AddBookModalProps {
 
 interface FormErrors {
   title?: string;
-  author?: string;
+  authors?: string;
   genre?: string;
 }
 
@@ -33,7 +33,10 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const isEditMode = !!bookToEdit;
 
   const [title, setTitle] = useState(bookToEdit?.title || '');
-  const [author, setAuthor] = useState(bookToEdit?.author || '');
+  const [authors, setAuthors] = useState<string[]>(
+    bookToEdit?.author ? bookToEdit.author.split(',').map(a => a.trim()).filter(a => a !== '') : []
+  );
+  const [authorInput, setAuthorInput] = useState('');
   const [pages, setPages] = useState(bookToEdit?.pages || 0);
   const [selectedGenres, setSelectedGenres] = useState<string[]>(
     bookToEdit?.genre ? bookToEdit.genre.split(',').map(g => g.trim()).filter(g => g !== '') : []
@@ -46,13 +49,14 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const [notes, setNotes] = useState(bookToEdit?.notes || '');
   const [estimatedPrice, setEstimatedPrice] = useState(bookToEdit?.estimatedPrice?.toString() || '');
   const [buyLink, setBuyLink] = useState(bookToEdit?.buyLink || '');
-  const [coverImageUrl, setCoverImageUrl] = useState<string | undefined>(bookToEdit?.coverImageUrl);
+  const [coverImageUrl, setCoverImageUrl] = useState<string>(bookToEdit?.coverImageUrl || '');
   const [isGeneratingCover, setIsGeneratingCover] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [dateAdded] = useState(bookToEdit?.dateAdded || new Date().toISOString().split('T')[0]);
   
-  // Novos campos para Status Lido
+  // Data de adição agora é um estado editável
+  const [dateAdded, setDateAdded] = useState(bookToEdit?.dateAdded || new Date().toISOString().split('T')[0]);
+  
   const [dateFinished, setDateFinished] = useState(bookToEdit?.dateFinished || new Date().toISOString().split('T')[0]);
   const [daysToFinish, setDaysToFinish] = useState(bookToEdit?.daysToFinish?.toString() || '');
   const [timesRead, setTimesRead] = useState(bookToEdit?.timesRead || (bookToEdit?.status === BookStatus.Read ? 1 : 0));
@@ -60,41 +64,40 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const [errors, setErrors] = useState<FormErrors>({});
   const [isShaking, setIsShaking] = useState(false);
 
-  // Sugere cálculo de dias se as datas permitirem
   useEffect(() => {
     if (status === BookStatus.Read && !daysToFinish && bookToEdit?.dateStarted && dateFinished) {
         const start = new Date(bookToEdit.dateStarted);
         const end = new Date(dateFinished);
         const diffTime = end.getTime() - start.getTime();
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        if (diffDays >= 0) {
-            setDaysToFinish(diffDays.toString());
-        }
+        if (diffDays >= 0) setDaysToFinish(diffDays.toString());
     }
-    
-    // Ajusta o contador de vezes lido se mudar para Lido agora
-    if (status === BookStatus.Read && timesRead === 0) {
-        setTimesRead(1);
-    }
+    if (status === BookStatus.Read && timesRead === 0) setTimesRead(1);
   }, [status, dateFinished]);
+
+  const addAuthor = () => {
+    const val = authorInput.trim();
+    if (val && !authors.includes(val)) {
+      setAuthors([...authors, val]);
+      setAuthorInput('');
+      if (errors.authors) setErrors(prev => ({ ...prev, authors: undefined }));
+    }
+  };
+
+  const removeAuthor = (name: string) => {
+    setAuthors(authors.filter(a => a !== name));
+  };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTitle(e.target.value);
     if (errors.title) setErrors(prev => ({ ...prev, title: undefined }));
   };
 
-  const handleAuthorChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setAuthor(e.target.value);
-    if (errors.author) setErrors(prev => ({ ...prev, author: undefined }));
-  };
-
   const toggleGenre = (genreName: string) => {
     setSelectedGenres(prev => {
       const isSelected = prev.includes(genreName);
       const newList = isSelected ? prev.filter(g => g !== genreName) : [...prev, genreName];
-      if (newList.length > 0 && errors.genre) {
-        setErrors(prevErr => ({ ...prevErr, genre: undefined }));
-      }
+      if (newList.length > 0 && errors.genre) setErrors(prevErr => ({ ...prevErr, genre: undefined }));
       return newList;
     });
   };
@@ -102,21 +105,29 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+
+    let finalAuthors = [...authors];
+    if (authorInput.trim() && !finalAuthors.includes(authorInput.trim())) {
+        finalAuthors.push(authorInput.trim());
+    }
+
     const newErrors: FormErrors = {};
     if (!title.trim()) newErrors.title = "O título é obrigatório";
-    if (!author.trim()) newErrors.author = "O autor é obrigatório";
+    if (finalAuthors.length === 0) newErrors.authors = "Adicione ao menos um autor";
     if (selectedGenres.length === 0) newErrors.genre = "Selecione ao menos um gênero";
+    
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 500);
       return;
     }
+
     setIsSubmitting(true);
     try {
         const bookData = { 
             title: title.trim(), 
-            author: author.trim(), 
+            author: finalAuthors.join(', '), 
             pages, 
             genre: selectedGenres.join(', '), 
             type, 
@@ -126,7 +137,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
             rating: status === BookStatus.Read ? (rating || undefined) : undefined,
             estimatedPrice: estimatedPrice ? parseFloat(estimatedPrice) : undefined,
             buyLink: buyLink.trim() || undefined,
-            coverImageUrl, 
+            coverImageUrl: coverImageUrl.trim() || undefined, 
             dateAdded,
             currentPage: status === BookStatus.Read ? pages : bookToEdit?.currentPage,
             dateStarted: bookToEdit?.dateStarted,
@@ -147,23 +158,26 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const handleGenerateCover = useCallback(async () => {
     if (!title || selectedGenres.length === 0) return;
     setIsGeneratingCover(true);
-    const result = await generateBookCover(title, selectedGenres[0], type);
-    setCoverImageUrl(result);
-    setIsGeneratingCover(false);
+    try {
+      const result = await generateBookCover(title, selectedGenres[0], type);
+      if (result) setCoverImageUrl(result);
+    } finally {
+      setIsGeneratingCover(false);
+    }
   }, [title, selectedGenres, type]);
 
   const handleGenerateSummary = useCallback(async () => {
-    if (!title || !author) return;
+    if (!title || authors.length === 0) return;
     setIsGeneratingSummary(true);
     try {
-      const result = await generateBookSummary(title, author);
+      const result = await generateBookSummary(title, authors.join(', '));
       if (result) setSummary(result);
     } catch (err) {
       console.error("Erro ao gerar resumo:", err);
     } finally {
       setIsGeneratingSummary(false);
     }
-  }, [title, author]);
+  }, [title, authors]);
 
   const labelClass = (isRequired: boolean) => 
     `block text-[10px] font-black uppercase tracking-[0.15em] mb-1.5 ml-1 flex items-center gap-1 ${isRequired ? 'text-slate-500 dark:text-slate-400' : 'text-slate-400 dark:text-slate-500'}`;
@@ -174,15 +188,6 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
         className={`bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-white/20 dark:border-slate-800 transition-transform duration-500 ${isShaking ? 'animate-shake' : ''}`}
         style={{ animation: isShaking ? 'shake 0.4s cubic-bezier(.36,.07,.19,.97) both' : 'none' }}
       >
-        <style>{`
-          @keyframes shake {
-            10%, 90% { transform: translate3d(-1px, 0, 0); }
-            20%, 80% { transform: translate3d(2px, 0, 0); }
-            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
-            40%, 60% { transform: translate3d(4px, 0, 0); }
-          }
-        `}</style>
-        
         <div className="p-7 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/30">
             <h2 className="text-2xl font-black font-serif text-slate-900 dark:text-slate-50 tracking-tight">{isEditMode ? 'Editar Registro' : 'Novo Registro'}</h2>
             <button onClick={onClose} disabled={isSubmitting} className="p-2.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 transition-all hover:rotate-90 disabled:opacity-30">
@@ -201,23 +206,48 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                       value={title} 
                       onChange={handleTitleChange} 
                       placeholder="Ex: Cem Anos de Solidão"
-                      className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl px-5 py-3.5 outline-none transition-all focus:ring-4 focus:ring-primary/5 ${errors.title ? 'border-red-400 bg-red-50/30 dark:bg-red-950/20' : 'border-slate-200 dark:border-slate-700 focus:border-primary'}`} 
+                      className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl px-5 py-3.5 outline-none transition-all focus:ring-4 focus:ring-primary/5 ${errors.title ? 'border-red-400 bg-red-50/30 dark:bg-red-950/20' : 'border-slate-200 dark:border-slate-700 focus:border-primary font-bold'}`} 
                     />
                     {errors.title && <p className="text-[10px] text-red-500 font-bold mt-2 uppercase tracking-wide ml-1">{errors.title}</p>}
                 </div>
 
-                <div>
+                <div className="md:col-span-2">
                     <label className={labelClass(true)}>
-                      Autor <span className="text-red-500">*</span>
+                      Autor(es) <span className="text-red-500">*</span>
                     </label>
-                    <input 
-                      type="text" 
-                      value={author} 
-                      onChange={handleAuthorChange} 
-                      placeholder="Ex: Gabriel García Márquez"
-                      className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl px-5 py-3.5 outline-none transition-all focus:ring-4 focus:ring-primary/5 ${errors.author ? 'border-red-400 bg-red-50/30 dark:bg-red-950/20' : 'border-slate-200 dark:border-slate-700 focus:border-primary'}`} 
-                    />
-                    {errors.author && <p className="text-[10px] text-red-500 font-bold mt-2 uppercase tracking-wide ml-1">{errors.author}</p>}
+                    <div className="flex gap-2 mb-3">
+                        <input 
+                          type="text" 
+                          value={authorInput} 
+                          onChange={(e) => setAuthorInput(e.target.value)} 
+                          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addAuthor(); } }}
+                          placeholder="Adicione um autor..."
+                          className={`flex-1 bg-slate-50 dark:bg-slate-800 border rounded-2xl px-5 py-3.5 outline-none transition-all focus:ring-4 focus:ring-primary/5 ${errors.authors ? 'border-red-400' : 'border-slate-200 dark:border-slate-700 focus:border-primary font-bold'}`} 
+                        />
+                        <button 
+                          type="button" 
+                          onClick={addAuthor}
+                          className="px-5 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 hover:bg-primary hover:text-white hover:border-primary transition-all active:scale-95"
+                        >
+                          <PlusIcon className="h-5 w-5" />
+                        </button>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2 min-h-[40px]">
+                        {authors.length > 0 ? (
+                            authors.map(a => (
+                                <span key={a} className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm animate-in fade-in zoom-in duration-300">
+                                    {a}
+                                    <button type="button" onClick={() => removeAuthor(a)} className="hover:text-red-500 transition-colors p-0.5">
+                                        <XMarkIcon className="h-3.5 w-3.5" />
+                                    </button>
+                                </span>
+                            ))
+                        ) : (
+                            <span className="text-slate-400 dark:text-slate-500 text-[10px] font-bold uppercase tracking-widest ml-1 mt-1 italic">Nenhum autor adicionado</span>
+                        )}
+                    </div>
+                    {errors.authors && <p className="text-[10px] text-red-500 font-bold mt-2 uppercase tracking-wide ml-1">{errors.authors}</p>}
                 </div>
 
                 <div>
@@ -227,6 +257,29 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                         <option value={BookStatus.Reading}>{statusConfigs[BookStatus.Reading].label}</option>
                         <option value={BookStatus.Read}>{statusConfigs[BookStatus.Read].label}</option>
                         <option value={BookStatus.Wishlist}>{statusConfigs[BookStatus.Wishlist].label}</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label className={labelClass(false)}>Total de Páginas</label>
+                    <input type="number" min="0" value={pages} onChange={(e) => setPages(Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" />
+                </div>
+
+                <div>
+                    <label className={labelClass(false)}>Data de Adição</label>
+                    <input 
+                      type="date" 
+                      value={dateAdded} 
+                      onChange={(e) => setDateAdded(e.target.value)} 
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
+                    />
+                </div>
+
+                <div>
+                    <label className={labelClass(false)}>Tipo de Mídia</label>
+                    <select value={type} onChange={(e) => setType(e.target.value as BookType)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300">
+                        <option value={BookType.Book}>Livro</option>
+                        <option value={BookType.HQ}>HQ</option>
                     </select>
                 </div>
 
@@ -306,45 +359,57 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                     {errors.genre && <p className="text-[10px] text-red-500 font-bold mt-3 uppercase tracking-wide ml-1">{errors.genre}</p>}
                 </div>
 
-                <div>
-                    <label className={labelClass(false)}>Total de Páginas</label>
-                    <input type="number" min="0" value={pages} onChange={(e) => setPages(Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" />
-                </div>
-                <div>
-                    <label className={labelClass(false)}>Tipo de Mídia</label>
-                    <select value={type} onChange={(e) => setType(e.target.value as BookType)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300">
-                        <option value={BookType.Book}>Livro</option>
-                        <option value={BookType.HQ}>HQ</option>
-                    </select>
+                <div className="md:col-span-2">
+                    <label className={labelClass(false)}>Avaliação / Nota (0 a 10)</label>
+                    <div className="flex flex-col gap-4 p-5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl">
+                        <div className="flex items-center gap-4">
+                            <input 
+                                type="range" 
+                                min="0" 
+                                max="10" 
+                                step="0.1" 
+                                value={rating} 
+                                onChange={(e) => setRating(parseFloat(e.target.value))}
+                                className="flex-1 h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500"
+                            />
+                            <div className="flex items-center gap-2">
+                                <input 
+                                    type="number" 
+                                    min="0" 
+                                    max="10" 
+                                    step="0.1" 
+                                    value={rating} 
+                                    onChange={(e) => setRating(parseFloat(e.target.value) || 0)}
+                                    className="w-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-2 py-1.5 text-center font-black text-amber-500 outline-none focus:border-amber-500"
+                                />
+                                <StarIconFilled className="h-5 w-5 text-amber-500" />
+                            </div>
+                        </div>
+                        <div className="flex justify-between px-1">
+                            {[0, 2, 4, 6, 8, 10].map(v => (
+                                <button 
+                                    key={v} 
+                                    type="button" 
+                                    onClick={() => setRating(v)}
+                                    className="text-[9px] font-black text-slate-400 hover:text-primary transition-colors"
+                                >
+                                    {v}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
                 </div>
 
-                <div className="md:col-span-2">
-                    <label className={labelClass(false)}>Avaliação / Nota</label>
-                    <div className="flex items-center gap-1.5 p-4 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl">
-                        {[...Array(10)].map((_, i) => {
-                            const val = i + 1;
-                            const isActive = val <= (hoverRating || rating);
-                            return (
-                                <button
-                                    key={i}
-                                    type="button"
-                                    onClick={() => setRating(val)}
-                                    onMouseEnter={() => setHoverRating(val)}
-                                    onMouseLeave={() => setHoverRating(0)}
-                                    className="p-0.5 transition-transform hover:scale-110"
-                                >
-                                    {isActive ? (
-                                        <StarIconFilled className="h-6 w-6 text-amber-400" />
-                                    ) : (
-                                        <StarIcon className="h-6 w-6 text-slate-300 dark:text-slate-600" />
-                                    )}
-                                </button>
-                            );
-                        })}
-                        <span className="ml-4 text-sm font-black text-amber-500 min-w-[2ch]">
-                            {rating || '-'}
-                        </span>
-                    </div>
+                <div className="md:col-span-2 space-y-4">
+                    <label className={labelClass(false)}>URL da Capa (Manual)</label>
+                    <input 
+                      type="text" 
+                      value={coverImageUrl} 
+                      onChange={(e) => setCoverImageUrl(e.target.value)} 
+                      placeholder="Cole o link da imagem (ex: https://site.com/imagem.jpg)"
+                      className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-medium text-slate-700 dark:text-slate-300 text-xs transition-all" 
+                    />
+                    <p className="text-[9px] text-slate-400 italic px-1">Insira um link direto para a imagem. O preview será atualizado abaixo.</p>
                 </div>
 
                 <div>
@@ -373,7 +438,14 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
             <div className="p-7 bg-blue-50/40 dark:bg-blue-900/10 rounded-[2.5rem] border border-blue-100 dark:border-blue-800/50 flex flex-col sm:flex-row items-center gap-8 shadow-inner">
                 <div className="relative group flex-shrink-0">
                     {coverImageUrl ? (
-                        <img src={coverImageUrl} alt="Capa" className="w-24 h-36 object-cover rounded-xl shadow-xl transition-transform group-hover:scale-110 duration-500"/>
+                        <img 
+                          src={coverImageUrl} 
+                          alt="Capa" 
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = `https://picsum.photos/seed/${encodeURIComponent(title || 'default')}/400/600`;
+                          }}
+                          className="w-24 h-36 object-cover rounded-xl shadow-xl transition-transform group-hover:scale-110 duration-500"
+                        />
                     ) : (
                         <div className="w-24 h-36 bg-slate-200 dark:bg-slate-800 rounded-xl flex items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700">
                             <BookOpenIcon className="h-8 w-8 text-slate-400 dark:text-slate-600" />
@@ -387,7 +459,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                         <button 
                             type="button" 
                             onClick={handleGenerateSummary} 
-                            disabled={isGeneratingSummary || isSubmitting || !title || !author} 
+                            disabled={isGeneratingSummary || isSubmitting || !title || authors.length === 0} 
                             className="px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl bg-primary text-white hover:bg-slate-900 dark:hover:bg-slate-100 dark:hover:text-slate-900 transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center gap-2"
                         >
                             {isGeneratingSummary ? 'Processando...' : '✦ Gerar Resumo com IA'}

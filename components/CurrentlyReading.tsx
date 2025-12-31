@@ -9,6 +9,32 @@ interface CurrentlyReadingProps {
   updateBook: (book: Book) => void;
 }
 
+const StarRatingDisplay: React.FC<{ rating: number }> = ({ rating }) => {
+  return (
+    <div className="flex items-center gap-0.5">
+      {[...Array(10)].map((_, index) => {
+        const starIndex = index + 1;
+        const diff = rating - index;
+        const isFull = diff >= 1;
+        const isPartial = diff > 0 && diff < 1;
+        const fillPercentage = isPartial ? diff * 100 : (isFull ? 100 : 0);
+
+        return (
+          <div key={index} className="relative h-6 w-6">
+            <StarIcon className="absolute inset-0 h-6 w-6 text-slate-200 dark:text-slate-700" />
+            <div 
+              className="absolute inset-0 overflow-hidden" 
+              style={{ width: `${fillPercentage}%` }}
+            >
+              <StarIconFilled className="h-6 w-6 text-amber-400" />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 const calculateDaysReading = (startDate?: string) => {
     if (!startDate) return 0;
     const start = new Date(startDate);
@@ -17,7 +43,6 @@ const calculateDaysReading = (startDate?: string) => {
     start.setHours(0,0,0,0);
     const diffTime = today.getTime() - start.getTime();
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    // Garantimos pelo menos 1 dia se começou hoje ou antes
     return diffDays >= 0 ? diffDays : 0;
 }
 
@@ -63,7 +88,6 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
     };
 
     const handleConfirmFinish = () => {
-        // Ao finalizar, garantimos que daysToFinish e dateFinished sejam enviados
         const updatedBook: Book = { 
             ...book, 
             currentPage: book.pages, 
@@ -77,6 +101,7 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
     };
 
     const genresList = book.genre ? book.genre.split(',').map(g => g.trim()).filter(g => g !== '') : [];
+    const authorsList = book.author ? book.author.split(',').map(a => a.trim()).filter(a => a !== '') : [];
 
   return (
     <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 h-full flex flex-col relative overflow-hidden group animate-in zoom-in-95 duration-500">
@@ -109,7 +134,16 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
             <>
               <div className="mb-6">
                 <h3 className="text-3xl font-black text-slate-900 dark:text-slate-50 mb-2 leading-tight font-serif italic">{book.title}</h3>
-                <p className="text-xl text-slate-400 dark:text-slate-500 font-medium">{book.author}</p>
+                <div className="flex flex-wrap justify-center lg:justify-start items-center gap-2">
+                  {authorsList.map((author, idx) => (
+                    <React.Fragment key={author}>
+                      <p className="text-xl text-slate-400 dark:text-slate-500 font-medium">{author}</p>
+                      {idx < authorsList.length - 1 && (
+                        <span className="text-slate-300 dark:text-slate-700 text-lg">•</span>
+                      )}
+                    </React.Fragment>
+                  ))}
+                </div>
               </div>
               
               <div className="flex flex-wrap justify-center lg:justify-start gap-2 mb-8">
@@ -181,33 +215,37 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
           ) : (
             <div className="animate-in slide-in-from-right-8 duration-500">
                 <h3 className="text-2xl font-black text-slate-900 dark:text-slate-50 mb-2 leading-tight font-serif italic">Parabéns pela conclusão!</h3>
-                <p className="text-slate-500 dark:text-slate-400 mb-8 font-medium italic">Como você avalia sua experiência com "{book.title}"?</p>
+                <p className="text-slate-500 dark:text-slate-400 mb-6 font-medium italic">Como você avalia sua experiência com "{book.title}"?</p>
                 
-                <div className="flex flex-col items-center lg:items-start gap-6 mb-10">
-                    <div className="flex items-center gap-1.5 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-3xl border border-slate-100 dark:border-slate-700">
-                        {[...Array(10)].map((_, i) => {
-                            const ratingValue = i + 1;
-                            const isActive = ratingValue <= (hoverRating || selectedRating);
-                            return (
-                                <button
-                                    key={i}
-                                    type="button"
-                                    onClick={() => setSelectedRating(ratingValue)}
-                                    onMouseEnter={() => setHoverRating(ratingValue)}
-                                    onMouseLeave={() => setHoverRating(0)}
-                                    className="p-0.5 transition-transform hover:scale-125"
-                                >
-                                    {isActive ? (
-                                        <StarIconFilled className="h-7 w-7 text-amber-400" />
-                                    ) : (
-                                        <StarIcon className="h-7 w-7 text-slate-300 dark:text-slate-600" />
-                                    )}
-                                </button>
-                            );
-                        })}
-                        <span className="ml-4 text-xl font-black text-amber-500 min-w-[2ch]">
-                            {selectedRating || '-'}
-                        </span>
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-700 mb-8">
+                    <div className="flex items-center justify-between mb-4">
+                        <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Sua Nota:</span>
+                        <div className="flex items-center gap-2">
+                             <input 
+                                type="number" 
+                                step="0.1" 
+                                min="0" 
+                                max="10" 
+                                value={selectedRating} 
+                                onChange={(e) => setSelectedRating(parseFloat(e.target.value) || 0)}
+                                className="w-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-center font-black text-amber-500"
+                            />
+                            <StarIconFilled className="h-5 w-5 text-amber-500" />
+                        </div>
+                    </div>
+                    
+                    <input 
+                        type="range" 
+                        min="0" 
+                        max="10" 
+                        step="0.1" 
+                        value={selectedRating} 
+                        onChange={(e) => setSelectedRating(parseFloat(e.target.value))}
+                        className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500 mb-6"
+                    />
+                    
+                    <div className="flex justify-center">
+                        <StarRatingDisplay rating={selectedRating} />
                     </div>
                 </div>
 
