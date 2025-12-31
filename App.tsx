@@ -13,7 +13,7 @@ import { BookStatus } from './types';
 import { Wishlist } from './components/Wishlist';
 import { BottomNav } from './components/BottomNav';
 import { Auth } from './components/Auth';
-import { StatsView } from './components/StatsView'; // Novo componente
+import { StatsView } from './components/StatsView';
 import { supabase } from './services/supabase';
 import { dbService } from './services/database';
 
@@ -39,12 +39,7 @@ export default function App() {
       dbService.getProfile().then(profile => {
         if (profile) {
           setUserProfile(profile);
-          if (profile.geminiApiKey) {
-            (window as any).__BIBLIOTECH_USER_KEY = profile.geminiApiKey;
-            setHasApiKey(true);
-          } else {
-             checkPlatformApiKey();
-          }
+          checkPlatformApiKey();
         }
       });
     }
@@ -56,7 +51,7 @@ export default function App() {
         setHasApiKey(selected);
     } else {
         const envKey = process.env.API_KEY;
-        setHasApiKey(!!(envKey && envKey !== 'undefined'));
+        setHasApiKey(!!(envKey && envKey !== 'undefined' && envKey !== ''));
     }
   };
 
@@ -80,7 +75,8 @@ export default function App() {
         const newProfile = { ...userProfile, ...updates };
         setUserProfile(newProfile);
         await dbService.updateProfile(updates);
-        if (updates.geminiApiKey) setHasApiKey(true);
+        // We re-check the platform state if needed, but primarily geminiService handles process.env.API_KEY
+        checkPlatformApiKey();
     }
   };
 

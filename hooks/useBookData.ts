@@ -20,7 +20,6 @@ export const useBookData = () => {
     end: new Date().toISOString().split('T')[0]
   });
   
-  // Estado para estatísticas rápidas vindo direto do banco (agregados)
   const [quickSummary, setQuickSummary] = useState<{readCount: number, tbrCount: number, wishlistCount: number} | null>(null);
   
   const autoGenRunning = useRef(false);
@@ -34,7 +33,6 @@ export const useBookData = () => {
           setIsLocalMode(true);
       });
 
-      // OTIMIZAÇÃO: Busca paralela de agregados (rápido) e lista completa (pesado)
       const [storedBooks, quickStats] = await Promise.all([
         dbService.getAllBooks(),
         dbService.getQuickStatsSummary()
@@ -62,7 +60,6 @@ export const useBookData = () => {
       ...newBook,
       id: crypto.randomUUID(),
       user_id: user.id,
-      // Prioriza a data de adição vinda do formulário, fallback para a data atual
       dateAdded: newBook.dateAdded || new Date().toISOString().split('T')[0],
     };
     
@@ -106,20 +103,21 @@ export const useBookData = () => {
       if (booksWithoutCover.length > 0) {
         for (const book of booksWithoutCover) {
           try {
-            const newCoverUrl = await generateBookCover(book.title, book.genre, book.type);
+            // Agora passa o autor para a pesquisa ser mais precisa
+            const newCoverUrl = await generateBookCover(book.title, book.genre, book.type, book.author);
             if (newCoverUrl && !newCoverUrl.includes('picsum.photos')) {
               await updateBook({ ...book, coverImageUrl: newCoverUrl });
             }
           } catch (err) {
             console.error(`Erro ao gerar capa para ${book.title}:`, err);
-            break; // Interrompe se houver erro de API (limite atingido)
+            break; 
           }
         }
       }
       autoGenRunning.current = false;
     };
 
-    const timer = setTimeout(generateCovers, 3000); // Debounce para não travar a carga inicial
+    const timer = setTimeout(generateCovers, 3000); 
     return () => clearTimeout(timer);
   }, [isLoading, books.length, updateBook]);
 
@@ -155,11 +153,9 @@ export const useBookData = () => {
   }, [books, dateFilter, selectedYear, customRange]);
 
   const stats: ReadingStats = useMemo(() => {
-    // Inicialização - Usa o sumário rápido se os livros ainda não carregaram
     let tbrCount = quickSummary?.tbrCount || 0;
     let wishlistCount = quickSummary?.wishlistCount || 0;
     
-    // Se temos os livros carregados localmente, recalculamos para maior precisão
     if (books.length > 0) {
       tbrCount = 0;
       wishlistCount = 0;

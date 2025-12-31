@@ -1,6 +1,7 @@
 
 -- ======================================================
--- SCRIPT DE ESTRUTURA COMPLETA: BIBLIOTECH (v8)
+-- SCRIPT DE ESTRUTURA COMPLETA: BIBLIOTECH (v11)
+-- EXECUTE ESTE SCRIPT NO "SQL EDITOR" DO SEU SUPABASE
 -- ======================================================
 
 -- 1. TABELA DE PERFIS (PROFILES)
@@ -35,11 +36,70 @@ CREATE TABLE IF NOT EXISTS public.books (
   date_finished DATE,
   days_to_finish INTEGER,
   times_read INTEGER DEFAULT 1,
-  was_wishlist BOOLEAN DEFAULT FALSE -- Nova coluna para rastreio de conversão
+  was_wishlist BOOLEAN DEFAULT FALSE
 );
 
--- 3. SEGURANÇA (RLS)
+-- 2.1 MIGRAÇÃO: ADICIONAR COLUNAS CASO NÃO EXISTAM (Para quem já tem a tabela antiga)
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='books' AND column_name='was_wishlist') THEN
+    ALTER TABLE public.books ADD COLUMN was_wishlist BOOLEAN DEFAULT FALSE;
+  END IF;
+END $$;
+
+DO $$ 
+BEGIN 
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='books' AND column_name='times_read') THEN
+    ALTER TABLE public.books ADD COLUMN times_read INTEGER DEFAULT 1;
+  END IF;
+END $$;
+
+-- 3. HABILITAR RLS (Row Level Security)
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.books ENABLE ROW LEVEL SECURITY;
 
--- Políticas permanecem as mesmas (ver versões anteriores se necessário)
+-- 4. POLÍTICAS PARA A TABELA 'BOOKS' (REMOVER E CRIAR NOVAMENTE)
+DROP POLICY IF EXISTS "Usuários podem ver seus próprios livros" ON public.books;
+CREATE POLICY "Usuários podem ver seus próprios livros" 
+ON public.books FOR SELECT 
+USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Usuários podem inserir seus próprios livros" ON public.books;
+CREATE POLICY "Usuários podem inserir seus próprios livros" 
+ON public.books FOR INSERT 
+WITH CHECK (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Usuários podem atualizar seus próprios livros" ON public.books;
+CREATE POLICY "Usuários podem atualizar seus próprios livros" 
+ON public.books FOR UPDATE 
+USING (auth.uid() = user_id);
+
+DROP POLICY IF EXISTS "Usuários podem deletar seus próprios livros" ON public.books;
+CREATE POLICY "Usuários podem deletar seus próprios livros" 
+ON public.books FOR DELETE 
+USING (auth.uid() = user_id);
+
+-- 5. POLÍTICAS PARA A TABELA 'PROFILES' (REMOVER E CRIAR NOVAMENTE)
+DROP POLICY IF EXISTS "Usuários podem ver seu próprio perfil" ON public.profiles;
+CREATE POLICY "Usuários podem ver seu próprio perfil" 
+ON public.profiles FOR SELECT 
+USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Usuários podem atualizar seu próprio perfil" ON public.profiles;
+CREATE POLICY "Usuários podem atualizar seu próprio perfil" 
+ON public.profiles FOR UPDATE 
+USING (auth.uid() = id);
+
+DROP POLICY IF EXISTS "Usuários podem inserir seu próprio perfil" ON public.profiles;
+CREATE POLICY "Usuários podem inserir seu próprio perfil" 
+ON public.profiles FOR INSERT 
+WITH CHECK (auth.uid() = id);
+
+-- 6. GARANTIR QUE O SCHEMA PUBLIC TEM PERMISSÕES
+GRANT ALL ON TABLE public.books TO authenticated;
+GRANT ALL ON TABLE public.profiles TO authenticated;
+GRANT ALL ON TABLE public.books TO service_role;
+GRANT ALL ON TABLE public.profiles TO service_role;
+
+-- 7. FORÇAR ATUALIZAÇÃO DO CACHE DO API
+NOTIFY pgrst, 'reload schema';

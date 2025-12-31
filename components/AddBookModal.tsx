@@ -54,7 +54,6 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
-  // Data de adição agora é um estado editável
   const [dateAdded, setDateAdded] = useState(bookToEdit?.dateAdded || new Date().toISOString().split('T')[0]);
   
   const [dateFinished, setDateFinished] = useState(bookToEdit?.dateFinished || new Date().toISOString().split('T')[0]);
@@ -159,12 +158,13 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
     if (!title || selectedGenres.length === 0) return;
     setIsGeneratingCover(true);
     try {
-      const result = await generateBookCover(title, selectedGenres[0], type);
+      // Passa o título e o autor para a IA pesquisar as referências corretas
+      const result = await generateBookCover(title, selectedGenres[0], type, authors.join(', '));
       if (result) setCoverImageUrl(result);
     } finally {
       setIsGeneratingCover(false);
     }
-  }, [title, selectedGenres, type]);
+  }, [title, selectedGenres, type, authors]);
 
   const handleGenerateSummary = useCallback(async () => {
     if (!title || authors.length === 0) return;
@@ -321,7 +321,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
 
                 <div className="md:col-span-2">
                     <label className={labelClass(true)}>Gêneros <span className="text-red-500">*</span></label>
-                    <div className={`p-5 bg-slate-50/50 dark:bg-slate-800/20 border rounded-[2rem] transition-all ${errors.genre ? 'border-red-400 ring-4 ring-red-500/5 bg-red-50/10' : 'border-slate-200 dark:border-slate-700'}`}>
+                    <div className={`p-5 bg-slate-50/50 dark:bg-slate-800/20 border rounded-[2.5rem] transition-all ${errors.genre ? 'border-red-400 ring-4 ring-red-500/5 bg-red-50/10' : 'border-slate-200 dark:border-slate-700'}`}>
                         <div className="flex flex-wrap gap-2.5 mb-5 min-h-[38px]">
                             {selectedGenres.length > 0 ? (
                                 selectedGenres.map(g => (
@@ -454,7 +454,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                 </div>
                 <div className="text-center sm:text-left flex-1">
                     <h4 className="text-sm font-black text-slate-800 dark:text-slate-200 mb-2 uppercase tracking-wide">✦ Inteligência BiblioTech</h4>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-5 leading-relaxed font-medium uppercase tracking-tight">Deixe a IA criar um resumo inicial envolvente ou uma arte de capa personalizada para sua estante.</p>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mb-5 leading-relaxed font-medium uppercase tracking-tight">Deixe a IA pesquisar referências reais e criar uma arte de capa única para sua estante.</p>
                     <div className="flex flex-wrap gap-3 justify-center sm:justify-start">
                         <button 
                             type="button" 
@@ -470,7 +470,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                             disabled={isGeneratingCover || isSubmitting || !title || selectedGenres.length === 0} 
                             className="px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl bg-white dark:bg-slate-800 text-primary border border-blue-200 dark:border-blue-800/50 hover:bg-primary hover:text-white transition-all shadow-md active:scale-95 disabled:opacity-50 flex items-center gap-2"
                         >
-                            {isGeneratingCover ? 'Criando Arte...' : 'Gerar Arte de Capa'}
+                            {isGeneratingCover ? 'Pesquisando e Criando...' : 'Pesquisar e Gerar Capa'}
                         </button>
                     </div>
                 </div>

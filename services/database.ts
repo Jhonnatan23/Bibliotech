@@ -21,13 +21,13 @@ const mapBookToDb = (book: any) => {
         summary: book.summary || null,
         notes: book.notes || null,
         estimated_price: (book.estimatedPrice !== undefined && book.estimatedPrice !== null) ? parseFloat(String(book.estimatedPrice)) : null,
-        buy_link: book.buy_link || book.buyLink || null,
+        buy_link: book.buyLink || book.buy_link || null,
         current_page: parseInt(String(book.currentPage || 0), 10),
         date_added: dateAddedValue,
         date_started: book.dateStarted || null,
         date_finished: book.dateFinished || null,
         days_to_finish: (book.daysToFinish !== undefined && book.daysToFinish !== null) ? parseInt(String(book.daysToFinish), 10) : null,
-        times_read: (book.times_read !== undefined && book.times_read !== null) ? parseInt(String(book.times_read), 10) : (book.timesRead || 1),
+        times_read: (book.timesRead !== undefined && book.timesRead !== null) ? parseInt(String(book.timesRead), 10) : (book.times_read || 0),
         was_wishlist: book.wasWishlist || false
     };
 };
@@ -52,7 +52,7 @@ const mapDbToBook = (db: any): Book => ({
     dateStarted: db.date_started,
     dateFinished: db.date_finished,
     daysToFinish: db.days_to_finish,
-    timesRead: db.times_read || 1,
+    timesRead: db.times_read || 0,
     wasWishlist: db.was_wishlist || false
 });
 
@@ -91,22 +91,10 @@ export class DatabaseService {
   private async saveLocalBooks(books: Book[]): Promise<void> {
     const key = await this.getCacheKey();
     if (!key) return;
-
     try {
-      const data = JSON.stringify(books);
-      localStorage.setItem(key, data);
+      localStorage.setItem(key, JSON.stringify(books));
     } catch (e: any) {
-      if (e.name === 'QuotaExceededError' || e.code === 22 || e.name === 'NS_ERROR_DOM_QUOTA_REACHED') {
-        const leanBooks = books.map(book => ({
-          ...book,
-          coverImageUrl: (book.coverImageUrl?.startsWith('data:')) ? null : book.coverImageUrl
-        }));
-        try {
-          localStorage.setItem(key, JSON.stringify(leanBooks));
-        } catch (innerError) {
-          localStorage.removeItem(key);
-        }
-      }
+      console.warn("Local Storage falhou, dados mantidos apenas em memória/nuvem.");
     }
   }
 
@@ -118,6 +106,7 @@ export class DatabaseService {
         .order('date_added', { ascending: false });
 
       if (error) {
+        console.error(`Erro ao buscar livros no Supabase [${error.code}]: ${error.message}`);
         this.handleSupabaseError(error);
         return await this.getLocalBooks();
       }
@@ -126,7 +115,8 @@ export class DatabaseService {
       const books = (data || []).map(mapDbToBook);
       await this.saveLocalBooks(books);
       return books;
-    } catch (err) {
+    } catch (err: any) {
+      console.error("Erro inesperado em getAllBooks:", err.message || err);
       return await this.getLocalBooks();
     }
   }
@@ -156,62 +146,79 @@ export class DatabaseService {
 
   async saveBook(book: Partial<Book>): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Acesso negado.");
+    if (!user) {
+        throw new Error("Usuário não identificado. Faça login novamente.");
+    }
 
     const dbPayload = mapBookToDb(book);
     dbPayload.user_id = user.id;
 
+    // Sincroniza Localmente Primeiro
     const books = await this.getLocalBooks();
     const index = books.findIndex(b => b.id === book.id);
     const updatedBookState = mapDbToBook(dbPayload);
     
     if (index >= 0) books[index] = updatedBookState;
     else books.unshift(updatedBookState);
-    
     await this.saveLocalBooks(books);
 
-    if (this.isSchemaBroken) return;
-    try {
-      await supabase.from(TABLE_NAME).upsert(dbPayload);
-    } catch (err) {}
+    if (this.isSchemaBroken) {
+        console.warn("Omitindo salvamento no Supabase devido a erro de schema detectado.");
+        return;
+    }
+
+    // Persiste no Supabase
+    const { error } = await supabase.from(TABLE_NAME).upsert(dbPayload);
+    if (error) {
+        console.error(`Supabase Upsert Error [${error.code}]: ${error.message}`);
+        
+        // PGRST204: Coluna não encontrada. O usuário precisa rodar o script SQL.
+        if (error.code === 'PGRST204' || error.code === '42P01') {
+            this.handleSupabaseError(error);
+            throw new Error("Seu banco de dados está desatualizado. Execute o script SQL de atualização no painel do Supabase.");
+        }
+        
+        throw new Error(error.message || "Erro desconhecido ao salvar no banco de dados.");
+    }
+    console.log(`Livro "${dbPayload.title}" persistido com sucesso no Supabase.`);
   }
 
   async deleteBook(id: string): Promise<void> {
     const books = (await this.getLocalBooks()).filter(b => b.id !== id);
     await this.saveLocalBooks(books);
+    
     if (this.isSchemaBroken) return;
-    try {
-      await supabase.from(TABLE_NAME).delete().eq('id', id);
-    } catch (err) {}
+    const { error } = await supabase.from(TABLE_NAME).delete().eq('id', id);
+    if (error) {
+        console.error(`Erro ao deletar livro no Supabase [${error.code}]: ${error.message}`);
+    }
   }
 
   async updateReadingGoal(goal: number): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    try {
-      await supabase.from('profiles').upsert({ id: user.id, reading_goal: goal, updated_at: new Date().toISOString() });
-    } catch (err) {}
+    const { error } = await supabase.from('profiles').upsert({ id: user.id, reading_goal: goal, updated_at: new Date().toISOString() });
+    if (error) console.error("Erro ao salvar meta:", error.message);
   }
 
   async updateProfile(profile: Partial<Profile>): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    try {
-      const dbPayload: any = { id: user.id, updated_at: new Date().toISOString() };
-      if (profile.fullName !== undefined) dbPayload.full_name = profile.fullName;
-      if (profile.avatarUrl !== undefined) dbPayload.avatar_url = profile.avatarUrl;
-      if (profile.geminiApiKey !== undefined) dbPayload.gemini_api_key = profile.geminiApiKey;
-      
-      await supabase.from('profiles').upsert(dbPayload);
-    } catch (err) {}
+    const dbPayload: any = { id: user.id, updated_at: new Date().toISOString() };
+    if (profile.fullName !== undefined) dbPayload.full_name = profile.fullName;
+    if (profile.avatarUrl !== undefined) dbPayload.avatar_url = profile.avatarUrl;
+    if (profile.geminiApiKey !== undefined) dbPayload.gemini_api_key = profile.geminiApiKey;
+    
+    const { error } = await supabase.from('profiles').upsert(dbPayload);
+    if (error) console.error("Erro ao atualizar perfil:", error.message);
   }
 
   async getProfile(): Promise<Profile | null> {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return null;
     try {
-        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        if (!data) return { id: user.id, fullName: 'Leitor', readingGoal: 12 };
+        const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        if (error || !data) return { id: user.id, fullName: 'Leitor', readingGoal: 12 };
         return mapDbToProfile(data);
     } catch (err) {
         return { id: user.id, fullName: 'Leitor', readingGoal: 12 };
@@ -219,7 +226,13 @@ export class DatabaseService {
   }
 
   private handleSupabaseError(error: any) {
-    if (error.code === '42P01') this.isSchemaBroken = true;
+    if (error.code === '42P01' || error.code === 'PGRST204') {
+        this.isSchemaBroken = true;
+        const msg = error.code === 'PGRST204' 
+            ? 'Colunas faltando no banco de dados. Execute o script de migração.' 
+            : 'Tabela "books" não encontrada. Execute o script SQL.';
+        if (this.onSchemaErrorCallback) this.onSchemaErrorCallback('table', msg);
+    }
   }
 }
 
