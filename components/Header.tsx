@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { BookOpenIcon, SunIcon, MoonIcon, LogoutIcon, Cog6ToothIcon, StarIcon } from './Icons';
+import { SunIcon, MoonIcon, LogoutIcon, Cog6ToothIcon, StarIcon } from './Icons';
+import { Logo } from './Logo';
 import { supabase } from '../services/supabase';
 import type { Profile } from '../types';
 
@@ -39,15 +40,10 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200/60 dark:border-slate-800 sticky top-0 z-30 px-6 py-4">
       <div className="max-w-7xl mx-auto flex items-center justify-between">
         <div 
-          className="flex items-center gap-3 cursor-pointer group" 
+          className="cursor-pointer group" 
           onClick={onLogoClick}
         >
-            <div className="bg-primary p-2 rounded-xl shadow-lg shadow-primary/20 group-hover:rotate-6 transition-transform duration-500">
-                <BookOpenIcon className="h-6 w-6 text-white" />
-            </div>
-            <h1 className="text-xl font-black font-serif text-slate-900 dark:text-slate-50 tracking-tight">
-              Biblio<span className="text-primary">Tech</span>
-            </h1>
+            <Logo size="md" />
         </div>
         
         <div className="flex items-center gap-2 sm:gap-4">

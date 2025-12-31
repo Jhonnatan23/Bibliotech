@@ -199,6 +199,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         onRefresh={fetchRecs} 
       />
 
+      {/* Gráficos Principais com mais espaço */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-10">
         <div className="xl:col-span-8 bg-white dark:bg-slate-900 p-10 rounded-[3rem] shadow-soft border border-slate-100 dark:border-slate-800 transition-all hover:shadow-2xl hover:border-primary/5">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-10 gap-6">
@@ -212,7 +213,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Livros</span>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="w-3.5 h-3.5 rounded-full bg-indigo-300 dark:bg-indigo-600"></div>
+                    <div className="w-3.5 h-3.5 rounded-full bg-indigo-500 shadow-sm shadow-indigo-500/40"></div>
                     <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Páginas</span>
                 </div>
             </div>
@@ -220,12 +221,12 @@ export const Dashboard: React.FC<DashboardProps> = ({
             <MonthlyChart data={stats.monthly} />
         </div>
         
-        <div className="xl:col-span-4 bg-white dark:bg-slate-900 p-10 rounded-[3rem] shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col min-h-[500px]">
+        <div className="xl:col-span-4 bg-white dark:bg-slate-900 p-10 rounded-[3rem] shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col min-h-[500px] overflow-hidden">
             <h2 className="text-2xl font-black font-serif text-slate-900 dark:text-slate-50 mb-8 italic text-center xl:text-left">Distribuição</h2>
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center -mt-4">
                 <TypePieChart data={stats.byType} />
             </div>
-            <p className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest text-center mt-6">✦ Análise baseada em toda sua estante</p>
+            <p className="text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest text-center mt-4">✦ Análise baseada em toda sua estante</p>
         </div>
       </div>
     </div>

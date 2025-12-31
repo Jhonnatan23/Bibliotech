@@ -1,7 +1,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../services/supabase';
-import { BookOpenIcon, XMarkIcon } from './Icons';
+import { Logo } from './Logo';
+import { XMarkIcon } from './Icons';
 
 export const Auth: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -93,12 +94,8 @@ export const Auth: React.FC = () => {
       <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-800 p-10 transition-all relative overflow-hidden">
         
         <div className="flex flex-col items-center mb-10 pt-4">
-            <div className="bg-primary p-3 rounded-2xl shadow-xl shadow-primary/20 mb-4 transition-transform hover:scale-110">
-                <BookOpenIcon className="h-8 w-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-black font-serif text-slate-900 dark:text-slate-50 tracking-tight italic">
-              Biblio<span className="text-primary">Tech</span>
-            </h1>
+            <Logo size="lg" className="mb-6" showText={true} />
+            
             <div className="flex gap-4 mt-6">
                 <button 
                     onClick={() => { setMode('login'); setErrorMsg(null); }}
