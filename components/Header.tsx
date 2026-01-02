@@ -54,19 +54,19 @@ export const Header: React.FC<HeaderProps> = ({
             </span>
           </div>
 
-          {/* Botão de Chave de API - Destaque se estiver faltando */}
+          {/* AI Key Button - Highlighted if missing */}
           <button 
             onClick={handleKeyClick}
             className={`p-2.5 rounded-xl border transition-all active:scale-95 flex items-center gap-2 group ${
               !hasApiKey 
-                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 animate-pulse ring-2 ring-red-500/20' 
+                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800/50 text-red-600 dark:text-red-400 animate-pulse ring-2 ring-red-500/20 shadow-lg' 
                 : 'bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-800/50 text-amber-600 dark:text-amber-400 hover:bg-amber-100'
             }`}
-            title={!hasApiKey ? "CONFIGURAR CHAVE OBRIGATÓRIA" : "Configurar Chave Gemini"}
+            title={!hasApiKey ? "IA Bloqueada: Selecione uma chave" : "Configurar IA (Pago para Pro)"}
           >
-            <StarIcon className={`h-5 w-5 group-hover:rotate-12 transition-transform ${!hasApiKey ? 'animate-spin-slow' : ''}`} />
+            <StarIcon className={`h-5 w-5 transition-transform group-hover:rotate-12 ${!hasApiKey ? 'animate-spin-slow' : ''}`} />
             <span className="hidden md:inline text-[9px] font-black uppercase tracking-widest">
-              {hasApiKey ? 'IA Key' : 'Fix IA Key'}
+              {hasApiKey ? 'IA Ativa' : 'Ativar IA'}
             </span>
           </button>
 

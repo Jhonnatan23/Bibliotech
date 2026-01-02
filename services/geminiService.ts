@@ -7,7 +7,9 @@ const stringifyError = (err: any): string => {
   if (typeof err === 'string') return err;
   if (err.message) return err.message;
   try {
-    return JSON.stringify(err);
+    const parsed = JSON.stringify(err);
+    if (parsed === '{}') return err.toString();
+    return parsed;
   } catch {
     return String(err);
   }
@@ -20,17 +22,17 @@ const stringifyError = (err: any): string => {
 const callGenAI = async (task: (ai: GoogleGenAI) => Promise<any>, modelName?: string) => {
   const isProModel = modelName === 'gemini-3-pro-image-preview' || modelName?.includes('pro');
 
-  // Mandatory key selection for Pro models as per guidelines
+  // Mandatory check for models that REQUIRE a manually selected paid key
   if (isProModel && window.aistudio) {
     const hasKey = await window.aistudio.hasSelectedApiKey();
     if (!hasKey) {
       console.warn(`O modelo ${modelName} requer uma chave paga. Abrindo seletor...`);
       await window.aistudio.openSelectKey();
-      // Proceed immediately after triggering dialog as per race condition mitigation rules
+      // Proceeding after dialog trigger to mitigate race conditions as per guidelines
     }
   }
 
-  // Always use process.env.API_KEY directly
+  // Use the API key from the environment variable exclusively
   const apiKey = process.env.API_KEY;
 
   if (!apiKey || apiKey === 'undefined' || apiKey === '') {
@@ -48,15 +50,16 @@ const callGenAI = async (task: (ai: GoogleGenAI) => Promise<any>, modelName?: st
     const errorMsg = stringifyError(error);
     console.error(`Gemini API Error [${modelName || 'unknown'}]:`, errorMsg);
 
-    // Handle PERMISSION_DENIED (403) and Not Found (404) by prompting for a new key
+    // Handle PERMISSION_DENIED (403) specifically as requested
     if (
       errorMsg.includes("PERMISSION_DENIED") ||
       errorMsg.includes("403") ||
+      errorMsg.includes("The caller does not have permission") ||
       errorMsg.includes("Requested entity was not found") ||
       errorMsg.includes("404")
     ) {
       if (window.aistudio) {
-        console.warn("A chave atual não tem permissão para este modelo. Solicitando nova chave...");
+        console.warn("Permissão negada ou modelo não encontrado. Solicitando seleção de nova chave paga...");
         await window.aistudio.openSelectKey();
       }
     }
@@ -76,27 +79,35 @@ export const generateBookSummary = async (title: string, author: string): Promis
       return response.text || "Não foi possível gerar um resumo.";
     }, model);
   } catch (error: any) {
-    return `A IA não conseguiu processar o resumo no momento. Verifique sua chave de API nas Configurações.`;
+    return `A IA não conseguiu processar o resumo no momento. Verifique sua chave de API.`;
   }
 };
 
+/**
+ * Generates a book cover. 
+ * Defaults to 'gemini-2.5-flash-image' to ensure broad compatibility with standard keys.
+ * Switches to Pro model if explicitly high-quality or search is needed.
+ */
 export const generateBookCover = async (title: string, genre: string, type: string, author?: string): Promise<string> => {
-  const model = 'gemini-3-pro-image-preview';
+  // Use gemini-2.5-flash-image as the robust default to avoid 403 issues on standard keys.
+  // This model does not support googleSearch tool, but works for general image tasks.
+  const usePro = false; // Toggle this if you want to force High Quality / Search
+  const model = usePro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
+  
   try {
     return await callGenAI(async (ai) => {
-      const prompt = `Capa profissional de alta qualidade para o livro "${title}" ${author ? `de ${author}` : ''}. 
-      Gênero: ${genre}. Estilo visual: cinematográfico, artístico, sem textos.
-      Regras: Proporção 3:4. Alta definição.`;
+      const prompt = `Capa de livro profissional para "${title}" ${author ? `por ${author}` : ''}. 
+      Gênero: ${genre}. Estilo: artístico, sem textos, alta qualidade.`;
 
       const response: GenerateContentResponse = await ai.models.generateContent({
         model,
         contents: { parts: [{ text: prompt }] },
         config: {
           imageConfig: {
-            aspectRatio: "3:4",
-            imageSize: "1K"
+            aspectRatio: "3:4"
           },
-          tools: [{ googleSearch: {} }]
+          // Only use googleSearch if using the Pro model
+          ...(usePro ? { tools: [{ googleSearch: {} }] } : {})
         },
       });
 
@@ -111,8 +122,7 @@ export const generateBookCover = async (title: string, genre: string, type: stri
       return `https://picsum.photos/seed/${encodeURIComponent(title)}/400/600`;
     }, model);
   } catch (error: any) {
-    console.error("Erro fatal na geração de capa:", error);
-    // Silent fallback to avoid breaking the UX when permissions fail
+    console.error("Erro na geração de capa:", stringifyError(error));
     return `https://picsum.photos/seed/${encodeURIComponent(title)}/400/600`;
   }
 };

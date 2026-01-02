@@ -1,3 +1,4 @@
+
 import React from 'react';
 
 interface ReadingGoalProps {
@@ -9,6 +10,13 @@ interface ReadingGoalProps {
 export const ReadingGoal: React.FC<ReadingGoalProps> = ({ current, goal, onSetGoal }) => {
   const percentage = Math.min(Math.round((current / goal) * 100), 100);
   
+  const handleGoalChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = parseInt(e.target.value, 10);
+    if (!isNaN(val)) {
+        onSetGoal(val);
+    }
+  };
+
   return (
     <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-soft border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
       <div className="flex justify-between items-center mb-4">
@@ -19,8 +27,9 @@ export const ReadingGoal: React.FC<ReadingGoalProps> = ({ current, goal, onSetGo
              <span className="text-slate-300 dark:text-slate-700 font-bold">/</span>
              <input 
                type="number" 
+               step="1"
                value={goal}
-               onChange={(e) => onSetGoal(Number(e.target.value))}
+               onChange={handleGoalChange}
                className="text-lg font-bold text-primary w-12 bg-transparent border-b border-dashed border-slate-200 dark:border-slate-700 focus:border-primary outline-none"
              />
              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase ml-1">livros</span>

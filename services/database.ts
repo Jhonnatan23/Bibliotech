@@ -12,7 +12,7 @@ const mapBookToDb = (book: any) => {
         user_id: book.user_id,
         title: book.title || 'Sem Título',
         author: book.author || 'Autor Desconhecido',
-        pages: parseInt(String(book.pages || 0), 10),
+        pages: Math.floor(parseInt(String(book.pages || 0), 10)),
         genre: book.genre || '',
         type: book.type || 'Livro',
         status: book.status || 'Não lido',
@@ -21,13 +21,13 @@ const mapBookToDb = (book: any) => {
         summary: book.summary || null,
         notes: book.notes || null,
         estimated_price: (book.estimatedPrice !== undefined && book.estimatedPrice !== null) ? parseFloat(String(book.estimatedPrice)) : null,
-        buy_link: book.buyLink || book.buy_link || null,
-        current_page: parseInt(String(book.currentPage || 0), 10),
+        buy_link: book.buyLink || null,
+        current_page: Math.floor(parseInt(String(book.currentPage || 0), 10)),
         date_added: dateAddedValue,
         date_started: book.dateStarted || null,
         date_finished: book.dateFinished || null,
-        days_to_finish: (book.daysToFinish !== undefined && book.daysToFinish !== null) ? parseInt(String(book.daysToFinish), 10) : null,
-        times_read: (book.timesRead !== undefined && book.timesRead !== null) ? parseInt(String(book.timesRead), 10) : (book.times_read || 0),
+        days_to_finish: (book.daysToFinish !== undefined && book.daysToFinish !== null) ? Math.floor(parseInt(String(book.daysToFinish), 10)) : null,
+        times_read: (book.timesRead !== undefined && book.timesRead !== null) ? Math.floor(parseInt(String(book.timesRead), 10)) : 0,
         was_wishlist: book.wasWishlist || false
     };
 };
@@ -60,12 +60,12 @@ const mapDbToProfile = (db: any): Profile => ({
     id: db.id,
     fullName: db.full_name,
     avatarUrl: db.avatar_url,
-    readingGoal: db.reading_goal || 12,
-    geminiApiKey: db.gemini_api_key || ''
+    readingGoal: db.reading_goal || 12
 });
 
 export class DatabaseService {
   private isSchemaBroken = false;
+  private brokenDetail = '';
   private onSchemaErrorCallback?: (type: 'table' | 'column' | 'permission', detail?: string) => void;
 
   setSchemaErrorCallback(cb: (type: 'table' | 'column' | 'permission', detail?: string) => void) {
@@ -94,7 +94,7 @@ export class DatabaseService {
     try {
       localStorage.setItem(key, JSON.stringify(books));
     } catch (e: any) {
-      console.warn("Local Storage falhou, dados mantidos apenas em memória/nuvem.");
+      console.warn("Local Storage falhou, dados mantidos apenas em memória.");
     }
   }
 
@@ -155,7 +155,7 @@ export class DatabaseService {
 
     // Sincroniza Localmente Primeiro
     const books = await this.getLocalBooks();
-    const index = books.findIndex(b => b.id === book.id);
+    const index = books.findIndex(b => b.id === (book.id || dbPayload.id));
     const updatedBookState = mapDbToBook(dbPayload);
     
     if (index >= 0) books[index] = updatedBookState;
@@ -163,24 +163,16 @@ export class DatabaseService {
     await this.saveLocalBooks(books);
 
     if (this.isSchemaBroken) {
-        console.warn("Omitindo salvamento no Supabase devido a erro de schema detectado.");
-        return;
+        throw new Error(`O banco de dados está desatualizado: ${this.brokenDetail}. Por favor, execute o script SQL.`);
     }
 
     // Persiste no Supabase
     const { error } = await supabase.from(TABLE_NAME).upsert(dbPayload);
     if (error) {
         console.error(`Supabase Upsert Error [${error.code}]: ${error.message}`);
-        
-        // PGRST204: Coluna não encontrada. O usuário precisa rodar o script SQL.
-        if (error.code === 'PGRST204' || error.code === '42P01') {
-            this.handleSupabaseError(error);
-            throw new Error("Seu banco de dados está desatualizado. Execute o script SQL de atualização no painel do Supabase.");
-        }
-        
-        throw new Error(error.message || "Erro desconhecido ao salvar no banco de dados.");
+        this.handleSupabaseError(error);
+        throw new Error(`Erro ao salvar na nuvem: ${error.message}`);
     }
-    console.log(`Livro "${dbPayload.title}" persistido com sucesso no Supabase.`);
   }
 
   async deleteBook(id: string): Promise<void> {
@@ -196,21 +188,34 @@ export class DatabaseService {
 
   async updateReadingGoal(goal: number): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { error } = await supabase.from('profiles').upsert({ id: user.id, reading_goal: goal, updated_at: new Date().toISOString() });
-    if (error) console.error("Erro ao salvar meta:", error.message);
+    if (!user) throw new Error("Usuário não identificado.");
+    
+    // Força o valor a ser um inteiro redondo para evitar erro 22P02 no Postgres
+    const cleanGoal = Math.round(goal);
+    
+    const { error } = await supabase.from('profiles').upsert({ 
+        id: user.id, 
+        reading_goal: cleanGoal, 
+        updated_at: new Date().toISOString() 
+    });
+    if (error) {
+        console.error("Erro ao salvar meta:", error.message);
+        throw error;
+    }
   }
 
   async updateProfile(profile: Partial<Profile>): Promise<void> {
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    if (!user) throw new Error("Usuário não identificado.");
     const dbPayload: any = { id: user.id, updated_at: new Date().toISOString() };
     if (profile.fullName !== undefined) dbPayload.full_name = profile.fullName;
     if (profile.avatarUrl !== undefined) dbPayload.avatar_url = profile.avatarUrl;
-    if (profile.geminiApiKey !== undefined) dbPayload.gemini_api_key = profile.geminiApiKey;
     
     const { error } = await supabase.from('profiles').upsert(dbPayload);
-    if (error) console.error("Erro ao atualizar perfil:", error.message);
+    if (error) {
+        console.error("Erro ao atualizar perfil:", error.message);
+        throw error;
+    }
   }
 
   async getProfile(): Promise<Profile | null> {
@@ -226,11 +231,12 @@ export class DatabaseService {
   }
 
   private handleSupabaseError(error: any) {
-    if (error.code === '42P01' || error.code === 'PGRST204') {
+    if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST107' || error.code === '22P02') {
         this.isSchemaBroken = true;
-        const msg = error.code === 'PGRST204' 
-            ? 'Colunas faltando no banco de dados. Execute o script de migração.' 
-            : 'Tabela "books" não encontrada. Execute o script SQL.';
+        this.brokenDetail = error.message;
+        const msg = error.code === '22P02' 
+            ? 'Erro de tipo de dados (tentando salvar decimal em coluna inteira). Rode o script de migração SQL v13.' 
+            : 'Tabela ou Schema desatualizado. Verifique o SQL Editor.';
         if (this.onSchemaErrorCallback) this.onSchemaErrorCallback('table', msg);
     }
   }

@@ -45,7 +45,6 @@ export interface Profile {
   fullName: string;
   avatarUrl?: string;
   readingGoal?: number;
-  geminiApiKey?: string;
 }
 
 export interface Book {
@@ -69,7 +68,7 @@ export interface Book {
   dateFinished?: string;
   daysToFinish?: number;
   timesRead?: number;
-  wasWishlist?: boolean; // Novo campo para rastreio
+  wasWishlist?: boolean;
 }
 
 export interface Recommendation {

@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { XMarkIcon, Cog6ToothIcon, StarIcon } from './Icons';
+import { XMarkIcon, Cog6ToothIcon } from './Icons';
 import type { Profile } from '../types';
 import { supabase } from '../services/supabase';
 
@@ -21,10 +21,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 }) => {
   const [localGoal, setLocalGoal] = useState(readingGoal);
   const [fullName, setFullName] = useState(profile?.fullName || '');
-  const [apiKey, setApiKey] = useState(profile?.geminiApiKey || '');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Estados para alteração de senha
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
@@ -36,13 +34,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         onSetReadingGoal(localGoal);
         const updates: Partial<Profile> = {};
         if (fullName !== profile?.fullName) updates.fullName = fullName;
-        if (apiKey !== profile?.geminiApiKey) updates.geminiApiKey = apiKey;
         
         if (Object.keys(updates).length > 0) {
             await onUpdateProfile(updates);
-            if (updates.geminiApiKey) {
-                (window as any).__BIBLIOTECH_USER_KEY = updates.geminiApiKey;
-            }
         }
         if (!passwordMessage || passwordMessage.type === 'success') {
             onClose();
@@ -156,28 +150,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 >
                     {passwordLoading ? 'Processando...' : 'Atualizar Senha'}
                 </button>
-            </div>
-          </section>
-
-          <section className="space-y-4 pt-6 border-t border-slate-50 dark:border-slate-800">
-            <div className="flex justify-between items-center bg-amber-50 dark:bg-amber-900/10 p-4 rounded-2xl border border-amber-100 dark:border-amber-900/30">
-                <div className="flex items-center gap-3">
-                    <StarIcon className="h-5 w-5 text-amber-500" />
-                    <h3 className="text-[10px] font-black text-amber-600 dark:text-amber-400 uppercase tracking-widest">Configuração de IA</h3>
-                </div>
-            </div>
-            <div>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-3">Chave de API do Gemini</p>
-                <input 
-                    type="password"
-                    placeholder="Cole sua API Key aqui..."
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-amber-400 font-mono text-xs transition-all"
-                />
-                <p className="text-[9px] text-slate-400 mt-2 italic px-1">
-                    Obtenha uma chave gratuita em: <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-primary hover:underline">AI Studio</a>
-                </p>
             </div>
           </section>
 

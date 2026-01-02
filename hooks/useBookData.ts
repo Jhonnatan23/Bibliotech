@@ -63,12 +63,15 @@ export const useBookData = () => {
       dateAdded: newBook.dateAdded || new Date().toISOString().split('T')[0],
     };
     
+    // Atualiza estado local imediatamente para feedback instantâneo
     setBooks(prev => [book, ...prev]);
     
     try {
         await dbService.saveBook(book);
-    } catch (err) {
+    } catch (err: any) {
         console.error("Erro ao persistir novo livro:", err);
+        // Se falhar no banco, avisamos mas mantemos no local para não frustrar o usuário
+        throw new Error(err.message || "Erro ao salvar no banco de dados.");
     }
   }, []);
 
@@ -77,14 +80,19 @@ export const useBookData = () => {
     
     try {
         await dbService.saveBook(updatedBook);
-    } catch (err) {
+    } catch (err: any) {
         console.error("Erro ao persistir atualização:", err);
+        throw new Error(err.message || "Erro ao atualizar no banco de dados.");
     }
   }, []);
 
   const deleteBook = useCallback(async (id: string) => {
     setBooks(prev => prev.filter(b => b.id !== id));
-    await dbService.deleteBook(id);
+    try {
+        await dbService.deleteBook(id);
+    } catch (err) {
+        console.error("Erro ao deletar do banco:", err);
+    }
   }, []);
 
   useEffect(() => {
@@ -103,7 +111,6 @@ export const useBookData = () => {
       if (booksWithoutCover.length > 0) {
         for (const book of booksWithoutCover) {
           try {
-            // Agora passa o autor para a pesquisa ser mais precisa
             const newCoverUrl = await generateBookCover(book.title, book.genre, book.type, book.author);
             if (newCoverUrl && !newCoverUrl.includes('picsum.photos')) {
               await updateBook({ ...book, coverImageUrl: newCoverUrl });

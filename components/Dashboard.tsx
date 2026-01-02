@@ -64,6 +64,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
         fetchRecs();
     }
   }, []);
+
+  // Cálculo específico para a meta de leitura (Apenas ano corrente)
+  const booksReadThisYear = useMemo(() => {
+    const currentYear = new Date().getFullYear();
+    return books.filter(b => 
+      b.status === BookStatus.Read && 
+      b.dateFinished && 
+      new Date(b.dateFinished).getFullYear() === currentYear
+    ).length;
+  }, [books]);
   
   const formatDateForTitle = (dateStr?: string) => {
     if (!dateStr) return '';
@@ -150,7 +160,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
         <div className="lg:col-span-4 flex flex-col gap-8">
           <ReadingGoal 
-            current={stats.yearly.booksRead} 
+            current={booksReadThisYear} 
             goal={readingGoal} 
             onSetGoal={onSetReadingGoal} 
           />

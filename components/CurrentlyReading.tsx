@@ -6,7 +6,7 @@ import { StarIcon, StarIconFilled } from './Icons';
 
 interface CurrentlyReadingProps {
   book: Book;
-  updateBook: (book: Book) => void;
+  updateBook: (book: Book) => Promise<void>;
 }
 
 const StarRatingDisplay: React.FC<{ rating: number }> = ({ rating }) => {
@@ -51,7 +51,7 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
     const [dateStarted, setDateStarted] = useState(book.dateStarted || new Date().toISOString().split('T')[0]);
     const [isFinishing, setIsFinishing] = useState(false);
     const [selectedRating, setSelectedRating] = useState<number>(book.rating || 0);
-    const [hoverRating, setHoverRating] = useState<number>(0);
+    const [isSaving, setIsSaving] = useState(false);
     
     const daysReading = useMemo(() => calculateDaysReading(dateStarted), [dateStarted]);
     const progressPercentage = book.pages > 0 ? (currentPage / book.pages) * 100 : 0;
@@ -72,6 +72,7 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
         setDateStarted(book.dateStarted || new Date().toISOString().split('T')[0]);
         setIsFinishing(false);
         setSelectedRating(0);
+        setIsSaving(false);
     }, [book.id]);
 
     const handleProgressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -83,21 +84,31 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
         }
     };
 
-    const handleUpdateClick = () => {
-        updateBook({ ...book, currentPage, dateStarted });
+    const handleUpdateClick = async () => {
+        setIsSaving(true);
+        try {
+            await updateBook({ ...book, currentPage, dateStarted });
+        } finally {
+            setIsSaving(false);
+        }
     };
 
-    const handleConfirmFinish = () => {
-        const updatedBook: Book = { 
-            ...book, 
-            currentPage: book.pages, 
-            status: BookStatus.Read,
-            rating: selectedRating,
-            dateFinished: new Date().toISOString().split('T')[0],
-            daysToFinish: daysReading,
-            timesRead: (book.timesRead || 0) + 1
-        };
-        updateBook(updatedBook);
+    const handleConfirmFinish = async () => {
+        setIsSaving(true);
+        try {
+            const updatedBook: Book = { 
+                ...book, 
+                currentPage: book.pages, 
+                status: BookStatus.Read,
+                rating: selectedRating,
+                dateFinished: new Date().toISOString().split('T')[0],
+                daysToFinish: daysReading,
+                timesRead: (book.timesRead || 0) + 1
+            };
+            await updateBook(updatedBook);
+        } finally {
+            setIsSaving(false);
+        }
     };
 
     const genresList = book.genre ? book.genre.split(',').map(g => g.trim()).filter(g => g !== '') : [];
@@ -193,20 +204,25 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                     <input 
                         type="number"
                         value={currentPage}
+                        disabled={isSaving}
                         onChange={handleProgressChange}
-                        className="w-24 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-slate-900 dark:text-slate-100 font-black focus:border-primary transition-all outline-none text-center"
+                        className="w-24 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 text-slate-900 dark:text-slate-100 font-black focus:border-primary transition-all outline-none text-center disabled:opacity-50"
                         aria-label="Página atual"
                     />
                     <button
                         onClick={handleUpdateClick}
-                        className="flex-1 px-4 py-3 text-[10px] font-black rounded-2xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-primary dark:hover:bg-primary dark:hover:text-white shadow-xl transition-all active:scale-95 uppercase tracking-widest"
+                        disabled={isSaving}
+                        className="flex-1 px-4 py-3 text-[10px] font-black rounded-2xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 hover:bg-primary dark:hover:bg-primary dark:hover:text-white shadow-xl transition-all active:scale-95 uppercase tracking-widest disabled:opacity-50 flex items-center justify-center gap-2"
                     >
-                        Salvar Progresso
+                        {isSaving ? (
+                            <svg className="animate-spin h-4 w-4 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        ) : 'Salvar Progresso'}
                     </button>
                 </div>
                 <button
                     onClick={() => setIsFinishing(true)}
-                    className="px-8 py-3 text-[10px] font-black rounded-2xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-xl shadow-emerald-200 dark:shadow-emerald-900/20 transition-all active:scale-95 uppercase tracking-widest"
+                    disabled={isSaving}
+                    className="px-8 py-3 text-[10px] font-black rounded-2xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-xl shadow-emerald-200 dark:shadow-emerald-900/20 transition-all active:scale-95 uppercase tracking-widest disabled:opacity-50"
                 >
                     Concluir Leitura
                 </button>
@@ -227,8 +243,9 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                                 min="0" 
                                 max="10" 
                                 value={selectedRating} 
+                                disabled={isSaving}
                                 onChange={(e) => setSelectedRating(parseFloat(e.target.value) || 0)}
-                                className="w-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-center font-black text-amber-500"
+                                className="w-16 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-1 text-center font-black text-amber-500 disabled:opacity-50"
                             />
                             <StarIconFilled className="h-5 w-5 text-amber-500" />
                         </div>
@@ -240,8 +257,9 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                         max="10" 
                         step="0.1" 
                         value={selectedRating} 
+                        disabled={isSaving}
                         onChange={(e) => setSelectedRating(parseFloat(e.target.value))}
-                        className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500 mb-6"
+                        className="w-full h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500 mb-6 disabled:opacity-50"
                     />
                     
                     <div className="flex justify-center">
@@ -252,14 +270,18 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                 <div className="flex gap-4">
                     <button
                         onClick={handleConfirmFinish}
-                        disabled={selectedRating === 0}
-                        className="flex-1 px-8 py-4 text-[11px] font-black rounded-2xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-xl shadow-emerald-200 dark:shadow-emerald-900/20 transition-all active:scale-95 uppercase tracking-widest disabled:opacity-50 disabled:grayscale"
+                        disabled={selectedRating === 0 || isSaving}
+                        className="flex-1 px-8 py-4 text-[11px] font-black rounded-2xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-xl shadow-emerald-200 dark:shadow-emerald-900/20 transition-all active:scale-95 uppercase tracking-widest disabled:opacity-50 disabled:grayscale flex items-center justify-center gap-3"
                     >
-                        Confirmar e Finalizar
+                        {isSaving && (
+                            <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                        )}
+                        {isSaving ? 'Finalizando...' : 'Confirmar e Finalizar'}
                     </button>
                     <button
                         onClick={() => setIsFinishing(false)}
-                        className="px-8 py-4 text-[11px] font-black rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 transition-all uppercase tracking-widest"
+                        disabled={isSaving}
+                        className="px-8 py-4 text-[11px] font-black rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-200 transition-all uppercase tracking-widest disabled:opacity-50"
                     >
                         Voltar
                     </button>

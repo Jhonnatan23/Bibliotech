@@ -5,7 +5,7 @@ import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { AddBookModal } from './components/AddBookModal';
 import { SettingsModal } from './components/SettingsModal';
-import { PlusIcon } from './components/Icons';
+import { PlusIcon, XMarkIcon } from './components/Icons';
 import type { Book, NewBook, Profile } from './types';
 import { BookList } from './components/BookList';
 import { ConfirmationModal } from './components/ConfirmationModal';
@@ -39,6 +39,7 @@ export default function App() {
       dbService.getProfile().then(profile => {
         if (profile) {
           setUserProfile(profile);
+          if (profile.readingGoal) setReadingGoal(profile.readingGoal);
           checkPlatformApiKey();
         }
       });
@@ -64,19 +65,28 @@ export default function App() {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'light');
   const [readingGoal, setReadingGoal] = useState(() => parseInt(localStorage.getItem('biblio_tech_goal') || '12', 10));
 
-  const handleSetReadingGoal = (val: number) => {
-    setReadingGoal(val);
-    localStorage.setItem('biblio_tech_goal', val.toString());
-    dbService.updateReadingGoal(val);
+  const handleSetReadingGoal = async (val: number) => {
+    try {
+        setReadingGoal(val);
+        localStorage.setItem('biblio_tech_goal', val.toString());
+        await dbService.updateReadingGoal(val);
+        showToast("Meta de leitura atualizada.");
+    } catch (err: any) {
+        showToast(`Erro ao salvar meta: ${err.message}`);
+    }
   };
 
   const handleUpdateProfile = async (updates: Partial<Profile>) => {
     if (userProfile) {
-        const newProfile = { ...userProfile, ...updates };
-        setUserProfile(newProfile);
-        await dbService.updateProfile(updates);
-        // We re-check the platform state if needed, but primarily geminiService handles process.env.API_KEY
-        checkPlatformApiKey();
+        try {
+            const newProfile = { ...userProfile, ...updates };
+            setUserProfile(newProfile);
+            await dbService.updateProfile(updates);
+            checkPlatformApiKey();
+            showToast("Perfil atualizado.");
+        } catch (err: any) {
+            showToast(`Erro ao atualizar perfil: ${err.message}`);
+        }
     }
   };
 
@@ -99,15 +109,23 @@ export default function App() {
   };
 
   const handleAddBook = async (newBook: NewBook) => {
-    await addBook(newBook);
-    setIsModalOpen(false);
-    showToast(`"${newBook.title}" salvo!`);
+    try {
+        await addBook(newBook);
+        setIsModalOpen(false);
+        showToast(`"${newBook.title}" salvo!`);
+    } catch (err: any) {
+        showToast(`Erro ao salvar: ${err.message}`);
+    }
   };
   
   const handleUpdateBook = async (updatedBook: Book) => {
-    await updateBook(updatedBook);
-    setIsModalOpen(false);
-    showToast(`"${updatedBook.title}" atualizado.`);
+    try {
+        await updateBook(updatedBook);
+        setIsModalOpen(false);
+        showToast(`"${updatedBook.title}" atualizado.`);
+    } catch (err: any) {
+        showToast(`Erro ao atualizar: ${err.message}`);
+    }
   };
 
   const openAddModal = (status?: BookStatus) => {
@@ -128,7 +146,17 @@ export default function App() {
         isConnected={!isLocalMode} hasApiKey={hasApiKey}
       />
       
-      {!hasApiKey && (
+      {/* Alerta de Erro de Banco de Dados */}
+      {schemaError && (
+        <div className="bg-red-600 text-white px-6 py-3 text-center text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-4 animate-in slide-in-from-top duration-500">
+          <div className="flex-1">
+             ⚠️ Erro de Sincronização: {schemaError.detail || "O banco de dados está desatualizado."} 
+             <span className="block mt-1 font-bold opacity-80">Rode o script SQL do arquivo instrucoes_sql.txt no painel do Supabase!</span>
+          </div>
+        </div>
+      )}
+
+      {!hasApiKey && !schemaError && (
         <div className="bg-red-500 text-white px-6 py-2 text-center text-[10px] font-black uppercase tracking-widest animate-pulse cursor-pointer" onClick={() => setIsSettingsOpen(true)}>
           IA Indisponível: Clique aqui para configurar sua Chave de API nas Preferências.
         </div>
