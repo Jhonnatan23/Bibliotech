@@ -8,11 +8,12 @@ interface WishlistProps {
   books: Book[];
   onEdit: (book: Book) => void;
   onDelete: (book: Book) => void;
+  onDuplicate: (book: Book) => void;
   onMoveToShelf: (book: Book) => void;
   onAddWishlistItem: () => void;
 }
 
-export const Wishlist: React.FC<WishlistProps> = ({ books, onEdit, onDelete, onMoveToShelf, onAddWishlistItem }) => {
+export const Wishlist: React.FC<WishlistProps> = ({ books, onEdit, onDelete, onDuplicate, onMoveToShelf, onAddWishlistItem }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredBooks = useMemo(() => {
@@ -87,6 +88,7 @@ export const Wishlist: React.FC<WishlistProps> = ({ books, onEdit, onDelete, onM
               book={book} 
               onEdit={onEdit} 
               onDelete={onDelete}
+              onDuplicate={onDuplicate}
               onMoveToShelf={onMoveToShelf}
             />
           ))
@@ -96,7 +98,7 @@ export const Wishlist: React.FC<WishlistProps> = ({ books, onEdit, onDelete, onM
                 <HeartIcon className="h-12 w-12 text-slate-200 dark:text-slate-700" />
             </div>
             <h3 className="text-2xl font-black text-slate-900 dark:text-slate-50 font-serif italic mb-2">Sua lista está vazia</h3>
-            <p className="text-slate-400 dark:text-slate-500 max-w-sm mx-auto text-sm font-medium">Que tal adicionar aquele livro que você está namorando há tempos?</p>
+            <p className="text-slate-400 dark:text-slate-50 max-w-sm mx-auto text-sm font-medium">Que tal adicionar aquele livro que você está namorando há tempos?</p>
             <button 
                 onClick={onAddWishlistItem}
                 className="mt-10 px-10 py-4 bg-primary text-white rounded-full font-black text-[11px] uppercase tracking-widest shadow-xl hover:bg-slate-900 transition-all active:scale-95"

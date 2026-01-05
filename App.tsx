@@ -14,6 +14,8 @@ import { Wishlist } from './components/Wishlist';
 import { BottomNav } from './components/BottomNav';
 import { Auth } from './components/Auth';
 import { StatsView } from './components/StatsView';
+import { PricePaidModal } from './components/PricePaidModal'; 
+import { BookSearch } from './components/BookSearch';
 import { supabase } from './services/supabase';
 import { dbService } from './services/database';
 
@@ -24,10 +26,17 @@ export default function App() {
   const [hasApiKey, setHasApiKey] = useState<boolean>(true);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setIsAuthLoading(false);
-    });
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        setSession(session);
+      })
+      .catch((err) => {
+        console.warn("⚠️ Não foi possível sincronizar sessão inicial (Offline/Fetch Error).");
+      })
+      .finally(() => {
+        setIsAuthLoading(false);
+      });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
     });
@@ -92,9 +101,11 @@ export default function App() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search'>('dashboard');
   const [editingBook, setEditingBook] = useState<Book | null>(null);
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const [deletingBook, setDeletingBook] = useState<Book | null>(null);
+  const [convertingBook, setConvertingBook] = useState<Book | null>(null); 
   const [defaultStatusForModal, setDefaultStatusForModal] = useState<BookStatus | undefined>();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -128,9 +139,31 @@ export default function App() {
     }
   };
 
+  const handleFinishConversion = async (price: number) => {
+    if (convertingBook) {
+      const updated: Book = {
+        ...convertingBook,
+        status: BookStatus.TBR,
+        wasWishlist: true,
+        pricePaid: price,
+        dateAdded: new Date().toISOString().split('T')[0] 
+      };
+      await handleUpdateBook(updated);
+      setConvertingBook(null);
+      showToast("Movido para sua estante!");
+    }
+  };
+
   const openAddModal = (status?: BookStatus) => {
     setEditingBook(null);
+    setIsDuplicating(false);
     setDefaultStatusForModal(status);
+    setIsModalOpen(true);
+  };
+
+  const handleDuplicateRequest = (book: Book) => {
+    setEditingBook(book);
+    setIsDuplicating(true);
     setIsModalOpen(true);
   };
 
@@ -146,7 +179,6 @@ export default function App() {
         isConnected={!isLocalMode} hasApiKey={hasApiKey}
       />
       
-      {/* Alerta de Erro de Banco de Dados */}
       {schemaError && (
         <div className="bg-red-600 text-white px-6 py-3 text-center text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-4 animate-in slide-in-from-top duration-500">
           <div className="flex-1">
@@ -163,10 +195,28 @@ export default function App() {
       )}
 
       <main className="p-4 md:p-8">
-        {view === 'dashboard' && <Dashboard stats={stats} currentlyReading={currentlyReading} updateBook={handleUpdateBook} dateFilter={dateFilter} setDateFilter={setDateFilter} selectedYear={selectedYear} setSelectedYear={setSelectedYear} availableYears={availableYears} books={books} customRange={customRange} setCustomRange={setCustomRange} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} />}
-        {view === 'list' && <BookList books={books.filter(b => b.status !== BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} onDelete={setDeletingBook} onUpdateBook={handleUpdateBook} />}
-        {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsModalOpen(true); }} onDelete={setDeletingBook} onMoveToShelf={(b) => handleUpdateBook({ ...b, status: BookStatus.TBR, wasWishlist: true })} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
+        {view === 'dashboard' && (
+          <Dashboard 
+            stats={stats} 
+            currentlyReading={currentlyReading} 
+            updateBook={handleUpdateBook} 
+            dateFilter={dateFilter} 
+            setDateFilter={setDateFilter} 
+            selectedYear={selectedYear} 
+            setSelectedYear={setSelectedYear} 
+            availableYears={availableYears} 
+            books={books} 
+            customRange={customRange} 
+            setCustomRange={setCustomRange} 
+            readingGoal={readingGoal} 
+            onSetReadingGoal={handleSetReadingGoal} 
+            addBook={handleAddBook}
+          />
+        )}
+        {view === 'list' && <BookList books={books.filter(b => b.status !== BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onUpdateBook={handleUpdateBook} />}
+        {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onMoveToShelf={(b) => setConvertingBook(b)} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
         {view === 'stats' && <StatsView books={books} availableYears={availableYears} />}
+        {view === 'search' && <BookSearch onAddWishlist={handleAddBook} existingBooks={books} />}
       </main>
       
       <div className="fixed bottom-24 right-6 flex flex-col gap-3">
@@ -175,8 +225,13 @@ export default function App() {
 
       <BottomNav view={view} setView={setView} />
       {toastMessage && <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-bottom-4 duration-500"><div className="bg-slate-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3"><p className="text-[11px] font-black uppercase tracking-widest">{toastMessage}</p></div></div>}
-      {isModalOpen && <AddBookModal onClose={() => setIsModalOpen(false)} onAddBook={handleAddBook} onUpdateBook={handleUpdateBook} bookToEdit={editingBook} defaultStatus={defaultStatusForModal} existingBooks={books} />}
+      
+      {isModalOpen && <AddBookModal onClose={() => setIsModalOpen(false)} onAddBook={handleAddBook} onUpdateBook={handleUpdateBook} bookToEdit={editingBook} isDuplicating={isDuplicating} defaultStatus={defaultStatusForModal} existingBooks={books} />}
+      
+      {convertingBook && <PricePaidModal book={convertingBook} onClose={() => setConvertingBook(null)} onConfirm={handleFinishConversion} />}
+      
       {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} profile={userProfile} onUpdateProfile={handleUpdateProfile} />}
+      
       {deletingBook && <ConfirmationModal isOpen={!!deletingBook} onClose={() => setDeletingBook(null)} onConfirm={async () => { await deleteBook(deletingBook.id); setDeletingBook(null); showToast(`Removido.`); }} title="Excluir" message={`Apagar "${deletingBook.title}"?`} />}
     </div>
   );

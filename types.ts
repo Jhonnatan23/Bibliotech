@@ -4,6 +4,7 @@ export enum BookStatus {
   TBR = 'Não lido',
   Read = 'Lido',
   Wishlist = 'Lista de Desejos',
+  Dropped = 'Abandonado',
 }
 
 export enum BookType {
@@ -21,7 +22,7 @@ export const GENRES = [
 
 export interface StatusConfig {
   label: string;
-  color: 'blue' | 'green' | 'amber' | 'pink';
+  color: 'blue' | 'green' | 'amber' | 'pink' | 'slate';
 }
 
 export type StatusConfigs = Record<BookStatus, StatusConfig>;
@@ -31,6 +32,7 @@ export const STATUS_COLORS = {
   green: { bg: 'bg-green-50', text: 'text-green-600', border: 'border-green-100' },
   amber: { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' },
   pink: { bg: 'bg-pink-50', text: 'text-pink-600', border: 'border-pink-100' },
+  slate: { bg: 'bg-slate-50', text: 'text-slate-500', border: 'border-slate-200' },
 } as const;
 
 export const STATUS_CONFIGS: StatusConfigs = {
@@ -38,6 +40,7 @@ export const STATUS_CONFIGS: StatusConfigs = {
   [BookStatus.TBR]: { label: 'Quero Ler', color: 'amber' },
   [BookStatus.Read]: { label: 'Lidos', color: 'green' },
   [BookStatus.Wishlist]: { label: 'Wishlist', color: 'pink' },
+  [BookStatus.Dropped]: { label: 'Abandonado', color: 'slate' },
 };
 
 export interface Profile {
@@ -57,10 +60,10 @@ export interface Book {
   type: BookType;
   status: BookStatus;
   rating?: number;
-  coverImageUrl?: string;
   summary?: string;
   notes?: string;
   estimatedPrice?: number;
+  pricePaid?: number;
   buyLink?: string;
   currentPage?: number;
   dateAdded: string;
@@ -104,7 +107,8 @@ export interface TypeStat {
 export interface ReadingStats {
   tbrCount: number;
   wishlistCount: number;
-  yearly: YearlyStats;
+  global: YearlyStats; // Métricas de todo o tempo
+  yearly: YearlyStats; // Métricas do período filtrado
   monthly: MonthlyStat[];
   byType: TypeStat[];
 }

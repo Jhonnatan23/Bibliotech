@@ -15,24 +15,16 @@ const stringifyError = (err: any): string => {
   }
 };
 
-/**
- * Executes a Gemini task using the environment's API key.
- * Always creates a new GoogleGenAI instance right before the call.
- */
 const callGenAI = async (task: (ai: GoogleGenAI) => Promise<any>, modelName?: string) => {
   const isProModel = modelName === 'gemini-3-pro-image-preview' || modelName?.includes('pro');
 
-  // Mandatory check for models that REQUIRE a manually selected paid key
   if (isProModel && window.aistudio) {
     const hasKey = await window.aistudio.hasSelectedApiKey();
     if (!hasKey) {
-      console.warn(`O modelo ${modelName} requer uma chave paga. Abrindo seletor...`);
       await window.aistudio.openSelectKey();
-      // Proceeding after dialog trigger to mitigate race conditions as per guidelines
     }
   }
 
-  // Use the API key from the environment variable exclusively
   const apiKey = process.env.API_KEY;
 
   if (!apiKey || apiKey === 'undefined' || apiKey === '') {
@@ -43,14 +35,12 @@ const callGenAI = async (task: (ai: GoogleGenAI) => Promise<any>, modelName?: st
   }
 
   try {
-    // CRITICAL: Create new instance right before making the call
     const ai = new GoogleGenAI({ apiKey });
     return await task(ai);
   } catch (error: any) {
     const errorMsg = stringifyError(error);
     console.error(`Gemini API Error [${modelName || 'unknown'}]:`, errorMsg);
 
-    // Handle PERMISSION_DENIED (403) specifically as requested
     if (
       errorMsg.includes("PERMISSION_DENIED") ||
       errorMsg.includes("403") ||
@@ -59,7 +49,6 @@ const callGenAI = async (task: (ai: GoogleGenAI) => Promise<any>, modelName?: st
       errorMsg.includes("404")
     ) {
       if (window.aistudio) {
-        console.warn("Permissão negada ou modelo não encontrado. Solicitando seleção de nova chave paga...");
         await window.aistudio.openSelectKey();
       }
     }
@@ -83,57 +72,37 @@ export const generateBookSummary = async (title: string, author: string): Promis
   }
 };
 
-/**
- * Generates a book cover. 
- * Defaults to 'gemini-2.5-flash-image' to ensure broad compatibility with standard keys.
- * Switches to Pro model if explicitly high-quality or search is needed.
- */
-export const generateBookCover = async (title: string, genre: string, type: string, author?: string): Promise<string> => {
-  // Use gemini-2.5-flash-image as the robust default to avoid 403 issues on standard keys.
-  // This model does not support googleSearch tool, but works for general image tasks.
-  const usePro = false; // Toggle this if you want to force High Quality / Search
-  const model = usePro ? 'gemini-3-pro-image-preview' : 'gemini-2.5-flash-image';
-  
-  try {
-    return await callGenAI(async (ai) => {
-      const prompt = `Capa de livro profissional para "${title}" ${author ? `por ${author}` : ''}. 
-      Gênero: ${genre}. Estilo: artístico, sem textos, alta qualidade.`;
-
-      const response: GenerateContentResponse = await ai.models.generateContent({
-        model,
-        contents: { parts: [{ text: prompt }] },
-        config: {
-          imageConfig: {
-            aspectRatio: "3:4"
-          },
-          // Only use googleSearch if using the Pro model
-          ...(usePro ? { tools: [{ googleSearch: {} }] } : {})
-        },
-      });
-
-      if (response.candidates?.[0]?.content?.parts) {
-        for (const part of response.candidates[0].content.parts) {
-          if (part.inlineData) {
-            return `data:image/png;base64,${part.inlineData.data}`;
-          }
-        }
-      }
-      
-      return `https://picsum.photos/seed/${encodeURIComponent(title)}/400/600`;
-    }, model);
-  } catch (error: any) {
-    console.error("Erro na geração de capa:", stringifyError(error));
-    return `https://picsum.photos/seed/${encodeURIComponent(title)}/400/600`;
-  }
-};
-
-export const getAIRecommendations = async (readBooks: { title: string, genre: string }[]): Promise<Recommendation[]> => {
-  if (readBooks.length === 0) return [];
+export const getAIRecommendations = async (readBooks: { title: string, genre: string, rating?: number }[]): Promise<Recommendation[]> => {
   const model = 'gemini-3-flash-preview';
   try {
     return await callGenAI(async (ai) => {
-      const booksDescription = readBooks.map(b => `${b.title} (${b.genre})`).join(', ');
-      const prompt = `Com base em: ${booksDescription}. Recomende 3 livros novos em Português com links de busca na Amazon Brasil.`;
+      // Ordena livros lidos por nota para dar contexto de prioridade
+      const highRated = readBooks.filter(b => (b.rating || 0) >= 8);
+      const lowRated = readBooks.filter(b => (b.rating || 0) < 6 && b.rating !== undefined);
+      
+      let context = "";
+      if (readBooks.length > 0) {
+        context = `
+          O usuário tem o seguinte histórico de leitura:
+          LIVROS FAVORITOS (Notas Altas): ${highRated.map(b => `${b.title} (${b.genre}) - Nota: ${b.rating}`).join(', ')}.
+          LIVROS QUE NÃO AGRADARAM TANTO (Notas Baixas): ${lowRated.map(b => `${b.title} (${b.genre}) - Nota: ${b.rating}`).join(', ')}.
+          OUTROS: ${readBooks.filter(b => (b.rating || 0) >= 6 && (b.rating || 0) < 8).map(b => `${b.title} (${b.genre})`).join(', ')}.
+          
+          Instrução importante: Dê muito mais peso aos LIVROS FAVORITOS para gerar as novas sugestões. Evite temas similares aos LIVROS QUE NÃO AGRADARAM.
+        `;
+      } else {
+        context = "O usuário ainda não tem livros lidos. Recomende 3 clássicos essenciais de gêneros variados (Ficção, Biografia, Suspense) que costumam ter notas altíssimas.";
+      }
+
+      const prompt = `
+        Aja como um bibliotecário especialista e curador literário. 
+        ${context}
+        Com base no perfil psicológico e literário extraído desse histórico, recomende exatamente 3 livros novos em Português.
+        Para cada livro, forneça um motivo curto e convincente da recomendação, mencionando por que ele se alinha aos livros que o usuário avaliou com notas altas.
+        Gere um link de busca na Amazon Brasil (https://www.amazon.com.br/s?k=NOME+DO+LIVRO) para o campo buyLink.
+        Responda estritamente em JSON seguindo o esquema fornecido.
+      `;
+
       const response: GenerateContentResponse = await ai.models.generateContent({
         model,
         contents: prompt,
@@ -158,6 +127,7 @@ export const getAIRecommendations = async (readBooks: { title: string, genre: st
       return JSON.parse(response.text || '[]');
     }, model);
   } catch (error: any) {
+    console.error("Erro ao obter recomendações:", error);
     return [];
   }
 };

@@ -1,9 +1,56 @@
 
 import type { Book, Profile } from '../types';
 import { supabase } from './supabase';
+import { BookStatus } from '../types';
 
 const TABLE_NAME = 'books';
 const BASE_LOCAL_STORAGE_KEY = 'biblio_tech_cache_';
+const FETCH_TIMEOUT_MS = 12000;
+
+/**
+ * Função utilitária para lidar com Timeouts e Retentativas
+ */
+const withRetry = async <T>(
+  promiseFn: () => Promise<any>,
+  maxRetries: number = 2,
+  delay: number = 1000
+): Promise<T> => {
+  let lastError: any;
+  
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const result = await Promise.race([
+        promiseFn(),
+        new Promise((_, reject) => 
+          setTimeout(() => reject(new Error("TIMEOUT")), FETCH_TIMEOUT_MS)
+        )
+      ]);
+      
+      if (result && (result as any).error) throw (result as any).error;
+      const data = (result && (result as any).data !== undefined) ? (result as any).data : result;
+      return data as T;
+    } catch (err: any) {
+      lastError = err;
+      const errorMsg = err.message?.toLowerCase() || '';
+      
+      const isRetryable = 
+        errorMsg.includes('fetch') || 
+        errorMsg.includes('network') || 
+        errorMsg.includes('timeout') ||
+        errorMsg.includes('abort') ||
+        err instanceof TypeError;
+
+      if (isRetryable && attempt < maxRetries) {
+        const backoff = delay * (attempt + 1);
+        console.warn(`[Supabase] Tentativa ${attempt + 1} falhou: ${errorMsg}. Tentando novamente em ${backoff}ms...`);
+        await new Promise(resolve => setTimeout(resolve, backoff));
+        continue;
+      }
+      break;
+    }
+  }
+  throw lastError;
+};
 
 const mapBookToDb = (book: any) => {
     const dateAddedValue = book.dateAdded || new Date().toISOString().split('T')[0];
@@ -17,10 +64,10 @@ const mapBookToDb = (book: any) => {
         type: book.type || 'Livro',
         status: book.status || 'Não lido',
         rating: (book.rating !== undefined && book.rating !== null && book.rating !== 0) ? parseFloat(String(book.rating)) : null,
-        cover_image_url: book.coverImageUrl || null,
         summary: book.summary || null,
         notes: book.notes || null,
         estimated_price: (book.estimatedPrice !== undefined && book.estimatedPrice !== null) ? parseFloat(String(book.estimatedPrice)) : null,
+        price_paid: (book.pricePaid !== undefined && book.pricePaid !== null) ? parseFloat(String(book.pricePaid)) : null,
         buy_link: book.buyLink || null,
         current_page: Math.floor(parseInt(String(book.currentPage || 0), 10)),
         date_added: dateAddedValue,
@@ -28,7 +75,7 @@ const mapBookToDb = (book: any) => {
         date_finished: book.dateFinished || null,
         days_to_finish: (book.daysToFinish !== undefined && book.daysToFinish !== null) ? Math.floor(parseInt(String(book.daysToFinish), 10)) : null,
         times_read: (book.timesRead !== undefined && book.timesRead !== null) ? Math.floor(parseInt(String(book.timesRead), 10)) : 0,
-        was_wishlist: book.wasWishlist || false
+        was_wishlist: book.wasWishlist === true
     };
 };
 
@@ -40,12 +87,12 @@ const mapDbToBook = (db: any): Book => ({
     pages: db.pages || 0,
     genre: db.genre || '',
     type: db.type,
-    status: db.status,
+    status: db.status as BookStatus,
     rating: db.rating ? parseFloat(String(db.rating)) : undefined,
-    coverImageUrl: db.cover_image_url,
     summary: db.summary,
     notes: db.notes,
     estimatedPrice: db.estimated_price ? parseFloat(String(db.estimated_price)) : undefined,
+    pricePaid: db.price_paid ? parseFloat(String(db.price_paid)) : undefined,
     buyLink: db.buy_link,
     currentPage: db.current_page || 0,
     dateAdded: db.date_added,
@@ -53,192 +100,160 @@ const mapDbToBook = (db: any): Book => ({
     dateFinished: db.date_finished,
     daysToFinish: db.days_to_finish,
     timesRead: db.times_read || 0,
-    wasWishlist: db.was_wishlist || false
-});
-
-const mapDbToProfile = (db: any): Profile => ({
-    id: db.id,
-    fullName: db.full_name,
-    avatarUrl: db.avatar_url,
-    readingGoal: db.reading_goal || 12
+    wasWishlist: db.was_wishlist === true
 });
 
 export class DatabaseService {
-  private isSchemaBroken = false;
-  private brokenDetail = '';
+  private cachedUser: any = null;
   private onSchemaErrorCallback?: (type: 'table' | 'column' | 'permission', detail?: string) => void;
 
   setSchemaErrorCallback(cb: (type: 'table' | 'column' | 'permission', detail?: string) => void) {
     this.onSchemaErrorCallback = cb;
   }
 
-  private async getCacheKey(): Promise<string | null> {
-    const { data: { user } } = await supabase.auth.getUser();
-    return user ? `${BASE_LOCAL_STORAGE_KEY}${user.id}` : null;
-  }
-
-  private async getLocalBooks(): Promise<Book[]> {
-    const key = await this.getCacheKey();
-    if (!key) return [];
+  private async getSafeUser() {
+    if (this.cachedUser) return this.cachedUser;
     try {
-      const data = localStorage.getItem(key);
-      return data ? JSON.parse(data) : [];
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+            this.cachedUser = session.user;
+            return session.user;
+        }
+        return null;
     } catch (e) {
-      return [];
-    }
-  }
-
-  private async saveLocalBooks(books: Book[]): Promise<void> {
-    const key = await this.getCacheKey();
-    if (!key) return;
-    try {
-      localStorage.setItem(key, JSON.stringify(books));
-    } catch (e: any) {
-      console.warn("Local Storage falhou, dados mantidos apenas em memória.");
+        return null;
     }
   }
 
   async getAllBooks(): Promise<Book[]> {
     try {
-      const { data, error } = await supabase
-        .from(TABLE_NAME)
-        .select('*')
-        .order('date_added', { ascending: false });
+      const user = await this.getSafeUser();
+      if (!user) return await this.getLocalBooks();
 
-      if (error) {
-        console.error(`Erro ao buscar livros no Supabase [${error.code}]: ${error.message}`);
-        this.handleSupabaseError(error);
-        return await this.getLocalBooks();
-      }
+      const data = await withRetry<any[]>(() => supabase
+        .from(TABLE_NAME)
+        .select(`
+          id, title, author, pages, genre, type, status, rating, 
+          current_page, date_added, date_started, 
+          date_finished, days_to_finish, times_read, was_wishlist,
+          summary, notes, estimated_price, price_paid, buy_link, user_id
+        `)
+        .eq('user_id', user.id)
+        .order('date_added', { ascending: false })
+      );
       
-      this.isSchemaBroken = false;
       const books = (data || []).map(mapDbToBook);
       await this.saveLocalBooks(books);
       return books;
     } catch (err: any) {
-      console.error("Erro inesperado em getAllBooks:", err.message || err);
+      console.error("Erro na nuvem, carregando local:", err.message || err);
       return await this.getLocalBooks();
     }
   }
 
-  async getQuickStatsSummary() {
-    if (this.isSchemaBroken) return null;
-    
+  async getLocalBooks(): Promise<Book[]> {
+    const user = await this.getSafeUser();
+    if (!user) return [];
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
+      const data = localStorage.getItem(`${BASE_LOCAL_STORAGE_KEY}${user.id}`);
+      return data ? JSON.parse(data) : [];
+    } catch (e) { return []; }
+  }
 
-      const [read, tbr, wishlist] = await Promise.all([
-        supabase.from(TABLE_NAME).select('*', { count: 'exact', head: true }).eq('status', 'Lido').eq('user_id', user.id),
-        supabase.from(TABLE_NAME).select('*', { count: 'exact', head: true }).eq('status', 'Não lido').eq('user_id', user.id),
-        supabase.from(TABLE_NAME).select('*', { count: 'exact', head: true }).eq('status', 'Lista de Desejos').eq('user_id', user.id)
-      ]);
-
-      return {
-        readCount: read.count || 0,
-        tbrCount: tbr.count || 0,
-        wishlistCount: wishlist.count || 0
-      };
-    } catch (err) {
-      return null;
-    }
+  private async saveLocalBooks(books: Book[]): Promise<void> {
+    const user = await this.getSafeUser();
+    if (!user) return;
+    try {
+      localStorage.setItem(`${BASE_LOCAL_STORAGE_KEY}${user.id}`, JSON.stringify(books));
+    } catch (e) {}
   }
 
   async saveBook(book: Partial<Book>): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-        throw new Error("Usuário não identificado. Faça login novamente.");
-    }
+    const user = await this.getSafeUser();
+    if (!user) return;
 
-    const dbPayload = mapBookToDb(book);
-    dbPayload.user_id = user.id;
+    const bookId = book.id || crypto.randomUUID();
+    const updatedBookForDb = { ...book, id: bookId, user_id: user.id };
+    const dbPayload = mapBookToDb(updatedBookForDb);
 
-    // Sincroniza Localmente Primeiro
     const books = await this.getLocalBooks();
-    const index = books.findIndex(b => b.id === (book.id || dbPayload.id));
+    const index = books.findIndex(b => b.id === bookId);
     const updatedBookState = mapDbToBook(dbPayload);
     
     if (index >= 0) books[index] = updatedBookState;
     else books.unshift(updatedBookState);
     await this.saveLocalBooks(books);
 
-    if (this.isSchemaBroken) {
-        throw new Error(`O banco de dados está desatualizado: ${this.brokenDetail}. Por favor, execute o script SQL.`);
-    }
-
-    // Persiste no Supabase
-    const { error } = await supabase.from(TABLE_NAME).upsert(dbPayload);
-    if (error) {
-        console.error(`Supabase Upsert Error [${error.code}]: ${error.message}`);
-        this.handleSupabaseError(error);
-        throw new Error(`Erro ao salvar na nuvem: ${error.message}`);
-    }
+    withRetry(() => supabase.from(TABLE_NAME).upsert(dbPayload)).catch(() => {});
   }
 
   async deleteBook(id: string): Promise<void> {
+    const user = await this.getSafeUser();
+    if (!user) return;
+    
     const books = (await this.getLocalBooks()).filter(b => b.id !== id);
     await this.saveLocalBooks(books);
     
-    if (this.isSchemaBroken) return;
-    const { error } = await supabase.from(TABLE_NAME).delete().eq('id', id);
-    if (error) {
-        console.error(`Erro ao deletar livro no Supabase [${error.code}]: ${error.message}`);
-    }
-  }
-
-  async updateReadingGoal(goal: number): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Usuário não identificado.");
-    
-    // Força o valor a ser um inteiro redondo para evitar erro 22P02 no Postgres
-    const cleanGoal = Math.round(goal);
-    
-    const { error } = await supabase.from('profiles').upsert({ 
-        id: user.id, 
-        reading_goal: cleanGoal, 
-        updated_at: new Date().toISOString() 
-    });
-    if (error) {
-        console.error("Erro ao salvar meta:", error.message);
-        throw error;
-    }
-  }
-
-  async updateProfile(profile: Partial<Profile>): Promise<void> {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) throw new Error("Usuário não identificado.");
-    const dbPayload: any = { id: user.id, updated_at: new Date().toISOString() };
-    if (profile.fullName !== undefined) dbPayload.full_name = profile.fullName;
-    if (profile.avatarUrl !== undefined) dbPayload.avatar_url = profile.avatarUrl;
-    
-    const { error } = await supabase.from('profiles').upsert(dbPayload);
-    if (error) {
-        console.error("Erro ao atualizar perfil:", error.message);
-        throw error;
-    }
+    supabase.from(TABLE_NAME).delete().eq('id', id).catch(() => {});
   }
 
   async getProfile(): Promise<Profile | null> {
-    const { data: { user } } = await supabase.auth.getUser();
+    const user = await this.getSafeUser();
     if (!user) return null;
     try {
-        const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        if (error || !data) return { id: user.id, fullName: 'Leitor', readingGoal: 12 };
-        return mapDbToProfile(data);
-    } catch (err) {
-        return { id: user.id, fullName: 'Leitor', readingGoal: 12 };
-    }
+        const data = await withRetry<any>(() => 
+          supabase.from('profiles').select('id, full_name, avatar_url, reading_goal').eq('id', user.id).single()
+        );
+        return {
+            id: data.id,
+            fullName: data.full_name,
+            avatarUrl: data.avatar_url,
+            readingGoal: data.reading_goal
+        };
+    } catch (err) { return { id: user.id, fullName: 'Leitor', readingGoal: 12 }; }
   }
 
-  private handleSupabaseError(error: any) {
-    if (error.code === '42P01' || error.code === 'PGRST204' || error.code === 'PGRST107' || error.code === '22P02') {
-        this.isSchemaBroken = true;
-        this.brokenDetail = error.message;
-        const msg = error.code === '22P02' 
-            ? 'Erro de tipo de dados (tentando salvar decimal em coluna inteira). Rode o script de migração SQL v13.' 
-            : 'Tabela ou Schema desatualizado. Verifique o SQL Editor.';
-        if (this.onSchemaErrorCallback) this.onSchemaErrorCallback('table', msg);
-    }
+  async updateReadingGoal(goal: number): Promise<void> {
+    const user = await this.getSafeUser();
+    if (!user) return;
+    withRetry(() => supabase.from('profiles').upsert({ id: user.id, reading_goal: Math.round(goal), updated_at: new Date().toISOString() })).catch(() => {});
+  }
+
+  async updateProfile(profile: Partial<Profile>): Promise<void> {
+    const user = await this.getSafeUser();
+    if (!user) return;
+    const dbPayload: any = { id: user.id, updated_at: new Date().toISOString() };
+    if (profile.fullName !== undefined) dbPayload.full_name = profile.fullName;
+    withRetry(() => supabase.from('profiles').upsert(dbPayload)).catch(() => {});
+  }
+
+  async getQuickStatsSummary() {
+    const user = await this.getSafeUser();
+    if (!user) return null;
+    try {
+      const data = await withRetry<any[]>(() => 
+        supabase.from(TABLE_NAME).select('status').eq('user_id', user.id)
+      );
+      const counts = (data || []).reduce((acc: any, curr: any) => {
+        acc[curr.status] = (acc[curr.status] || 0) + 1;
+        return acc;
+      }, {});
+      return {
+        readCount: counts['Lido'] || 0,
+        tbrCount: counts['Não lido'] || 0,
+        wishlistCount: counts['Lista de Desejos'] || 0,
+        droppedCount: counts['Abandonado'] || 0
+      };
+    } catch (e) { return null; }
+  }
+
+  async getLocalStats() {
+    const user = await this.getSafeUser();
+    if (!user) return null;
+    try {
+      const data = localStorage.getItem(`${BASE_LOCAL_STORAGE_KEY}${user.id}_stats`);
+      return data ? JSON.parse(data) : null;
+    } catch (e) { return null; }
   }
 }
 

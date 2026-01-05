@@ -26,7 +26,7 @@ const CustomTooltip = ({ active, payload, label, prefix = '' }: any) => {
                         <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">{p.name}</span>
                     </div>
                     <span className="font-black text-slate-900 dark:text-slate-100 text-sm">
-                        {prefix}{typeof p.value === 'number' ? (p.value % 1 === 0 ? p.value.toLocaleString('pt-BR') : p.value.toFixed(1)) : p.value}
+                        {prefix}{p.value !== undefined ? (p.value % 1 === 0 ? p.value.toLocaleString('pt-BR') : p.value.toFixed(1)) : p.value}
                     </span>
                 </div>
             ))}
@@ -80,24 +80,20 @@ export const StatsView: React.FC<StatsViewProps> = ({ books, availableYears }) =
     }, [books, availableYears]);
 
     const metrics = useMemo(() => {
-        // 1. Estante Principal (TBR + Reading + Read)
         const shelfBooks = books.filter(b => b.status !== BookStatus.Wishlist);
         const totalShelf = shelfBooks.length;
         const totalShelfHQ = shelfBooks.filter(b => b.type === BookType.HQ).length;
         const totalShelfBook = shelfBooks.filter(b => b.type === BookType.Book).length;
 
-        // 2. Lidos (Baseado no Filtro de Ano)
         const readBooks = filteredBooks.filter(b => b.status === BookStatus.Read);
         const readTotal = readBooks.length;
         const readHQ = readBooks.filter(b => b.type === BookType.HQ).length;
         const readBook = readBooks.filter(b => b.type === BookType.Book).length;
 
-        // 3. Páginas
         const pagesTotal = readBooks.reduce((acc, b) => acc + (b.pages || 0), 0);
         const pagesHQ = readBooks.filter(b => b.type === BookType.HQ).reduce((acc, b) => acc + (b.pages || 0), 0);
         const pagesBook = readBooks.filter(b => b.type === BookType.Book).reduce((acc, b) => acc + (b.pages || 0), 0);
 
-        // 4. Médias
         const avgPagesTotal = readTotal > 0 ? pagesTotal / readTotal : 0;
         const avgPagesHQ = readHQ > 0 ? pagesHQ / readHQ : 0;
         const avgPagesBook = readBook > 0 ? pagesBook / readBook : 0;
@@ -112,7 +108,6 @@ export const StatsView: React.FC<StatsViewProps> = ({ books, availableYears }) =
         const avgTimeHQ = readBooks.filter(b => b.type === BookType.HQ && b.daysToFinish).reduce((acc, b) => acc + (b.daysToFinish || 0), 0) / (readBooks.filter(b => b.type === BookType.HQ && b.daysToFinish).length || 1);
         const avgTimeBook = readBooks.filter(b => b.type === BookType.Book && b.daysToFinish).reduce((acc, b) => acc + (b.daysToFinish || 0), 0) / (readBooks.filter(b => b.type === BookType.Book && b.daysToFinish).length || 1);
 
-        // 5. Wishlist
         const wishlistBooks = filteredBooks.filter(b => b.status === BookStatus.Wishlist);
         const wishlistTotal = wishlistBooks.length;
         const wishlistHQ = wishlistBooks.filter(b => b.type === BookType.HQ).length;
@@ -122,11 +117,13 @@ export const StatsView: React.FC<StatsViewProps> = ({ books, availableYears }) =
         const wishlistValueHQ = wishlistBooks.filter(b => b.type === BookType.HQ).reduce((acc, b) => acc + (b.estimatedPrice || 0), 0);
         const wishlistValueBook = wishlistBooks.filter(b => b.type === BookType.Book).reduce((acc, b) => acc + (b.estimatedPrice || 0), 0);
 
-        // 6. Conversão (Wishlist -> Estante)
+        // Análise de Aquisição (Novos Dados v14)
         const convertedBooks = filteredBooks.filter(b => b.wasWishlist && b.status !== BookStatus.Wishlist);
         const conversionTotal = convertedBooks.length;
-        const conversionHQ = convertedBooks.filter(b => b.type === BookType.HQ).length;
-        const conversionBook = convertedBooks.filter(b => b.type === BookType.Book).length;
+        
+        const estValueConverted = convertedBooks.reduce((acc, b) => acc + (b.estimatedPrice || 0), 0);
+        const paidValueConverted = convertedBooks.reduce((acc, b) => acc + (b.pricePaid || 0), 0);
+        const diffValue = estValueConverted - paidValueConverted;
 
         return {
             shelf: { total: totalShelf, hq: totalShelfHQ, book: totalShelfBook },
@@ -137,7 +134,14 @@ export const StatsView: React.FC<StatsViewProps> = ({ books, availableYears }) =
             avgTime: { total: avgTimeTotal, hq: avgTimeHQ, book: avgTimeBook },
             wishlist: { total: wishlistTotal, hq: wishlistHQ, book: wishlistBook },
             wishlistValue: { total: wishlistValueTotal, hq: wishlistValueHQ, book: wishlistValueBook },
-            conversion: { total: conversionTotal, hq: conversionHQ, book: conversionBook }
+            conversion: { 
+              total: conversionTotal, 
+              estValue: estValueConverted, 
+              paidValue: paidValueConverted, 
+              savings: diffValue,
+              book: convertedBooks.filter(b => b.type === BookType.Book).length,
+              hq: convertedBooks.filter(b => b.type === BookType.HQ).length
+            }
         };
     }, [books, filteredBooks]);
 
@@ -211,7 +215,6 @@ export const StatsView: React.FC<StatsViewProps> = ({ books, availableYears }) =
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-                {/* Distribuição por Tipo */}
                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft">
                     <h3 className="text-xl font-black font-serif italic mb-8">Composição de Leitura</h3>
                     <div className="h-[350px]">
@@ -228,27 +231,13 @@ export const StatsView: React.FC<StatsViewProps> = ({ books, availableYears }) =
                                         <Cell key={`cell-${index}`} fill={entry.color} />
                                     ))}
                                 </Pie>
-                                <Tooltip 
-                                    content={({ active, payload }) => {
-                                        if (active && payload && payload.length) {
-                                            const data = payload[0].payload;
-                                            return (
-                                                <div className="bg-white/95 dark:bg-slate-900/95 backdrop-blur-md px-5 py-3 rounded-2xl shadow-2xl border border-slate-100 dark:border-white/10 flex flex-col items-center min-w-[120px]">
-                                                    <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{data.name}</span>
-                                                    <span className="text-xl font-black text-slate-900 dark:text-white">{data.value}</span>
-                                                </div>
-                                            );
-                                        }
-                                        return null;
-                                    }}
-                                />
+                                <Tooltip content={<CustomTooltip />} />
                                 <Legend verticalAlign="bottom" align="center" />
                             </PieChart>
                         </ResponsiveContainer>
                     </div>
                 </div>
 
-                {/* Médias */}
                 <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft flex flex-col justify-between">
                     <h3 className="text-xl font-black font-serif italic mb-8">Performance Média</h3>
                     <div className="space-y-6">
@@ -309,112 +298,68 @@ export const StatsView: React.FC<StatsViewProps> = ({ books, availableYears }) =
                 </div>
             </div>
 
-            {/* Nova Seção: Evolução Temporal */}
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-                {/* Evolução de Páginas Lidas */}
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft">
-                    <div className="mb-8">
-                        <h3 className="text-xl font-black font-serif italic">Evolução de Páginas</h3>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">✦ Histórico anual por tipo de obra</p>
-                    </div>
-                    <div className="h-[350px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <BarChart data={evolutionData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.4} />
-                                <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} />
-                                <Tooltip content={<CustomTooltip />} cursor={{ fill: '#f1f5f9', opacity: 0.4 }} />
-                                <Legend verticalAlign="top" align="right" iconType="circle" iconSize={6} wrapperStyle={{ paddingBottom: '20px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em' }} />
-                                <Bar dataKey="Páginas Livros" fill="#2563eb" radius={[6, 6, 0, 0]} barSize={20} />
-                                <Bar dataKey="Páginas HQs" fill="#f59e0b" radius={[6, 6, 0, 0]} barSize={20} />
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-
-                {/* Evolução de Notas Médias */}
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft">
-                    <div className="mb-8">
-                        <h3 className="text-xl font-black font-serif italic">Evolução de Notas</h3>
-                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">✦ Qualidade média anual por tipo</p>
-                    </div>
-                    <div className="h-[350px]">
-                        <ResponsiveContainer width="100%" height="100%">
-                            <LineChart data={evolutionData}>
-                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" strokeOpacity={0.4} />
-                                <XAxis dataKey="year" axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800 }} dy={10} />
-                                <YAxis axisLine={false} tickLine={false} tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }} domain={[0, 10]} />
-                                <Tooltip content={<CustomTooltip />} />
-                                <Legend verticalAlign="top" align="right" iconType="circle" iconSize={6} wrapperStyle={{ paddingBottom: '20px', fontSize: '9px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.1em' }} />
-                                <Line type="monotone" dataKey="Nota Livros" stroke="#2563eb" strokeWidth={3} dot={{ r: 4, fill: '#2563eb', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                                <Line type="monotone" dataKey="Nota HQs" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, fill: '#f59e0b', strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }} />
-                            </LineChart>
-                        </ResponsiveContainer>
-                    </div>
-                </div>
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                {/* Wishlist Estatísticas */}
+                {/* Wishlist Estatísticas Atualizadas */}
                 <div className="bg-gradient-to-br from-pink-50 to-white dark:from-pink-900/10 dark:to-slate-900 p-8 rounded-[2.5rem] border border-pink-100 dark:border-pink-900/20 shadow-soft">
                     <div className="flex justify-between items-center mb-10">
-                        <h3 className="text-xl font-black font-serif italic text-pink-600 dark:text-pink-400">Investimento Wishlist</h3>
+                        <h3 className="text-xl font-black font-serif italic text-pink-600 dark:text-pink-400">Poder de Compra Wishlist</h3>
                         <div className="bg-pink-100 dark:bg-pink-900/30 p-2 rounded-xl text-pink-600">
-                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                         </div>
                     </div>
                     
                     <div className="space-y-8">
                         <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total de Desejos</p>
+                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Desejos Atuais</p>
                             <p className="text-3xl font-black text-slate-900 dark:text-slate-100">{metrics.wishlist.total} <span className="text-xs text-slate-400">obras</span></p>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-white/60 dark:bg-slate-800/60 p-5 rounded-2xl">
-                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Valor Total</p>
-                                <p className="text-xl font-black text-emerald-500">R$ {metrics.wishlistValue.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-                            </div>
-                            <div className="bg-white/60 dark:bg-slate-800/60 p-5 rounded-2xl">
-                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Valor Livros</p>
-                                <p className="text-xl font-black text-slate-700 dark:text-slate-200">R$ {metrics.wishlistValue.book.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+                        <div className="grid grid-cols-1 gap-4">
+                            <div className="bg-white/60 dark:bg-slate-800/60 p-5 rounded-2xl border border-pink-50 dark:border-pink-900/30">
+                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Investimento Necessário</p>
+                                <p className="text-2xl font-black text-pink-600 dark:text-pink-400">R$ {metrics.wishlistValue.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                {/* Conversão Wishlist -> Estante */}
-                <div className="bg-gradient-to-br from-blue-50 to-white dark:from-blue-900/10 dark:to-slate-900 p-8 rounded-[2.5rem] border border-blue-100 dark:border-blue-900/20 shadow-soft">
+                {/* Performance de Aquisição (Novidade v14) */}
+                <div className="bg-gradient-to-br from-emerald-50 to-white dark:from-emerald-900/10 dark:to-slate-900 p-8 rounded-[2.5rem] border border-emerald-100 dark:border-emerald-900/20 shadow-soft">
                     <div className="flex justify-between items-center mb-10">
-                        <h3 className="text-xl font-black font-serif italic text-blue-600 dark:text-blue-400">Desejos Realizados</h3>
-                        <div className="bg-blue-100 dark:bg-blue-900/30 p-2 rounded-xl text-blue-600">
-                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
+                        <h3 className="text-xl font-black font-serif italic text-emerald-600 dark:text-emerald-400">Inteligência Financeira</h3>
+                        <div className="bg-emerald-100 dark:bg-emerald-900/30 p-2 rounded-xl text-emerald-600">
+                             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
                         </div>
                     </div>
                     
-                    <div className="space-y-8">
-                        <div>
-                            <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-1">Total Movido da Wishlist</p>
-                            <p className="text-3xl font-black text-slate-900 dark:text-slate-100">{metrics.conversion.total} <span className="text-xs text-slate-400">obras</span></p>
-                        </div>
-                        
+                    <div className="space-y-6">
                         <div className="flex gap-4">
                             <div className="flex-1 bg-white/60 dark:bg-slate-800/60 p-5 rounded-2xl">
-                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Livros</p>
-                                <p className="text-xl font-black text-primary">{metrics.conversion.book}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Total Pago (Desejos)</p>
+                                <p className="text-xl font-black text-slate-900 dark:text-white">R$ {metrics.conversion.paidValue.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
                             </div>
                             <div className="flex-1 bg-white/60 dark:bg-slate-800/60 p-5 rounded-2xl">
-                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">HQs</p>
-                                <p className="text-xl font-black text-amber-500">{metrics.conversion.hq}</p>
+                                <p className="text-[9px] font-black text-slate-400 uppercase mb-1">Diferença (Savings)</p>
+                                <p className={`text-xl font-black ${metrics.conversion.savings >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>
+                                    {metrics.conversion.savings >= 0 ? '+' : ''} R$ {metrics.conversion.savings.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                </p>
                             </div>
                         </div>
 
-                        <div className="bg-blue-600 text-white p-4 rounded-2xl text-center">
-                            <p className="text-[10px] font-black uppercase tracking-widest opacity-80 mb-1">Taxa de Aquisição</p>
-                            <p className="text-2xl font-black">
-                                {metrics.wishlist.total > 0 ? ((metrics.conversion.total / (metrics.conversion.total + metrics.wishlist.total)) * 100).toFixed(0) : 0}%
-                            </p>
+                        <div className="bg-emerald-600 text-white p-5 rounded-2xl flex justify-between items-center">
+                            <div>
+                                <p className="text-[9px] font-black uppercase tracking-widest opacity-80 mb-1">Desempenho de Aquisição</p>
+                                <p className="text-lg font-bold">
+                                    {metrics.conversion.savings >= 0 ? 'Você economizou!' : 'Pagou acima da média'}
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-3xl font-black">
+                                    {metrics.conversion.estValue > 0 ? Math.abs(Math.round((metrics.conversion.savings / metrics.conversion.estValue) * 100)) : 0}%
+                                </p>
+                            </div>
                         </div>
+                        <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest text-center">✦ Comparação baseada no valor estimado vs. valor pago</p>
                     </div>
                 </div>
             </div>

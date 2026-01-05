@@ -1,5 +1,21 @@
 {
-  "name": "Biblioteca Virtual",
-  "description": "A virtual library to manage and track your reading progress, with statistics and AI-powered book suggestions and cover generation.",
-  "requestFramePermissions": []
+  "name": "BiblioTech",
+  "short_name": "BiblioTech",
+  "description": "Uma biblioteca virtual para gerenciar seu progresso de leitura, com estatísticas detalhadas e recomendações inteligentes baseadas em IA.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ],
+  "theme_color": "#2563eb",
+  "background_color": "#f8fafc",
+  "display": "standalone",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "https://rqomssyihwvbwtoyjwws.supabase.co/storage/v1/object/public/assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
 }

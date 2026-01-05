@@ -1,10 +1,20 @@
 
 -- ======================================================
--- SCRIPT DE ESTRUTURA COMPLETA: BIBLIOTECH (v13)
--- EXECUTE ESTE SCRIPT NO "SQL EDITOR" DO SEU SUPABASE
+-- SCRIPT DE LIMPEZA E OTIMIZAÇÃO: BIBLIOTECH (v18)
+-- REMOVE COLUNAS DE IMAGEM E CONFIGURAÇÕES DE STORAGE
 -- ======================================================
 
--- 1. TABELA DE PERFIS (PROFILES)
+-- 1. REMOÇÃO DA COLUNA DE IMAGEM (Limpeza de Dados)
+ALTER TABLE public.books DROP COLUMN IF EXISTS cover_image_url;
+
+-- 2. LIMPEZA DE STORAGE (Opcional: Remove acesso ao bucket)
+-- Nota: Para deletar os arquivos físicos, use o painel Storage do Supabase e delete o bucket 'book-covers'
+DROP POLICY IF EXISTS "Capas são públicas" ON storage.objects;
+DROP POLICY IF EXISTS "Usuários gerenciam suas próprias capas" ON storage.objects;
+DROP POLICY IF EXISTS "Usuários atualizam suas próprias capas" ON storage.objects;
+DROP POLICY IF EXISTS "Usuários deletam suas próprias capas" ON storage.objects;
+
+-- 3. GARANTIA DE ESTRUTURA PARA PERFIS E LIVROS
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
   full_name TEXT,
@@ -13,7 +23,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
--- 2. TABELA DE LIVROS (BOOKS)
 CREATE TABLE IF NOT EXISTS public.books (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
@@ -24,10 +33,10 @@ CREATE TABLE IF NOT EXISTS public.books (
   type TEXT DEFAULT 'Livro',
   status TEXT DEFAULT 'Não lido',
   rating DECIMAL(3,1),
-  cover_image_url TEXT,
   summary TEXT,
   notes TEXT,
   estimated_price DECIMAL(10,2),
+  price_paid DECIMAL(10,2),
   buy_link TEXT,
   current_page INTEGER DEFAULT 0,
   date_added DATE DEFAULT CURRENT_DATE NOT NULL,
@@ -38,67 +47,7 @@ CREATE TABLE IF NOT EXISTS public.books (
   was_wishlist BOOLEAN DEFAULT FALSE
 );
 
--- 3. MIGRAÇÕES CRÍTICAS (Correção do erro 22P02 - Integer vs Decimal)
-DO $$ 
-BEGIN 
-  -- Converte rating para DECIMAL se ainda for INTEGER
-  IF EXISTS (
-    SELECT 1 FROM information_schema.columns 
-    WHERE table_name='books' AND column_name='rating' AND data_type='integer'
-  ) THEN
-    ALTER TABLE public.books ALTER COLUMN rating TYPE DECIMAL(3,1) USING rating::DECIMAL(3,1);
-  END IF;
-
-  -- Garante que current_page existe
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='books' AND column_name='current_page') THEN
-    ALTER TABLE public.books ADD COLUMN current_page INTEGER DEFAULT 0;
-  END IF;
-
-  -- Garante que was_wishlist existe
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='books' AND column_name='was_wishlist') THEN
-    ALTER TABLE public.books ADD COLUMN was_wishlist BOOLEAN DEFAULT FALSE;
-  END IF;
-  
-  -- Garante que times_read existe
-  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='books' AND column_name='times_read') THEN
-    ALTER TABLE public.books ADD COLUMN times_read INTEGER DEFAULT 1;
-  END IF;
-END $$;
-
--- 4. GATILHO PARA CRIAÇÃO AUTOMÁTICA DE PERFIL
-CREATE OR REPLACE FUNCTION public.handle_new_user() 
-RETURNS TRIGGER AS $$
-BEGIN
-  INSERT INTO public.profiles (id, full_name, avatar_url)
-  VALUES (new.id, new.raw_user_meta_data->>'full_name', new.raw_user_meta_data->>'avatar_url')
-  ON CONFLICT (id) DO NOTHING;
-  RETURN new;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
-
--- 5. HABILITAR RLS
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.books ENABLE ROW LEVEL SECURITY;
-
--- 6. POLÍTICAS DE SEGURANÇA
--- (Repetir políticas existentes para garantir que estão ativas)
-DROP POLICY IF EXISTS "Usuários podem ver seus próprios livros" ON public.books;
-CREATE POLICY "Usuários podem ver seus próprios livros" ON public.books FOR SELECT USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Usuários podem inserir seus próprios livros" ON public.books;
-CREATE POLICY "Usuários podem inserir seus próprios livros" ON public.books FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Usuários podem atualizar seus próprios livros" ON public.books;
-CREATE POLICY "Usuários podem atualizar seus próprios livros" ON public.books FOR UPDATE USING (auth.uid() = user_id);
-
-DROP POLICY IF EXISTS "Usuários podem deletar seus próprios livros" ON public.books;
-CREATE POLICY "Usuários podem deletar seus próprios livros" ON public.books FOR DELETE USING (auth.uid() = user_id);
-
--- 7. PERMISSÕES
-GRANT ALL ON TABLE public.books TO authenticated;
-GRANT ALL ON TABLE public.profiles TO authenticated;
+-- 4. RE-SINCERIZAÇÃO DE ÍNDICES
+CREATE INDEX IF NOT EXISTS idx_books_user_id ON public.books(user_id);
+CREATE INDEX IF NOT EXISTS idx_books_status ON public.books(status);
+CREATE INDEX IF NOT EXISTS idx_books_date_added ON public.books(date_added DESC);

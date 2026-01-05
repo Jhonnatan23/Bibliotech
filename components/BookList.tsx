@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import type { Book } from '../types';
 import { BookStatus, GENRES } from '../types';
@@ -8,13 +9,14 @@ interface BookListProps {
   books: Book[];
   onEdit: (book: Book) => void;
   onDelete: (book: Book) => void;
+  onDuplicate: (book: Book) => void;
   onUpdateBook?: (book: Book) => void;
 }
 
 type FilterStatus = 'all' | BookStatus;
 type SortOrder = 'title' | 'dateAdded';
 
-export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onUpdateBook }) => {
+export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onDuplicate, onUpdateBook }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
   const [sortBy, setSortBy] = useState<SortOrder>('dateAdded');
@@ -71,6 +73,7 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onU
     { label: 'Lendo', value: BookStatus.Reading as FilterStatus },
     { label: 'Lidos', value: BookStatus.Read as FilterStatus },
     { label: 'Quero Ler', value: BookStatus.TBR as FilterStatus },
+    { label: 'Abandonados', value: BookStatus.Dropped as FilterStatus },
   ];
 
   return (
@@ -102,7 +105,7 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onU
       <div className="bg-white dark:bg-slate-900 p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft space-y-8 transition-all hover:border-slate-200 dark:hover:border-slate-700">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-6 border-b border-slate-50 dark:border-slate-800">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] mr-1">Status:</span>
+            <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em] mr-1">Status:</span>
             {filterButtons.map((btn) => (
               <button
                 key={btn.value}
@@ -119,7 +122,7 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onU
           </div>
 
           <div className="flex items-center gap-3">
-            <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Ordenar:</span>
+            <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Ordenar:</span>
             <select 
               value={sortBy} 
               onChange={(e) => setSortBy(e.target.value as SortOrder)}
@@ -134,7 +137,7 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onU
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em]">Filtrar por Gênero:</span>
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Filtrar por Gênero:</span>
               {selectedGenres.length > 0 && (
                 <button 
                   onClick={() => setSelectedGenres([])}
@@ -209,6 +212,7 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onU
               book={book} 
               onEdit={onEdit} 
               onDelete={onDelete} 
+              onDuplicate={onDuplicate}
               onUpdateStatus={handleUpdateStatus}
             />
           ))

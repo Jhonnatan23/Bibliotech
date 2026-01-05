@@ -1,0 +1,16 @@
+
+{
+  "appId": "com.bibliotech.app",
+  "appName": "BiblioTech",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 3000,
+      "backgroundColor": "#2563eb"
+    }
+  }
+}
