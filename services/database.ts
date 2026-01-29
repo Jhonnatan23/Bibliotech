@@ -75,7 +75,9 @@ const mapBookToDb = (book: any) => {
         date_finished: book.dateFinished || null,
         days_to_finish: (book.daysToFinish !== undefined && book.daysToFinish !== null) ? Math.floor(parseInt(String(book.daysToFinish), 10)) : null,
         times_read: (book.timesRead !== undefined && book.timesRead !== null) ? Math.floor(parseInt(String(book.timesRead), 10)) : 0,
-        was_wishlist: book.wasWishlist === true
+        was_wishlist: book.wasWishlist === true,
+        linked_book_ids: book.linkedBookIds || [],
+        tags: book.tags || []
     };
 };
 
@@ -100,7 +102,9 @@ const mapDbToBook = (db: any): Book => ({
     dateFinished: db.date_finished,
     daysToFinish: db.days_to_finish,
     timesRead: db.times_read || 0,
-    wasWishlist: db.was_wishlist === true
+    wasWishlist: db.was_wishlist === true,
+    linkedBookIds: db.linked_book_ids || [],
+    tags: db.tags || []
 });
 
 export class DatabaseService {
@@ -136,7 +140,8 @@ export class DatabaseService {
           id, title, author, pages, genre, type, status, rating, 
           current_page, date_added, date_started, 
           date_finished, days_to_finish, times_read, was_wishlist,
-          summary, notes, estimated_price, price_paid, buy_link, user_id
+          summary, notes, estimated_price, price_paid, buy_link, user_id,
+          linked_book_ids, tags
         `)
         .eq('user_id', user.id)
         .order('date_added', { ascending: false })
@@ -146,6 +151,9 @@ export class DatabaseService {
       await this.saveLocalBooks(books);
       return books;
     } catch (err: any) {
+      if (err.code === '42703' || (err.message && err.message.includes('linked_book_ids'))) {
+        this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada.');
+      }
       console.error("Erro na nuvem, carregando local:", err.message || err);
       return await this.getLocalBooks();
     }
@@ -184,7 +192,11 @@ export class DatabaseService {
     else books.unshift(updatedBookState);
     await this.saveLocalBooks(books);
 
-    withRetry(() => supabase.from(TABLE_NAME).upsert(dbPayload)).catch(() => {});
+    withRetry(() => supabase.from(TABLE_NAME).upsert(dbPayload)).catch((err: any) => {
+        if (err.code === '42703') {
+            this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada.');
+        }
+    });
   }
 
   async deleteBook(id: string): Promise<void> {
@@ -194,7 +206,9 @@ export class DatabaseService {
     const books = (await this.getLocalBooks()).filter(b => b.id !== id);
     await this.saveLocalBooks(books);
     
-    supabase.from(TABLE_NAME).delete().eq('id', id).catch(() => {});
+    withRetry(() => supabase.from(TABLE_NAME).delete().eq('id', id)).catch((err) => {
+        console.error("Erro ao deletar livro na nuvem:", err);
+    });
   }
 
   async getProfile(): Promise<Profile | null> {
@@ -202,15 +216,16 @@ export class DatabaseService {
     if (!user) return null;
     try {
         const data = await withRetry<any>(() => 
-          supabase.from('profiles').select('id, full_name, avatar_url, reading_goal').eq('id', user.id).single()
+          supabase.from('profiles').select('id, full_name, avatar_url, reading_goal, custom_tags').eq('id', user.id).single()
         );
         return {
             id: data.id,
             fullName: data.full_name,
             avatarUrl: data.avatar_url,
-            readingGoal: data.reading_goal
+            readingGoal: data.reading_goal,
+            customTags: data.custom_tags || []
         };
-    } catch (err) { return { id: user.id, fullName: 'Leitor', readingGoal: 12 }; }
+    } catch (err) { return { id: user.id, fullName: 'Leitor', readingGoal: 12, customTags: [] }; }
   }
 
   async updateReadingGoal(goal: number): Promise<void> {
@@ -224,6 +239,8 @@ export class DatabaseService {
     if (!user) return;
     const dbPayload: any = { id: user.id, updated_at: new Date().toISOString() };
     if (profile.fullName !== undefined) dbPayload.full_name = profile.fullName;
+    if (profile.customTags !== undefined) dbPayload.custom_tags = profile.customTags;
+    
     withRetry(() => supabase.from('profiles').upsert(dbPayload)).catch(() => {});
   }
 

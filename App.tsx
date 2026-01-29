@@ -16,6 +16,7 @@ import { Auth } from './components/Auth';
 import { StatsView } from './components/StatsView';
 import { PricePaidModal } from './components/PricePaidModal'; 
 import { BookSearch } from './components/BookSearch';
+import { BookDetailsModal } from './components/BookDetailsModal';
 import { supabase } from './services/supabase';
 import { dbService } from './services/database';
 
@@ -103,6 +104,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search'>('dashboard');
   const [editingBook, setEditingBook] = useState<Book | null>(null);
+  const [viewingBook, setViewingBook] = useState<Book | null>(null);
   const [isDuplicating, setIsDuplicating] = useState(false);
   const [deletingBook, setDeletingBook] = useState<Book | null>(null);
   const [convertingBook, setConvertingBook] = useState<Book | null>(null); 
@@ -132,6 +134,9 @@ export default function App() {
   const handleUpdateBook = async (updatedBook: Book) => {
     try {
         await updateBook(updatedBook);
+        if (viewingBook?.id === updatedBook.id) {
+            setViewingBook(updatedBook);
+        }
         setIsModalOpen(false);
         showToast(`"${updatedBook.title}" atualizado.`);
     } catch (err: any) {
@@ -213,7 +218,7 @@ export default function App() {
             addBook={handleAddBook}
           />
         )}
-        {view === 'list' && <BookList books={books.filter(b => b.status !== BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onUpdateBook={handleUpdateBook} />}
+        {view === 'list' && <BookList profile={userProfile} books={books.filter(b => b.status !== BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onViewDetails={setViewingBook} onUpdateBook={handleUpdateBook} />}
         {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onMoveToShelf={(b) => setConvertingBook(b)} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
         {view === 'stats' && <StatsView books={books} availableYears={availableYears} />}
         {view === 'search' && <BookSearch onAddWishlist={handleAddBook} existingBooks={books} />}
@@ -226,7 +231,9 @@ export default function App() {
       <BottomNav view={view} setView={setView} />
       {toastMessage && <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-bottom-4 duration-500"><div className="bg-slate-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3"><p className="text-[11px] font-black uppercase tracking-widest">{toastMessage}</p></div></div>}
       
-      {isModalOpen && <AddBookModal onClose={() => setIsModalOpen(false)} onAddBook={handleAddBook} onUpdateBook={handleUpdateBook} bookToEdit={editingBook} isDuplicating={isDuplicating} defaultStatus={defaultStatusForModal} existingBooks={books} />}
+      {isModalOpen && <AddBookModal onClose={() => setIsModalOpen(false)} onAddBook={handleAddBook} onUpdateBook={handleUpdateBook} bookToEdit={editingBook} isDuplicating={isDuplicating} defaultStatus={defaultStatusForModal} existingBooks={books} profile={userProfile} />}
+      
+      {viewingBook && <BookDetailsModal book={viewingBook} allBooks={books} onClose={() => setViewingBook(null)} onNavigateToBook={(b) => setViewingBook(b)} profile={userProfile} onUpdateBook={handleUpdateBook} />}
       
       {convertingBook && <PricePaidModal book={convertingBook} onClose={() => setConvertingBook(null)} onConfirm={handleFinishConversion} />}
       

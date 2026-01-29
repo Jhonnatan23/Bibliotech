@@ -48,6 +48,7 @@ export interface Profile {
   fullName: string;
   avatarUrl?: string;
   readingGoal?: number;
+  customTags?: string[];
 }
 
 export interface Book {
@@ -72,6 +73,8 @@ export interface Book {
   daysToFinish?: number;
   timesRead?: number;
   wasWishlist?: boolean;
+  linkedBookIds?: string[];
+  tags?: string[];
 }
 
 export interface Recommendation {
@@ -104,6 +107,16 @@ export interface TypeStat {
   avgRating: number;
 }
 
+export interface GenreStat {
+  genre: string;
+  count: number;
+}
+
+export interface StatusStat {
+  status: string;
+  count: number;
+}
+
 export interface ReadingStats {
   tbrCount: number;
   wishlistCount: number;
@@ -111,6 +124,8 @@ export interface ReadingStats {
   yearly: YearlyStats; // Métricas do período filtrado
   monthly: MonthlyStat[];
   byType: TypeStat[];
+  byGenre: GenreStat[];
+  byStatus: StatusStat[];
 }
 
 export type DateFilter = 'thisYear' | 'allTime' | 'custom' | 'specificYear';

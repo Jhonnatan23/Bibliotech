@@ -2,7 +2,7 @@
 import React from 'react';
 import type { Book } from '../types';
 import { BookStatus } from '../types';
-import { ExternalLinkIcon, Square2StackIcon } from './Icons';
+import { ExternalLinkIcon, Square2StackIcon, TagIcon } from './Icons';
 
 interface WishlistItemProps {
   book: Book;
@@ -21,6 +21,7 @@ const formatDate = (dateStr: string) => {
 export const WishlistItem: React.FC<WishlistItemProps> = ({ book, onEdit, onDelete, onDuplicate, onMoveToShelf }) => {
   const genresList = book.genre ? book.genre.split(',').map(g => g.trim()).filter(g => g !== '') : [];
   const authorsList = book.author ? book.author.split(',').map(a => a.trim()).filter(a => a !== '') : [];
+  const bookTags = book.tags || [];
 
   return (
     <article className="bg-white dark:bg-slate-900 p-5 md:p-8 rounded-[1.5rem] md:rounded-[2rem] shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center md:items-stretch gap-6 md:gap-8 transition-all duration-500 hover:shadow-2xl group">
@@ -68,6 +69,18 @@ export const WishlistItem: React.FC<WishlistItemProps> = ({ book, onEdit, onDele
                     </span>
                 ))}
             </div>
+
+            {bookTags.length > 0 && (
+                <div className="flex items-center gap-1.5 lg:border-l lg:border-slate-100 lg:dark:border-slate-800 lg:pl-3">
+                    {bookTags.slice(0, 2).map(tag => (
+                        <span key={tag} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-[8px] font-black uppercase tracking-widest border border-emerald-100 dark:border-emerald-800/50">
+                            <TagIcon className="h-2.5 w-2.5" /> {tag}
+                        </span>
+                    ))}
+                    {bookTags.length > 2 && <span className="text-[8px] font-black text-slate-300">+{bookTags.length - 2}</span>}
+                </div>
+            )}
+
             <span className="px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-widest border bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-100">
                 {book.pages}p
             </span>

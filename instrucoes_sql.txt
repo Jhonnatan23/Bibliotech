@@ -1,25 +1,21 @@
 
 -- ======================================================
--- SCRIPT DE LIMPEZA E OTIMIZAÇÃO: BIBLIOTECH (v18)
--- REMOVE COLUNAS DE IMAGEM E CONFIGURAÇÕES DE STORAGE
+-- SCRIPT DE LIMPEZA E OTIMIZAÇÃO: BIBLIOTECH (v20)
+-- ATUALIZAÇÃO PARA VÍNCULOS E TAGS
 -- ======================================================
 
--- 1. REMOÇÃO DA COLUNA DE IMAGEM (Limpeza de Dados)
-ALTER TABLE public.books DROP COLUMN IF EXISTS cover_image_url;
+-- 1. ADIÇÃO DA COLUNA DE VÍNCULOS E TAGS
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS linked_book_ids UUID[] DEFAULT '{}';
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS custom_tags TEXT[] DEFAULT '{}';
 
--- 2. LIMPEZA DE STORAGE (Opcional: Remove acesso ao bucket)
--- Nota: Para deletar os arquivos físicos, use o painel Storage do Supabase e delete o bucket 'book-covers'
-DROP POLICY IF EXISTS "Capas são públicas" ON storage.objects;
-DROP POLICY IF EXISTS "Usuários gerenciam suas próprias capas" ON storage.objects;
-DROP POLICY IF EXISTS "Usuários atualizam suas próprias capas" ON storage.objects;
-DROP POLICY IF EXISTS "Usuários deletam suas próprias capas" ON storage.objects;
-
--- 3. GARANTIA DE ESTRUTURA PARA PERFIS E LIVROS
+-- 2. GARANTIA DE ESTRUTURA PARA PERFIS E LIVROS
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users ON DELETE CASCADE,
   full_name TEXT,
   avatar_url TEXT,
   reading_goal INTEGER DEFAULT 12,
+  custom_tags TEXT[] DEFAULT '{}',
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
 
@@ -44,10 +40,12 @@ CREATE TABLE IF NOT EXISTS public.books (
   date_finished DATE,
   days_to_finish INTEGER,
   times_read INTEGER DEFAULT 1,
-  was_wishlist BOOLEAN DEFAULT FALSE
+  was_wishlist BOOLEAN DEFAULT FALSE,
+  linked_book_ids UUID[] DEFAULT '{}',
+  tags TEXT[] DEFAULT '{}'
 );
 
--- 4. RE-SINCERIZAÇÃO DE ÍNDICES
+-- 3. RE-SINCERIZAÇÃO DE ÍNDICES
 CREATE INDEX IF NOT EXISTS idx_books_user_id ON public.books(user_id);
 CREATE INDEX IF NOT EXISTS idx_books_status ON public.books(status);
 CREATE INDEX IF NOT EXISTS idx_books_date_added ON public.books(date_added DESC);

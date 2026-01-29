@@ -1,33 +1,40 @@
 
 import React, { useState, useMemo } from 'react';
-import type { Book } from '../types';
+import type { Book, Profile } from '../types';
 import { BookStatus, GENRES } from '../types';
 import { BookListItem } from './BookListItem';
-import { XMarkIcon } from './Icons';
+import { XMarkIcon, TagIcon } from './Icons';
 
 interface BookListProps {
   books: Book[];
   onEdit: (book: Book) => void;
   onDelete: (book: Book) => void;
   onDuplicate: (book: Book) => void;
+  onViewDetails?: (book: Book) => void;
   onUpdateBook?: (book: Book) => void;
+  profile: Profile | null;
 }
 
 type FilterStatus = 'all' | BookStatus;
 type SortOrder = 'title' | 'dateAdded';
 
-export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onDuplicate, onUpdateBook }) => {
+export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onDuplicate, onViewDetails, onUpdateBook, profile }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
   const [sortBy, setSortBy] = useState<SortOrder>('dateAdded');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [genreSearch, setGenreSearch] = useState('');
 
   const toggleGenre = (genre: string) => {
     setSelectedGenres(prev => 
-      prev.includes(genre) 
-        ? prev.filter(g => g !== genre) 
-        : [...prev, genre]
+      prev.includes(genre) ? prev.filter(g => g !== genre) : [...prev, genre]
+    );
+  };
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
     );
   };
 
@@ -39,14 +46,20 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onD
 
   const filteredBooks = useMemo(() => {
     let result = [...books];
+    
+    // Sort
     if (sortBy === 'title') {
       result.sort((a, b) => a.title.localeCompare(b.title));
     } else {
       result.sort((a, b) => b.dateAdded.localeCompare(a.dateAdded));
     }
+
+    // Status Filter
     if (statusFilter !== 'all') {
       result = result.filter(book => book.status === statusFilter);
     }
+
+    // Search Query
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       result = result.filter(book =>
@@ -54,14 +67,25 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onD
         book.author.toLowerCase().includes(query)
       );
     }
+
+    // Genre Filter
     if (selectedGenres.length > 0) {
       result = result.filter(book => {
         const bookGenres = book.genre.split(',').map(g => g.trim().toLowerCase());
         return selectedGenres.some(sg => bookGenres.includes(sg.toLowerCase()));
       });
     }
+
+    // Tag Filter
+    if (selectedTags.length > 0) {
+      result = result.filter(book => {
+        const bookTags = book.tags || [];
+        return selectedTags.some(st => bookTags.includes(st));
+      });
+    }
+
     return result;
-  }, [books, searchQuery, statusFilter, sortBy, selectedGenres]);
+  }, [books, searchQuery, statusFilter, sortBy, selectedGenres, selectedTags]);
 
   const filteredGenresList = useMemo(() => {
     if (!genreSearch) return GENRES;
@@ -103,6 +127,7 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onD
       </div>
 
       <div className="bg-white dark:bg-slate-900 p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft space-y-8 transition-all hover:border-slate-200 dark:hover:border-slate-700">
+        {/* Status and Sort */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-6 border-b border-slate-50 dark:border-slate-800">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em] mr-1">Status:</span>
@@ -134,16 +159,45 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onD
           </div>
         </div>
 
+        {/* Tags Filter */}
+        {profile?.customTags && profile.customTags.length > 0 && (
+            <div className="space-y-4 pb-6 border-b border-slate-50 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                    <TagIcon className="h-3 w-3 text-emerald-500" />
+                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Filtrar por Minhas Tags:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {profile.customTags.map(tag => {
+                        const isSelected = selectedTags.includes(tag);
+                        return (
+                            <button
+                                key={tag}
+                                onClick={() => toggleTag(tag)}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                                    isSelected 
+                                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-md scale-95' 
+                                    : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                                }`}
+                            >
+                                {tag}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        )}
+
+        {/* Genre Filter */}
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Filtrar por Gênero:</span>
-              {selectedGenres.length > 0 && (
+              {(selectedGenres.length > 0 || selectedTags.length > 0) && (
                 <button 
-                  onClick={() => setSelectedGenres([])}
+                  onClick={() => { setSelectedGenres([]); setSelectedTags([]); }}
                   className="bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
                 >
-                  Limpar Todos
+                  Limpar Todos os Filtros
                 </button>
               )}
             </div>
@@ -181,27 +235,8 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onD
                 </button>
               );
             })}
-            {filteredGenresList.length === 0 && (
-              <span className="text-[10px] font-bold text-slate-300 dark:text-slate-600 italic uppercase tracking-widest py-2">Nenhum gênero encontrado com "{genreSearch}"</span>
-            )}
           </div>
         </div>
-
-        {selectedGenres.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2 pt-2 animate-in fade-in slide-in-from-top-2 duration-300">
-             <span className="text-[9px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest mr-1">Ativos:</span>
-             {selectedGenres.map(g => (
-               <button 
-                 key={g} 
-                 onClick={() => toggleGenre(g)}
-                 className="flex items-center gap-2 bg-slate-900 dark:bg-slate-100 dark:text-slate-900 text-white px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-[0.15em] hover:bg-red-500 dark:hover:bg-red-500 dark:hover:text-white transition-colors group"
-               >
-                 {g}
-                 <XMarkIcon className="h-3 w-3 opacity-50 group-hover:opacity-100" />
-               </button>
-             ))}
-          </div>
-        )}
       </div>
 
       <div className="space-y-6">
@@ -213,6 +248,7 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onD
               onEdit={onEdit} 
               onDelete={onDelete} 
               onDuplicate={onDuplicate}
+              onViewDetails={onViewDetails}
               onUpdateStatus={handleUpdateStatus}
             />
           ))
@@ -224,15 +260,13 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onD
                 </svg>
             </div>
             <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50 font-serif">Nenhum livro corresponde à busca</h3>
-            <p className="text-slate-400 dark:text-slate-500 mt-2 max-w-xs mx-auto text-sm">Parece que seus filtros estão muito específicos. Tente remover alguns gêneros ou alterar o status.</p>
-            {(statusFilter !== 'all' || searchQuery !== '' || selectedGenres.length > 0) ? (
-                <button 
-                    onClick={() => { setStatusFilter('all'); setSearchQuery(''); setSelectedGenres([]); setGenreSearch(''); }}
-                    className="mt-8 px-6 py-2.5 rounded-xl bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 dark:hover:bg-slate-100 dark:hover:text-slate-900 transition-all shadow-lg active:scale-95"
-                >
-                    Redefinir Filtros
-                </button>
-            ) : null}
+            <p className="text-slate-400 dark:text-slate-500 mt-2 max-w-xs mx-auto text-sm">Parece que seus filtros estão muito específicos.</p>
+            <button 
+                onClick={() => { setStatusFilter('all'); setSearchQuery(''); setSelectedGenres([]); setSelectedTags([]); setGenreSearch(''); }}
+                className="mt-8 px-6 py-2.5 rounded-xl bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg active:scale-95"
+            >
+                Redefinir Filtros
+            </button>
           </div>
         )}
       </div>

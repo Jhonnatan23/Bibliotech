@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { XMarkIcon, Cog6ToothIcon } from './Icons';
+import { XMarkIcon, Cog6ToothIcon, PlusIcon, TagIcon, TrashIcon } from './Icons';
 import type { Profile } from '../types';
 import { supabase } from '../services/supabase';
 
@@ -22,6 +22,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [localGoal, setLocalGoal] = useState(readingGoal);
   const [fullName, setFullName] = useState(profile?.fullName || '');
   const [isSaving, setIsSaving] = useState(false);
+  const [tagInput, setTagInput] = useState('');
+  const [customTags, setCustomTags] = useState<string[]>(profile?.customTags || []);
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -32,12 +34,11 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     setIsSaving(true);
     try {
         onSetReadingGoal(localGoal);
-        const updates: Partial<Profile> = {};
-        if (fullName !== profile?.fullName) updates.fullName = fullName;
-        
-        if (Object.keys(updates).length > 0) {
-            await onUpdateProfile(updates);
-        }
+        const updates: Partial<Profile> = {
+            fullName,
+            customTags
+        };
+        await onUpdateProfile(updates);
         if (!passwordMessage || passwordMessage.type === 'success') {
             onClose();
         }
@@ -46,6 +47,18 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     } finally {
         setIsSaving(false);
     }
+  };
+
+  const addTag = () => {
+    const val = tagInput.trim();
+    if (val && !customTags.includes(val)) {
+        setCustomTags([...customTags, val]);
+        setTagInput('');
+    }
+  };
+
+  const removeTag = (tag: string) => {
+    setCustomTags(customTags.filter(t => t !== tag));
   };
 
   const handleUpdatePassword = async (e: React.FormEvent) => {
@@ -101,6 +114,47 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-200 transition-all"
              />
+          </section>
+
+          {/* Gerenciamento de Tags */}
+          <section className="space-y-4 pt-6 border-t border-slate-50 dark:border-slate-800">
+             <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                    <TagIcon className="h-4 w-4 text-primary" />
+                    <h3 className="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">Minhas Tags Personalizadas</h3>
+                </div>
+             </div>
+             
+             <div className="flex gap-2">
+                <input 
+                    type="text"
+                    placeholder="Nome da tag (ex: Favoritos)"
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-primary font-bold text-sm"
+                />
+                <button 
+                    onClick={addTag}
+                    className="px-4 bg-primary text-white rounded-xl hover:bg-slate-900 transition-all active:scale-95"
+                >
+                    <PlusIcon className="h-5 w-5" />
+                </button>
+             </div>
+
+             <div className="flex flex-wrap gap-2 pt-2">
+                {customTags.length > 0 ? (
+                    customTags.map(tag => (
+                        <div key={tag} className="bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-1.5 flex items-center gap-3">
+                            <span className="text-[9px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-400">{tag}</span>
+                            <button onClick={() => removeTag(tag)} className="text-slate-400 hover:text-red-500 transition-colors">
+                                <XMarkIcon className="h-3 w-3" />
+                            </button>
+                        </div>
+                    ))
+                ) : (
+                    <p className="text-[9px] font-bold text-slate-400 italic uppercase tracking-widest px-1">Nenhuma tag criada ainda.</p>
+                )}
+             </div>
           </section>
 
           <section className="space-y-4 pt-6 border-t border-slate-50 dark:border-slate-800">

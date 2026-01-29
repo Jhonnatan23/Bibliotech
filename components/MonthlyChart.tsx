@@ -51,6 +51,16 @@ export const MonthlyChart: React.FC<MonthlyChartProps> = ({ data }) => {
       Páginas: d.pagesRead,
   }));
 
+  const hasData = chartData.some(d => d.Livros > 0 || d.Páginas > 0);
+
+  if (!hasData) {
+      return (
+          <div className="w-full h-[380px] flex items-center justify-center bg-slate-50/50 dark:bg-slate-800/30 rounded-[2rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
+              <p className="text-slate-400 font-bold italic text-sm uppercase tracking-widest">Sem atividades registradas neste período</p>
+          </div>
+      );
+  }
+
   return (
     <div className="w-full h-[380px] mt-4">
       <ResponsiveContainer width="100%" height="100%">

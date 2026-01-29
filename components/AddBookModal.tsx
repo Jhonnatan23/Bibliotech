@@ -1,8 +1,8 @@
 
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
-import type { NewBook, Book, StatusConfigs } from '../types';
+import type { NewBook, Book, StatusConfigs, Profile } from '../types';
 import { BookStatus, BookType, GENRES, STATUS_CONFIGS } from '../types';
-import { XMarkIcon, BookOpenIcon, StarIcon, StarIconFilled, PlusIcon, TagIcon } from './Icons';
+import { XMarkIcon, BookOpenIcon, StarIcon, StarIconFilled, PlusIcon, TagIcon, MagnifyingGlassIcon } from './Icons';
 import { generateBookSummary } from '../services/geminiService';
 
 interface AddBookModalProps {
@@ -14,6 +14,7 @@ interface AddBookModalProps {
   defaultStatus?: BookStatus;
   existingBooks: Book[];
   statusConfigs?: StatusConfigs;
+  profile: Profile | null;
 }
 
 interface FormErrors {
@@ -30,7 +31,8 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   isDuplicating = false,
   defaultStatus, 
   existingBooks, 
-  statusConfigs = STATUS_CONFIGS 
+  statusConfigs = STATUS_CONFIGS,
+  profile
 }) => {
   const isEditMode = !!bookToEdit && !isDuplicating;
 
@@ -52,6 +54,9 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const [estimatedPrice, setEstimatedPrice] = useState(bookToEdit?.estimatedPrice?.toString() || '');
   const [pricePaid, setPricePaid] = useState(isDuplicating ? '' : (bookToEdit?.pricePaid?.toString() || ''));
   const [buyLink, setBuyLink] = useState(bookToEdit?.buyLink || '');
+  const [linkedBookIds, setLinkedBookIds] = useState<string[]>(bookToEdit?.linkedBookIds || []);
+  const [selectedTags, setSelectedTags] = useState<string[]>(bookToEdit?.tags || []);
+  
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -65,12 +70,15 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
 
   const [titleSuggestions, setTitleSuggestions] = useState<string[]>([]);
   const [authorSuggestions, setAuthorSuggestions] = useState<string[]>([]);
+  const [linkSearch, setLinkSearch] = useState('');
+  const [showLinkSuggestions, setShowLinkSuggestions] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [showTitleSug, setShowTitleSug] = useState(false);
   const [showAuthorSug, setShowAuthorSug] = useState(false);
 
   const titleRef = useRef<HTMLDivElement>(null);
   const authorRef = useRef<HTMLDivElement>(null);
+  const linkRef = useRef<HTMLDivElement>(null);
 
   const uniqueTitles = useMemo(() => Array.from(new Set(existingBooks.map(b => b.title))), [existingBooks]);
   const uniqueAuthors = useMemo(() => {
@@ -78,10 +86,18 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
     return Array.from(new Set(all));
   }, [existingBooks]);
 
+  const linkableBooks = useMemo(() => {
+    return existingBooks
+        .filter(b => b.id !== bookToEdit?.id)
+        .filter(b => b.title.toLowerCase().includes(linkSearch.toLowerCase()) || b.author.toLowerCase().includes(linkSearch.toLowerCase()))
+        .slice(0, 5);
+  }, [existingBooks, linkSearch, bookToEdit]);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (titleRef.current && !titleRef.current.contains(event.target as Node)) setShowTitleSug(false);
       if (authorRef.current && !authorRef.current.contains(event.target as Node)) setShowAuthorSug(false);
+      if (linkRef.current && !linkRef.current.contains(event.target as Node)) setShowLinkSuggestions(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -99,6 +115,20 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
 
   const removeAuthor = (name: string) => {
     setAuthors(authors.filter(a => a !== name));
+  };
+
+  const toggleLinkedBook = (id: string) => {
+    setLinkedBookIds(prev => 
+        prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+    setLinkSearch('');
+    setShowLinkSuggestions(false);
+  };
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => 
+        prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
   };
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -128,9 +158,9 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent, type: 'title' | 'author') => {
-    const suggestions = type === 'title' ? titleSuggestions : authorSuggestions;
-    const show = type === 'title' ? showTitleSug : showAuthorSug;
+  const handleKeyDown = (e: React.KeyboardEvent, type: 'title' | 'author' | 'link') => {
+    const suggestions = type === 'title' ? titleSuggestions : (type === 'author' ? authorSuggestions : linkableBooks);
+    const show = type === 'title' ? showTitleSug : (type === 'author' ? showAuthorSug : showLinkSuggestions);
     if (show && suggestions.length > 0) {
       if (e.key === 'ArrowDown') {
         e.preventDefault();
@@ -142,13 +172,17 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
         e.preventDefault();
         const selected = suggestions[activeSuggestionIndex];
         if (type === 'title') {
-          setTitle(selected);
+          setTitle(selected as string);
           setShowTitleSug(false);
+        } else if (type === 'author') {
+          addAuthor(selected as string);
         } else {
-          addAuthor(selected);
+            toggleLinkedBook((selected as Book).id);
         }
       } else if (e.key === 'Escape') {
-        type === 'title' ? setShowTitleSug(false) : setShowAuthorSug(false);
+        if (type === 'title') setShowTitleSug(false);
+        else if (type === 'author') setShowAuthorSug(false);
+        else setShowLinkSuggestions(false);
       }
     }
   };
@@ -209,7 +243,9 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
             dateFinished: status === BookStatus.Read ? dateFinished : undefined,
             daysToFinish: status === BookStatus.Read && daysToFinish ? parseInt(daysToFinish, 10) : null,
             timesRead: status === BookStatus.Read ? Number(timesRead) : (isDuplicating ? 0 : (bookToEdit?.timesRead || 0)),
-            wasWishlist: isDuplicating ? (status === BookStatus.Wishlist) : (bookToEdit?.wasWishlist || (status === BookStatus.Wishlist))
+            wasWishlist: isDuplicating ? (status === BookStatus.Wishlist) : (bookToEdit?.wasWishlist || (status === BookStatus.Wishlist)),
+            linkedBookIds,
+            tags: selectedTags
         };
         if (isEditMode) {
             await onUpdateBook({ ...bookToEdit, ...bookData });
@@ -237,21 +273,31 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const labelClass = (isRequired: boolean) => 
     `block text-[10px] font-black uppercase tracking-[0.15em] mb-1.5 ml-1 flex items-center gap-1 ${isRequired ? 'text-slate-500 dark:text-slate-400' : 'text-slate-400 dark:text-slate-500'}`;
 
-  const SuggestionDropdown = ({ suggestions, show, onSelect }: { suggestions: string[], show: boolean, onSelect: (val: string) => void }) => {
+  const SuggestionDropdown = ({ suggestions, show, onSelect, activeIndex }: { suggestions: any[], show: boolean, onSelect: (val: any) => void, activeIndex: number }) => {
     if (!show || suggestions.length === 0) return null;
     return (
       <div className="absolute left-0 right-0 top-full mt-2 z-[60] bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border border-slate-200 dark:border-slate-700 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-        {suggestions.map((suggestion, index) => (
-          <button
-            key={index}
-            type="button"
-            onMouseEnter={() => setActiveSuggestionIndex(index)}
-            onClick={() => onSelect(suggestion)}
-            className={`w-full text-left px-5 py-3 text-xs font-bold transition-colors ${activeSuggestionIndex === index ? 'bg-primary text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
-          >
-            {suggestion}
-          </button>
-        ))}
+        {suggestions.map((suggestion, index) => {
+            const isBook = typeof suggestion !== 'string';
+            return (
+                <button
+                    key={index}
+                    type="button"
+                    onMouseEnter={() => setActiveSuggestionIndex(index)}
+                    onClick={() => onSelect(suggestion)}
+                    className={`w-full text-left px-5 py-3 text-xs font-bold transition-colors ${activeIndex === index ? 'bg-primary text-white' : 'text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'}`}
+                >
+                    {isBook ? (
+                        <div className="flex flex-col">
+                            <span>{(suggestion as Book).title}</span>
+                            <span className={`text-[9px] uppercase tracking-widest ${activeIndex === index ? 'text-white/60' : 'text-slate-400'}`}>
+                                de {(suggestion as Book).author}
+                            </span>
+                        </div>
+                    ) : suggestion}
+                </button>
+            );
+        })}
       </div>
     );
   };
@@ -288,6 +334,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                     <SuggestionDropdown 
                       suggestions={titleSuggestions} 
                       show={showTitleSug} 
+                      activeIndex={activeSuggestionIndex}
                       onSelect={(val) => { setTitle(val); setShowTitleSug(false); }} 
                     />
                     {errors.title && <p className="text-[10px] text-red-500 font-bold mt-2 uppercase tracking-wide ml-1 animate-in fade-in slide-in-from-top-1">{errors.title}</p>}
@@ -310,6 +357,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                           <SuggestionDropdown 
                             suggestions={authorSuggestions} 
                             show={showAuthorSug} 
+                            activeIndex={activeSuggestionIndex}
                             onSelect={(val) => addAuthor(val)} 
                           />
                         </div>
@@ -347,6 +395,74 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                 <div>
                     <label className={labelClass(false)}>Total de Páginas</label>
                     <input type="number" min="0" value={pages} onChange={(e) => setPages(Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" />
+                </div>
+
+                {/* Vínculo de Obras Relacionadas */}
+                <div className="md:col-span-2 border-t border-slate-100 dark:border-slate-800 pt-6 mt-2 relative" ref={linkRef}>
+                    <label className={labelClass(false)}>Vincular a Outras Obras</label>
+                    <div className="relative mb-3">
+                        <input 
+                            type="text" 
+                            placeholder="Pesquisar na sua estante..."
+                            value={linkSearch}
+                            onFocus={() => setShowLinkSuggestions(true)}
+                            onChange={(e) => { setLinkSearch(e.target.value); setShowLinkSuggestions(true); }}
+                            onKeyDown={(e) => handleKeyDown(e, 'link')}
+                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl py-3.5 pl-12 pr-4 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300 transition-all"
+                        />
+                        <MagnifyingGlassIcon className="h-5 w-5 absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                        
+                        <SuggestionDropdown 
+                            suggestions={linkableBooks} 
+                            show={showLinkSuggestions} 
+                            activeIndex={activeSuggestionIndex}
+                            onSelect={(book) => toggleLinkedBook((book as Book).id)} 
+                        />
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                        {linkedBookIds.map(id => {
+                            const linkedBook = existingBooks.find(b => b.id === id);
+                            if (!linkedBook) return null;
+                            return (
+                                <span key={id} className="bg-primary/5 dark:bg-primary/10 border border-primary/20 text-primary text-[9px] font-black uppercase tracking-widest px-4 py-2 rounded-xl flex items-center gap-2 shadow-sm">
+                                    {linkedBook.title}
+                                    <button type="button" onClick={() => toggleLinkedBook(id)} className="hover:text-red-500 transition-colors">
+                                        <XMarkIcon className="h-3 w-3" />
+                                    </button>
+                                </span>
+                            );
+                        })}
+                    </div>
+                </div>
+
+                {/* Tags Personalizadas */}
+                <div className="md:col-span-2">
+                    <label className={labelClass(false)}>Atribuir Tags</label>
+                    <div className="p-5 bg-slate-50/50 dark:bg-slate-800/20 border border-slate-200 dark:border-slate-700 rounded-[2rem] space-y-4">
+                        <div className="flex flex-wrap gap-2">
+                            {profile?.customTags?.map(tag => {
+                                const isSelected = selectedTags.includes(tag);
+                                return (
+                                    <button
+                                        key={tag}
+                                        type="button"
+                                        onClick={() => toggleTag(tag)}
+                                        className={`px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest border transition-all ${
+                                            isSelected 
+                                            ? 'bg-emerald-500 text-white border-emerald-500' 
+                                            : 'bg-white dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                                        }`}
+                                    >
+                                        {tag}
+                                    </button>
+                                );
+                            })}
+                            {(profile?.customTags?.length || 0) === 0 && (
+                                <p className="text-[9px] font-bold text-slate-400 uppercase italic">Configure suas tags nas preferências!</p>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
                 {(status === BookStatus.Dropped || status === BookStatus.Reading) && (

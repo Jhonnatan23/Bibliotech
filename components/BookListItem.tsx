@@ -2,13 +2,14 @@
 import React from 'react';
 import type { Book, StatusConfigs } from '../types';
 import { BookStatus, STATUS_COLORS, STATUS_CONFIGS } from '../types';
-import { StarIcon, StarIconFilled, PencilIcon, TrashIcon, BookOpenIcon, Square2StackIcon } from './Icons';
+import { StarIcon, StarIconFilled, PencilIcon, TrashIcon, BookOpenIcon, Square2StackIcon, TagIcon } from './Icons';
 
 interface BookListItemProps {
   book: Book;
   onEdit: (book: Book) => void;
   onDelete: (book: Book) => void;
   onDuplicate: (book: Book) => void;
+  onViewDetails?: (book: Book) => void;
   onUpdateStatus?: (book: Book, status: BookStatus) => void;
   statusConfigs?: StatusConfigs;
 }
@@ -67,6 +68,7 @@ export const BookListItem: React.FC<BookListItemProps> = ({
   onEdit, 
   onDelete, 
   onDuplicate,
+  onViewDetails,
   onUpdateStatus,
   statusConfigs = STATUS_CONFIGS 
 }) => {
@@ -74,6 +76,8 @@ export const BookListItem: React.FC<BookListItemProps> = ({
   const colorStyles = STATUS_COLORS[config.color as keyof typeof STATUS_COLORS];
   const genresList = book.genre ? book.genre.split(',').map(g => g.trim()).filter(g => g !== '') : [];
   const authorsList = book.author ? book.author.split(',').map(a => a.trim()).filter(a => a !== '') : [];
+  const bookTags = book.tags || [];
+  const linkedCount = book.linkedBookIds?.length || 0;
   
   const handleQuickRead = () => {
     if (onUpdateStatus) {
@@ -90,7 +94,10 @@ export const BookListItem: React.FC<BookListItemProps> = ({
       <div className="flex-1 text-center md:text-left min-w-0 z-10 flex flex-col h-full w-full">
         <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-2 md:gap-4 mb-3 md:mb-4">
             <div className="min-w-0">
-                <h3 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-50 leading-tight font-serif italic group-hover:text-primary transition-colors mb-0.5 md:mb-1 truncate">
+                <h3 
+                    onClick={() => onViewDetails?.(book)}
+                    className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-50 leading-tight font-serif italic group-hover:text-primary transition-colors mb-0.5 md:mb-1 truncate cursor-pointer hover:underline decoration-primary/30"
+                >
                   {book.title}
                 </h3>
                 <div className="flex flex-wrap justify-center md:justify-start items-center gap-1.5 md:gap-2">
@@ -125,6 +132,15 @@ export const BookListItem: React.FC<BookListItemProps> = ({
                 {book.pages}p
             </span>
             
+            {linkedCount > 0 && (
+                <span className="px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest border bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800/50 flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-2.5 h-2.5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+                    </svg>
+                    {linkedCount} {linkedCount === 1 ? 'Vínculo' : 'Vínculos'}
+                </span>
+            )}
+
             <div className="hidden sm:flex flex-wrap gap-1.5">
                 {genresList.slice(0, 3).map(g => {
                     const palette = getGenreColor(g);
@@ -135,6 +151,17 @@ export const BookListItem: React.FC<BookListItemProps> = ({
                     );
                 })}
             </div>
+
+            {bookTags.length > 0 && (
+                <div className="flex sm:flex items-center gap-1.5 border-l border-slate-100 dark:border-slate-800 pl-3">
+                    {bookTags.slice(0, 2).map(tag => (
+                        <span key={tag} className="flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-400 text-[8px] font-black uppercase tracking-widest border border-emerald-100 dark:border-emerald-800/50">
+                            <TagIcon className="h-2.5 w-2.5" /> {tag}
+                        </span>
+                    ))}
+                    {bookTags.length > 2 && <span className="text-[8px] font-black text-slate-300">+{bookTags.length - 2}</span>}
+                </div>
+            )}
         </div>
         
         {book.summary && (

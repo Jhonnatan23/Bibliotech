@@ -1,6 +1,6 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
-import type { Book, ReadingStats, NewBook, DateFilter } from '../types';
+import type { Book, ReadingStats, NewBook, DateFilter, GenreStat, StatusStat } from '../types';
 import { BookStatus, BookType } from '../types';
 import { dbService } from '../services/database';
 import { supabase } from '../services/supabase';
@@ -26,7 +26,6 @@ export const useBookData = () => {
     try {
       const cachedBooks = await dbService.getLocalBooks();
       const cachedStats = await dbService.getLocalStats();
-      
       if (cachedBooks.length > 0) setBooks(cachedBooks);
       if (cachedStats) setQuickSummary(cachedStats);
     } finally {
@@ -52,12 +51,11 @@ export const useBookData = () => {
       if (booksResult.status === 'fulfilled') {
         setBooks(booksResult.value);
       }
-      
       if (statsResult.status === 'fulfilled' && statsResult.value) {
         setQuickSummary(statsResult.value);
       }
     } catch (e) {
-      console.warn("Sincronização com a nuvem falhou, mantendo dados locais.");
+      console.warn("Sincronização falhou.");
     } finally {
       setIsLoading(false);
       isSincronizing.current = false;
@@ -66,11 +64,8 @@ export const useBookData = () => {
 
   useEffect(() => {
     loadCache().then(() => syncWithCloud());
-    
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN') {
-        syncWithCloud();
-      }
+      if (event === 'SIGNED_IN') syncWithCloud();
     });
     return () => subscription.unsubscribe();
   }, [loadCache, syncWithCloud]);
@@ -111,13 +106,10 @@ export const useBookData = () => {
     return Array.from(years).sort((a, b) => b - a);
   }, [books]);
 
-  // Define se um livro pertence ao período filtrado
   const isBookInFilter = useCallback((book: Book) => {
     if (dateFilter === 'allTime') return true;
-    
     const dateToCompare = book.dateFinished || book.dateAdded;
     if (!dateToCompare) return false;
-    
     const date = new Date(dateToCompare);
     if (dateFilter === 'thisYear') return date.getFullYear() === new Date().getFullYear();
     if (dateFilter === 'specificYear') return date.getFullYear() === selectedYear;
@@ -129,62 +121,73 @@ export const useBookData = () => {
     return true;
   }, [dateFilter, selectedYear, customRange]);
 
-  const filteredBooks = useMemo(() => {
-    return books.filter(isBookInFilter);
-  }, [books, isBookInFilter]);
-
   const stats: ReadingStats = useMemo(() => {
     const global = { booksRead: 0, pagesRead: 0, totalRating: 0, ratingCount: 0 };
     const yearly = { booksRead: 0, pagesRead: 0, totalRating: 0, ratingCount: 0 };
     
     const monthlyDataMap = MONTHS.map(month => ({ month, booksRead: 0, pagesRead: 0, totalRating: 0, ratingCount: 0 }));
+    
     const byTypeMap: Record<string, any> = {
       [BookType.Book]: { type: BookType.Book, count: 0, pages: 0, totalRating: 0, ratingCount: 0 },
       [BookType.HQ]: { type: BookType.HQ, count: 0, pages: 0, totalRating: 0, ratingCount: 0 }
     };
 
-    let tbrCount = 0;
-    let wishlistCount = 0;
+    const genreCountMap: Record<string, number> = {};
+    const statusCountMap: Record<string, number> = {};
+
+    let tbrCountTotal = 0;
+    let wishlistCountTotal = 0;
 
     books.forEach(book => {
-      // Contagens globais de status
-      if (book.status === BookStatus.TBR) tbrCount++;
-      if (book.status === BookStatus.Wishlist) wishlistCount++;
+      const isInFilter = isBookInFilter(book);
+      
+      // Contagens globais simples para os cards rápidos que não sofrem filtro
+      if (book.status === BookStatus.TBR) tbrCountTotal++;
+      if (book.status === BookStatus.Wishlist) wishlistCountTotal++;
 
-      // Se possui nota, computa na média global independentemente do status
+      // MÉTRICAS GLOBAIS VITAIS (Sempre baseadas no acervo todo)
       if (book.rating !== undefined && book.rating > 0) {
         global.totalRating += book.rating;
         global.ratingCount++;
       }
 
-      // Se foi lido, computa no total global de livros e páginas (considerando re-leituras)
       if (book.status === BookStatus.Read) {
-        const reads = book.timesRead || 1;
+        const reads = Math.max(1, book.timesRead || 1);
         global.booksRead += reads;
         global.pagesRead += (book.pages || 0) * reads;
-
-        const typeData = byTypeMap[book.type];
-        if (typeData) {
-          typeData.count += reads;
-          typeData.pages += (book.pages || 0) * reads;
-          if (book.rating) {
-            typeData.totalRating += book.rating;
-            typeData.ratingCount++;
-          }
-        }
       }
 
-      // Processamento do Filtro Atual
-      if (isBookInFilter(book)) {
+      // MÉTRICAS FILTRADAS (Dashboard dinâmico)
+      if (isInFilter) {
+        // Distribuição de Status no Período
+        statusCountMap[book.status] = (statusCountMap[book.status] || 0) + 1;
+
         if (book.status === BookStatus.Read) {
-          yearly.booksRead++; // No filtro anual, contamos 1 se concluído no período
+          yearly.booksRead++;
           yearly.pagesRead += (book.pages || 0);
-          
           if (book.rating && book.rating > 0) {
             yearly.totalRating += book.rating;
             yearly.ratingCount++;
           }
+          
+          // Agregação por Tipo (no período)
+          const typeData = byTypeMap[book.type];
+          if (typeData) {
+            typeData.count++;
+            typeData.pages += (book.pages || 0);
+            if (book.rating) {
+                typeData.totalRating += book.rating;
+                typeData.ratingCount++;
+            }
+          }
 
+          // Agregação por Gênero (no período)
+          const genres = book.genre.split(',').map(g => g.trim()).filter(g => g !== '');
+          genres.forEach(g => {
+            genreCountMap[g] = (genreCountMap[g] || 0) + 1;
+          });
+
+          // Mensal (no período)
           if (book.dateFinished) {
             const monthIndex = new Date(book.dateFinished).getMonth();
             const mData = monthlyDataMap[monthIndex];
@@ -202,10 +205,10 @@ export const useBookData = () => {
     });
 
     return {
-      tbrCount: books.length === 0 && quickSummary ? quickSummary.tbrCount : tbrCount,
-      wishlistCount: books.length === 0 && quickSummary ? quickSummary.wishlistCount : wishlistCount,
+      tbrCount: tbrCountTotal,
+      wishlistCount: wishlistCountTotal,
       global: {
-        booksRead: global.booksRead || (books.length === 0 && quickSummary ? quickSummary.readCount : 0),
+        booksRead: global.booksRead,
         pagesRead: global.pagesRead,
         avgRating: global.ratingCount > 0 ? global.totalRating / global.ratingCount : 0
       },
@@ -221,9 +224,16 @@ export const useBookData = () => {
       byType: Object.values(byTypeMap).map(t => ({
         type: t.type, count: t.count, pages: t.pages,
         avgRating: t.ratingCount > 0 ? t.totalRating / t.ratingCount : 0
-      }))
+      })),
+      byGenre: Object.entries(genreCountMap)
+        .map(([genre, count]) => ({ genre, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 10),
+      byStatus: Object.entries(statusCountMap)
+        .map(([status, count]) => ({ status, count }))
+        .sort((a, b) => b.count - a.count)
     };
-  }, [books, isBookInFilter, quickSummary]);
+  }, [books, isBookInFilter]);
 
   const currentlyReading = useMemo(() => books.find(b => b.status === BookStatus.Reading) || null, [books]);
 
