@@ -15,8 +15,8 @@ interface StatusDistributionProps {
 
 const COLORS = {
   'Lido': '#10b981',
-  'Lendo atualmente': '#3b82f6',
-  'Não lido': '#f59e0b',
+  'Lendo atualmente': '#05A0E6',
+  'Não lido': '#274C68',
   'Abandonado': '#64748b',
   'Lista de Desejos': '#ec4899',
 };
@@ -39,15 +39,15 @@ export const StatusDistribution: React.FC<StatusDistributionProps> = ({ data }) 
   if (chartData.length === 0) return null;
 
   return (
-    <div className="w-full h-full">
+    <div className="w-full h-full min-h-[100px] sm:min-h-[120px]">
       <ResponsiveContainer width="100%" height="100%">
         <PieChart>
           <Pie
             data={chartData}
             cx="50%"
             cy="50%"
-            innerRadius={40}
-            outerRadius={55}
+            innerRadius={30}
+            outerRadius={45}
             paddingAngle={5}
             dataKey="count"
             nameKey="status"

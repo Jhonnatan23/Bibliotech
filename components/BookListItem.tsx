@@ -1,11 +1,13 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import type { Book, StatusConfigs } from '../types';
 import { BookStatus, STATUS_COLORS, STATUS_CONFIGS } from '../types';
 import { StarIcon, StarIconFilled, PencilIcon, TrashIcon, BookOpenIcon, Square2StackIcon, TagIcon } from './Icons';
+import { LinkedBooksModal } from './LinkedBooksModal';
 
 interface BookListItemProps {
   book: Book;
+  allBooks: Book[];
   onEdit: (book: Book) => void;
   onDelete: (book: Book) => void;
   onDuplicate: (book: Book) => void;
@@ -63,8 +65,9 @@ const getGenreColor = (genre: string) => {
     return palettes[Math.abs(hash) % palettes.length];
 };
 
-export const BookListItem: React.FC<BookListItemProps> = ({ 
+export const BookListItem: React.FC<BookListItemProps> = React.memo(({ 
   book, 
+  allBooks,
   onEdit, 
   onDelete, 
   onDuplicate,
@@ -72,6 +75,7 @@ export const BookListItem: React.FC<BookListItemProps> = ({
   onUpdateStatus,
   statusConfigs = STATUS_CONFIGS 
 }) => {
+  const [isLinkedModalOpen, setIsLinkedModalOpen] = useState(false);
   const config = statusConfigs[book.status];
   const colorStyles = STATUS_COLORS[config.color as keyof typeof STATUS_COLORS];
   const genresList = book.genre ? book.genre.split(',').map(g => g.trim()).filter(g => g !== '') : [];
@@ -89,17 +93,40 @@ export const BookListItem: React.FC<BookListItemProps> = ({
     }
   };
 
+  const isRead = book.status === BookStatus.Read;
+  
   return (
-    <article className="relative bg-white dark:bg-slate-900 p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 transition-all duration-500 hover:shadow-2xl hover:border-primary/20 group">
+    <article className={`relative p-5 md:p-8 rounded-[2rem] md:rounded-[3rem] shadow-soft border transition-all duration-500 hover:shadow-2xl flex flex-col md:flex-row items-center md:items-start gap-6 md:gap-8 group ${
+      isRead 
+        ? 'bg-emerald-50/20 dark:bg-emerald-900/10 border-emerald-100 dark:border-emerald-800/50 hover:border-emerald-300' 
+        : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-800 hover:border-primary/20'
+    }`}>
+      {isRead && (
+        <div className="absolute top-6 right-6 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-24 h-24 text-emerald-500">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+            </svg>
+        </div>
+      )}
+
       <div className="flex-1 text-center md:text-left min-w-0 z-10 flex flex-col h-full w-full">
         <div className="flex flex-col xl:flex-row xl:items-start justify-between gap-2 md:gap-4 mb-3 md:mb-4">
             <div className="min-w-0">
-                <h3 
-                    onClick={() => onViewDetails?.(book)}
-                    className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-50 leading-tight font-serif italic group-hover:text-primary transition-colors mb-0.5 md:mb-1 truncate cursor-pointer hover:underline decoration-primary/30"
-                >
-                  {book.title}
-                </h3>
+                <div className="flex items-center justify-center md:justify-start gap-2 mb-1">
+                    <h3 
+                        onClick={() => onViewDetails?.(book)}
+                        className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-50 leading-tight font-serif italic group-hover:text-primary transition-colors truncate cursor-pointer hover:underline decoration-primary/30"
+                    >
+                      {book.title}
+                    </h3>
+                    {isRead && (
+                        <div className="bg-emerald-500 text-white p-1 rounded-full shadow-lg shadow-emerald-500/30">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                                <path fillRule="evenodd" d="M16.704 4.153a.75.75 0 0 1 .143 1.052l-8 10.5a.75.75 0 0 1-1.127.075l-4.5-4.5a.75.75 0 0 1 1.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 0 1 1.05-.143Z" clipRule="evenodd" />
+                            </svg>
+                        </div>
+                    )}
+                </div>
                 <div className="flex flex-wrap justify-center md:justify-start items-center gap-1.5 md:gap-2">
                   {authorsList.map((author, idx) => (
                     <React.Fragment key={author}>
@@ -132,15 +159,6 @@ export const BookListItem: React.FC<BookListItemProps> = ({
                 {book.pages}p
             </span>
             
-            {linkedCount > 0 && (
-                <span className="px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest border bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800/50 flex items-center gap-1.5">
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-2.5 h-2.5">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
-                    </svg>
-                    {linkedCount} {linkedCount === 1 ? 'Vínculo' : 'Vínculos'}
-                </span>
-            )}
-
             <div className="hidden sm:flex flex-wrap gap-1.5">
                 {genresList.slice(0, 3).map(g => {
                     const palette = getGenreColor(g);
@@ -163,6 +181,36 @@ export const BookListItem: React.FC<BookListItemProps> = ({
                 </div>
             )}
         </div>
+
+        {linkedCount > 0 && (
+            <div className="mb-4 md:mb-6 animate-in fade-in slide-in-from-left-4 duration-700">
+                <div 
+                    onClick={() => setIsLinkedModalOpen(true)}
+                    className="inline-flex items-center gap-3 px-4 py-2 bg-gradient-to-r from-indigo-500 to-violet-600 rounded-2xl shadow-lg shadow-indigo-500/20 group/link cursor-pointer hover:scale-105 transition-transform"
+                >
+                    <div className="bg-white/20 p-1.5 rounded-lg">
+                        <Square2StackIcon className="h-4 w-4 text-white" />
+                    </div>
+                    <div className="flex flex-col items-start leading-none">
+                        <span className="text-[10px] font-black text-white uppercase tracking-widest mb-0.5">Conexões</span>
+                        <span className="text-xs font-bold text-indigo-50">{linkedCount} {linkedCount === 1 ? 'Livro Vinculado' : 'Livros Vinculados'}</span>
+                    </div>
+                    <div className="ml-2 bg-white/10 p-1 rounded-full group-hover/link:translate-x-1 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="w-3 h-3 text-white">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+                        </svg>
+                    </div>
+                </div>
+            </div>
+        )}
+        
+        <LinkedBooksModal 
+            isOpen={isLinkedModalOpen}
+            onClose={() => setIsLinkedModalOpen(false)}
+            parentBook={book}
+            allBooks={allBooks}
+            onNavigateToBook={(b) => onViewDetails?.(b)}
+        />
         
         {book.summary && (
           <p className="hidden sm:block text-xs md:text-sm text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2 italic mb-6">
@@ -187,7 +235,7 @@ export const BookListItem: React.FC<BookListItemProps> = ({
         {(book.status === BookStatus.TBR || book.status === BookStatus.Dropped) && (
           <button 
             onClick={handleQuickRead}
-            className="w-full px-4 py-3 md:py-4 text-[9px] md:text-[10px] font-black rounded-xl md:rounded-2xl bg-primary text-white hover:bg-slate-900 shadow-xl transition-all active:scale-95 uppercase tracking-widest flex items-center justify-center gap-2"
+            className="w-full px-4 py-3 md:py-4 text-[9px] md:text-[10px] font-black rounded-xl md:rounded-2xl bg-primary text-white hover:bg-tertiary shadow-xl transition-all active:scale-95 uppercase tracking-widest flex items-center justify-center gap-2"
           >
             <BookOpenIcon className="h-4 w-4" />
             <span className="md:inline">Ler</span>
@@ -218,4 +266,4 @@ export const BookListItem: React.FC<BookListItemProps> = ({
       </div>
     </article>
   );
-};
+});

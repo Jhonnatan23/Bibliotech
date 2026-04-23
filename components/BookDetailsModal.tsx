@@ -114,7 +114,7 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
                     </h3>
                     <button 
                         onClick={() => setShowTagSelector(!showTagSelector)}
-                        className="text-[9px] font-black text-primary uppercase tracking-widest flex items-center gap-1.5 hover:underline"
+                        className="text-[9px] font-black text-tertiary uppercase tracking-widest flex items-center gap-1.5 hover:underline"
                     >
                         <PlusIcon className="h-3 w-3" /> Gerenciar Tags
                     </button>
@@ -178,9 +178,19 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
             {/* Notas Pessoais */}
             {book.notes && (
                 <div className="space-y-4 p-6 bg-amber-50/50 dark:bg-amber-900/10 rounded-2xl border border-amber-100/50">
-                    <h3 className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-[0.2em]">Notas Pessoais</h3>
+                    <h3 className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-[0.2em]">Notas Pessoais during reading</h3>
                     <p className="text-sm text-amber-700/80 dark:text-amber-400/80 font-medium whitespace-pre-wrap">
                         {book.notes}
+                    </p>
+                </div>
+            )}
+
+            {/* Observação de Histórico */}
+            {book.historyObservation && (
+                <div className="space-y-4 p-6 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl border border-indigo-100/50">
+                    <h3 className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-[0.2em]">O que achou da obra</h3>
+                    <p className="text-sm text-indigo-700/80 dark:text-indigo-300/80 font-medium italic leading-relaxed">
+                        "{book.historyObservation}"
                     </p>
                 </div>
             )}

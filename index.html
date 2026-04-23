@@ -13,12 +13,13 @@
         theme: {
           extend: {
             colors: {
-              'background': '#f8fafc',
-              'surface': '#ffffff',
-              'primary': '#2563eb',
-              'secondary': '#64748b',
-              'accent': '#dbeafe',
-              'text-main': '#0f172a',
+              'background': '#FFFFFF',
+              'surface': '#FFFFFF',
+              'primary': '#274C68',
+              'secondary': '#FFFFFF',
+              'tertiary': '#05A0E6',
+              'accent': '#05A0E6',
+              'text-main': '#274C68',
               'text-secondary': '#475569',
               'border-light': '#e2e8f0',
             },
@@ -51,6 +52,23 @@
       .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
       .custom-scrollbar::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 10px; }
       .dark .custom-scrollbar::-webkit-scrollbar-thumb { background: #1e293b; }
+      
+      /* Fluid utilities */
+      .bento-card {
+        transition: all 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+      }
+      .bento-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
+      }
+      
+      .glass-effect {
+        backdrop-filter: blur(8px);
+        background: rgba(255, 255, 255, 0.7);
+      }
+      .dark .glass-effect {
+        background: rgba(15, 23, 42, 0.7);
+      }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -70,5 +88,6 @@
   </head>
   <body class="bg-background dark:bg-slate-950 text-text-main dark:text-slate-100 font-sans antialiased transition-colors duration-300">
     <div id="root"></div>
+    <script type="module" src="/index.tsx"></script>
   </body>
 </html>

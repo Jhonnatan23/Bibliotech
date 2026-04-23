@@ -10,6 +10,7 @@ import {
   Legend, 
   ResponsiveContainer,
   Area,
+  Line
 } from 'recharts';
 import type { MonthlyStat } from '../types';
 
@@ -25,17 +26,24 @@ const CustomTooltip = ({ active, payload, label }: any) => {
         <div className="space-y-2.5">
             <div className="flex items-center justify-between gap-8">
                 <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-[0_0_8px_rgba(59,130,246,0.6)]"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-primary shadow-[0_0_8px_rgba(39,76,104,0.6)]"></div>
                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Livros</span>
                 </div>
-                <span className="font-black text-blue-600 dark:text-blue-400 text-sm">{payload[1]?.value || 0}</span>
+                <span className="font-black text-primary dark:text-primary/80 text-sm">{payload.find((p: any) => p.dataKey === 'Livros')?.value || 0}</span>
             </div>
             <div className="flex items-center justify-between gap-8">
                 <div className="flex items-center gap-2">
-                    <div className="w-2.5 h-2.5 rounded-full bg-indigo-400 dark:bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.4)]"></div>
+                    <div className="w-2.5 h-2.5 rounded-full bg-tertiary shadow-[0_0_8px_rgba(5,160,230,0.4)]"></div>
                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Páginas</span>
                 </div>
-                <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{(payload[0]?.value || 0).toLocaleString('pt-BR')}</span>
+                <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">{(payload.find((p: any) => p.dataKey === 'Páginas')?.value || 0).toLocaleString('pt-BR')}</span>
+            </div>
+            <div className="flex items-center justify-between gap-8">
+                <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]"></div>
+                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Avaliação</span>
+                </div>
+                <span className="font-bold text-amber-600 dark:text-amber-400 text-sm">{(payload.find((p: any) => p.dataKey === 'Avaliação')?.value || 0).toFixed(1)}</span>
             </div>
         </div>
       </div>
@@ -46,9 +54,10 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 
 export const MonthlyChart: React.FC<MonthlyChartProps> = ({ data }) => {
   const chartData = data.map(d => ({
-      name: d.month.substring(0, 3),
+      name: d.month.substring(0, 3).toUpperCase(),
       Livros: d.booksRead,
       Páginas: d.pagesRead,
+      Avaliação: d.avgRating
   }));
 
   const hasData = chartData.some(d => d.Livros > 0 || d.Páginas > 0);
@@ -62,20 +71,20 @@ export const MonthlyChart: React.FC<MonthlyChartProps> = ({ data }) => {
   }
 
   return (
-    <div className="w-full h-[380px] mt-4">
+    <div className="w-full h-[300px] sm:h-[380px]">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={chartData}
-          margin={{ top: 10, right: 10, left: -25, bottom: 0 }}
+          margin={{ top: 10, right: 10, left: -15, bottom: 0 }}
         >
           <defs>
             <linearGradient id="colorLivros" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#3b82f6" stopOpacity={1}/>
-              <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.9}/>
+              <stop offset="0%" stopColor="#274C68" stopOpacity={1}/>
+              <stop offset="100%" stopColor="#274C68" stopOpacity={0.8}/>
             </linearGradient>
             <linearGradient id="colorPaginas" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#6366f1" stopOpacity={0.3}/>
-              <stop offset="100%" stopColor="#6366f1" stopOpacity={0}/>
+              <stop offset="0%" stopColor="#05A0E6" stopOpacity={0.3}/>
+              <stop offset="100%" stopColor="#05A0E6" stopOpacity={0}/>
             </linearGradient>
           </defs>
           
@@ -85,8 +94,9 @@ export const MonthlyChart: React.FC<MonthlyChartProps> = ({ data }) => {
             dataKey="name" 
             axisLine={false} 
             tickLine={false} 
-            tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 800, textTransform: 'uppercase' }}
-            dy={15}
+            tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 800 }}
+            dy={10}
+            interval={0}
           />
           
           <YAxis 
@@ -94,10 +104,12 @@ export const MonthlyChart: React.FC<MonthlyChartProps> = ({ data }) => {
             orientation="left" 
             axisLine={false} 
             tickLine={false}
-            tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
+            tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 700 }}
+            width={30}
           />
           
           <YAxis yAxisId="right" orientation="right" hide={true} />
+          <YAxis yAxisId="rating" orientation="right" domain={[0, 10]} hide={true} />
           
           <Tooltip 
             content={<CustomTooltip />} 
@@ -110,7 +122,7 @@ export const MonthlyChart: React.FC<MonthlyChartProps> = ({ data }) => {
             iconType="circle"
             iconSize={6}
             wrapperStyle={{ 
-                paddingBottom: '30px', 
+                paddingBottom: '10px', 
                 fontSize: '9px', 
                 fontWeight: '900', 
                 textTransform: 'uppercase', 
@@ -124,11 +136,11 @@ export const MonthlyChart: React.FC<MonthlyChartProps> = ({ data }) => {
             type="monotone"
             dataKey="Páginas"
             fill="url(#colorPaginas)"
-            stroke="#6366f1"
+            stroke="#05A0E6"
             strokeWidth={3}
             strokeOpacity={0.8}
             dot={{ r: 0 }}
-            activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff', fill: '#6366f1' }}
+            activeDot={{ r: 5, strokeWidth: 2, stroke: '#fff', fill: '#05A0E6' }}
             animationDuration={2000}
           />
 
@@ -139,6 +151,17 @@ export const MonthlyChart: React.FC<MonthlyChartProps> = ({ data }) => {
             radius={[6, 6, 0, 0]} 
             barSize={28}
             animationDuration={1500}
+          />
+
+          <Line
+            yAxisId="rating"
+            type="monotone"
+            dataKey="Avaliação"
+            stroke="#fbbf24"
+            strokeWidth={3}
+            dot={{ r: 3, fill: '#fbbf24', strokeWidth: 2, stroke: '#fff' }}
+            activeDot={{ r: 6, strokeWidth: 2, stroke: '#fff', fill: '#fbbf24' }}
+            animationDuration={2500}
           />
           
         </ComposedChart>

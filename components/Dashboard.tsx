@@ -11,6 +11,7 @@ import { StatusDistribution } from './StatusDistribution';
 import { ReadingGoal } from './ReadingGoal';
 import { Recommendations } from './Recommendations';
 import { LatestReadings } from './LatestReadings';
+import { ShelfProgress } from './ShelfProgress';
 import { BookOpenIcon, ChartBarIcon, StarIcon, TagIcon, HeartIcon } from './Icons';
 import { getAIRecommendations } from '../services/geminiService';
 
@@ -31,7 +32,7 @@ interface DashboardProps {
   addBook: (book: NewBook) => Promise<void>;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ 
+export const Dashboard: React.FC<DashboardProps> = React.memo(({ 
   stats, 
   currentlyReading, 
   updateBook, 
@@ -116,30 +117,30 @@ export const Dashboard: React.FC<DashboardProps> = ({
   };
 
   return (
-    <div className="max-w-7xl mx-auto space-y-8 md:space-y-16 pb-20 px-2 sm:px-0">
+    <div className="max-w-7xl mx-auto space-y-6 md:space-y-10 pb-10 px-4 sm:px-6 lg:px-8">
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
         <div>
-            <h2 className="text-3xl md:text-4xl font-black font-serif text-slate-900 dark:text-slate-50 tracking-tight italic">Painel de Controle</h2>
-            <p className="text-slate-500 dark:text-slate-400 text-[9px] md:text-[10px] font-black uppercase tracking-[0.25em] mt-1 md:mt-2 ml-1">✦ Sincronizado com sua biblioteca digital</p>
+            <h2 className="text-3xl md:text-5xl font-black font-serif text-slate-900 dark:text-slate-50 tracking-tight italic">Painel de Controle</h2>
+            <p className="text-slate-500 dark:text-slate-400 text-[10px] md:text-[11px] font-black uppercase tracking-[0.25em] mt-1 md:mt-2 ml-1">✦ Sincronizado com sua biblioteca digital</p>
         </div>
         
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white dark:bg-slate-900 p-1.5 md:p-2 rounded-[1.5rem] md:rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-xl w-full sm:w-auto overflow-x-auto">
-            <div className="flex items-center p-1 bg-slate-50 dark:bg-slate-800 rounded-xl md:rounded-2xl border border-slate-100 dark:border-slate-700 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white dark:bg-slate-900 p-2 md:p-2.5 rounded-[1.5rem] md:rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-xl w-full sm:w-auto">
+            <div className="flex items-center p-1 bg-slate-50 dark:bg-slate-800 rounded-xl md:rounded-2xl border border-slate-100 dark:border-slate-700 w-full sm:w-auto overflow-x-auto custom-scrollbar">
                 <button
                     onClick={() => setDateFilter('thisYear')}
-                    className={`flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-lg md:rounded-xl transition-all ${dateFilter === 'thisYear' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 dark:text-slate-500 hover:text-primary'}`}
+                    className={`whitespace-nowrap flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-lg md:rounded-xl transition-all ${dateFilter === 'thisYear' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 dark:text-slate-500 hover:text-primary'}`}
                 >
                     Ano
                 </button>
                 <button
                     onClick={() => setDateFilter('specificYear')}
-                    className={`flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-lg md:rounded-xl transition-all ${dateFilter === 'specificYear' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 dark:text-slate-500 hover:text-primary'}`}
+                    className={`whitespace-nowrap flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-lg md:rounded-xl transition-all ${dateFilter === 'specificYear' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 dark:text-slate-500 hover:text-primary'}`}
                 >
                     Anos
                 </button>
                 <button
                     onClick={() => setDateFilter('allTime')}
-                    className={`flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-lg md:rounded-xl transition-all ${dateFilter === 'allTime' ? 'bg-primary text-white shadow-lg' : 'text-slate-400 dark:text-slate-500 hover:text-primary'}`}
+                    className={`whitespace-nowrap flex-1 sm:flex-none px-4 md:px-6 py-2 md:py-2.5 text-[9px] md:text-[10px] font-black uppercase tracking-widest rounded-lg md:rounded-xl transition-all ${dateFilter === 'allTime' ? 'bg-primary text-white shadow-lg shadow-primary/20' : 'text-slate-400 dark:text-slate-500 hover:text-primary'}`}
                 >
                     Tudo
                 </button>
@@ -150,7 +151,7 @@ export const Dashboard: React.FC<DashboardProps> = ({
                     <select 
                         value={selectedYear}
                         onChange={(e) => setSelectedYear(Number(e.target.value))}
-                        className="w-full sm:w-auto bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-700 dark:text-slate-300 outline-none focus:border-primary transition-colors cursor-pointer"
+                        className="w-full sm:w-auto bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-[0.2em] text-slate-700 dark:text-slate-300 outline-none focus:border-primary transition-colors cursor-pointer"
                     >
                         {availableYears.map(year => (
                             <option key={year} value={year}>{year}</option>
@@ -161,107 +162,149 @@ export const Dashboard: React.FC<DashboardProps> = ({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 md:gap-10">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 md:gap-10">
+        {/* ROW 1: DESTAQUE E META */}
         <div className="lg:col-span-8">
           {currentlyReading ? (
             <CurrentlyReading book={currentlyReading} updateBook={updateBook} />
           ) : (
-            <div className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-200 dark:border-slate-800 p-8 md:p-16 rounded-[2rem] md:rounded-[3rem] flex flex-col items-center justify-center text-center h-full group">
-              <div className="bg-slate-50 dark:bg-slate-800 p-4 md:p-6 rounded-2xl md:rounded-3xl mb-4 md:mb-6 group-hover:scale-110 transition-transform duration-500">
-                <BookOpenIcon className="h-10 w-10 md:h-12 md:w-12 text-slate-300 dark:text-slate-600" />
+            <div className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-100 dark:border-slate-800 p-8 md:p-16 rounded-[2.5rem] flex flex-col items-center justify-center text-center h-full group transition-all hover:border-primary/20">
+              <div className="bg-slate-50 dark:bg-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] mb-6 group-hover:scale-110 transition-transform duration-700">
+                <BookOpenIcon className="h-12 w-12 text-slate-200 dark:text-slate-700" />
               </div>
-              <h2 className="text-xl md:text-2xl font-black text-slate-900 dark:text-slate-50 mb-2 md:mb-3 font-serif italic">Nenhuma leitura ativa</h2>
-              <p className="text-slate-400 dark:text-slate-500 max-w-xs text-xs md:text-sm font-medium">Sua estante está cheia de aventuras esperando por você.</p>
+              <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-50 mb-3 font-serif italic">Nenhuma leitura ativa</h2>
+              <p className="text-slate-400 dark:text-slate-500 max-w-sm text-sm md:text-base font-medium italic">Sua estante está cheia de aventuras esperando por você.</p>
             </div>
           )}
         </div>
-        <div className="lg:col-span-4 flex flex-col gap-6 md:gap-8">
+        
+        <div className="lg:col-span-4">
           <ReadingGoal 
             current={booksReadThisYear} 
             goal={readingGoal} 
             onSetGoal={onSetReadingGoal} 
           />
-          <StatCard 
-            icon={<StarIcon className="h-6 w-6 md:h-7 md:w-7" />} 
-            title="Avaliação Média" 
-            value={stats.yearly.avgRating.toFixed(1)}
-            subtitle="Período"
-            description="Média das notas dadas aos livros concluídos no intervalo selecionado."
-          />
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-8">
-        <StatCard 
-            icon={<BookOpenIcon className="h-6 w-6 md:h-7 md:w-7" />} 
-            title="Concluídos"
-            value={stats.yearly.booksRead.toString()} 
-            subtitle={periodTitle}
-        />
-        <StatCard 
-            icon={<TagIcon className="h-6 w-6 md:h-7 md:w-7" />} 
-            title="Páginas Lidas"
-            value={stats.yearly.pagesRead.toLocaleString('pt-BR')}
-            subtitle={periodTitle}
-        />
-        <StatCard 
-            icon={<ChartBarIcon className="h-6 w-6 md:h-7 md:w-7" />} 
-            title="Fila de Leitura" 
-            value={stats.tbrCount.toString()}
-            subtitle="TBR Total"
-        />
-        <StatCard 
-            icon={<HeartIcon className="h-6 w-6 md:h-7 md:w-7" />} 
-            title="Lista de Desejos" 
-            value={stats.wishlistCount.toString()}
-            subtitle="Desejos"
-        />
-      </div>
+        <div className="lg:col-span-12">
+          <ShelfProgress books={books} stats={stats} />
+        </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 md:gap-10">
-        <div className="xl:col-span-8 bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-soft border border-slate-100 dark:border-slate-800 transition-all hover:shadow-2xl">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-10 gap-4 md:gap-6">
+        {/* ROW 2: KPI STATS - BREAKING INTO TWO ROWS FOR BETTER VISIBILITY */}
+        <div className="lg:col-span-12">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-8 lg:gap-10">
+              <StatCard 
+                  icon={<BookOpenIcon className="h-7 w-7 md:h-8 md:w-8" />} 
+                  title="Livros Concluídos"
+                  value={stats.yearly.booksRead.toString()} 
+                  subtitle={periodTitle}
+              />
+              <StatCard 
+                  icon={<TagIcon className="h-7 w-7 md:h-8 md:w-8" />} 
+                  title="Páginas Lidas"
+                  value={stats.yearly.pagesRead.toLocaleString('pt-BR')}
+                  subtitle={periodTitle}
+              />
+              <StatCard 
+                  icon={<ChartBarIcon className="h-7 w-7 md:h-8 md:w-8" />} 
+                  title="Velocidade" 
+                  value={stats.avgPagesPerDay.toFixed(1)}
+                  subtitle="Páginas/Dia"
+                  description="Média de páginas lidas por dia considerando os livros finalizados no período."
+              />
+              <StatCard 
+                  icon={<StarIcon className="h-7 w-7 md:h-8 md:w-8" />} 
+                  title="Avaliação Média" 
+                  value={stats.yearly.avgRating.toFixed(1)}
+                  subtitle="Média"
+                  description="Média das notas dadas aos livros concluídos no intervalo selecionado."
+              />
+              <StatCard 
+                  icon={<HeartIcon className="h-7 w-7 md:h-8 md:w-8" />} 
+                  title="Total Investido" 
+                  value={`R$ ${stats.totalSpent.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`}
+                  subtitle="Total"
+                  description="Soma dos valores pagos pelos livros adquiridos no período."
+              />
+              <StatCard 
+                  icon={<ChartBarIcon className="h-7 w-7 md:h-8 md:w-8" />} 
+                  title="Consistência" 
+                  value={`${stats.consistency.toFixed(0)}%`}
+                  subtitle="Mensal"
+                  description="Porcentagem de meses no ano com pelo menos um livro concluído."
+              />
+            </div>
+        </div>
+
+        {/* ROW 3: ANALYTICS BENTO BOARD */}
+        <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 transition-all hover:shadow-2xl">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 md:mb-10 gap-4">
                 <div>
-                    <h2 className="text-2xl md:text-3xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Evolução no Período</h2>
-                    <p className="text-slate-400 dark:text-slate-500 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] mt-1 md:mt-2">✦ Estatísticas Mensais: {periodTitle}</p>
+                    <h2 className="text-2xl md:text-3xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Evolução de Leitura</h2>
+                    <p className="text-slate-400 dark:text-slate-500 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] mt-2">✦ Performance Mensal: {periodTitle}</p>
                 </div>
-                <div className="flex gap-4 md:gap-8 bg-slate-50 dark:bg-slate-800/50 p-3 md:p-4 rounded-xl md:rounded-2xl border border-slate-100 dark:border-slate-700">
+                <div className="flex gap-4 md:gap-8 bg-slate-50 dark:bg-slate-800/50 p-3 md:p-4 rounded-2xl border border-slate-100 dark:border-slate-700">
                     <div className="flex items-center gap-2 md:gap-3">
-                        <div className="w-2.5 md:w-3.5 h-2.5 md:h-3.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/40"></div>
+                        <div className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-500/40"></div>
                         <span className="text-[9px] md:text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Livros</span>
                     </div>
                     <div className="flex items-center gap-2 md:gap-3">
-                        <div className="w-2.5 md:w-3.5 h-2.5 md:h-3.5 rounded-full bg-indigo-500 shadow-sm shadow-indigo-500/40"></div>
+                        <div className="w-2.5 h-2.5 rounded-full bg-indigo-500 shadow-sm shadow-indigo-500/40"></div>
                         <span className="text-[9px] md:text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest">Páginas</span>
                     </div>
                 </div>
             </div>
-            <MonthlyChart data={stats.monthly} />
-        </div>
-        
-        <div className="xl:col-span-4 flex flex-col gap-8 md:gap-10">
-            <div className="flex-1 bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col">
-                <h2 className="text-lg md:text-xl font-black font-serif text-slate-900 dark:text-slate-50 mb-6 italic text-center">Gêneros em Destaque</h2>
-                <div className="flex-1 min-h-[220px]">
-                    <GenreBarChart data={stats.byGenre} />
-                </div>
-                <p className="text-[8px] md:text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest text-center mt-4">Top 10 Gêneros Lidos</p>
+            <div className="h-[300px] md:h-[350px]">
+              <MonthlyChart data={stats.monthly} />
             </div>
-            
-            <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] shadow-soft border border-slate-100 dark:border-slate-800">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-lg md:text-xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Mix do Período</h2>
-                    <div className="bg-slate-50 dark:bg-slate-800 p-2 rounded-lg">
+        </div>
+
+        <div className="lg:col-span-4 flex flex-col gap-6 md:gap-8">
+            {/* AUTORES */}
+            <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 hover:shadow-xl transition-all h-full">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg md:text-xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Top Autores</h2>
+                    <div className="bg-amber-50 dark:bg-amber-900/20 p-2 rounded-xl border border-amber-100 dark:border-amber-800/50">
+                        <StarIcon className="h-4 w-4 text-amber-500" />
+                    </div>
+                </div>
+                <div className="space-y-4">
+                    {stats.byAuthor.length > 0 ? (
+                        stats.byAuthor.map((author, idx) => (
+                            <div key={idx} className="flex items-center justify-between group">
+                                <div className="flex items-center gap-3">
+                                    <div className="w-8 h-8 rounded-full bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-[10px] font-black text-slate-400 group-hover:bg-primary group-hover:text-white transition-colors border border-slate-100 dark:border-slate-800">
+                                        {idx + 1}
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate max-w-[150px]">{author.author}</span>
+                                </div>
+                                <div className="flex items-center gap-1.5">
+                                    <span className="text-sm font-black text-slate-900 dark:text-slate-100">{author.count}</span>
+                                    <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">obras</span>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest text-center py-4">Sem dados</p>
+                    )}
+                </div>
+            </div>
+
+            {/* STATUS MIX */}
+            <div className="bg-white dark:bg-slate-900 p-6 md:p-8 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 hover:shadow-xl transition-all">
+                <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg md:text-xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Mix de Leitura</h2>
+                    <div className="bg-primary/5 dark:bg-primary/10 p-2 rounded-xl border border-primary/20">
                         <ChartBarIcon className="h-4 w-4 text-primary" />
                     </div>
                 </div>
-                <div className="flex items-center justify-between gap-4 h-[120px]">
-                    <div className="flex-1">
+                <div className="flex flex-row items-center justify-between gap-6 h-[120px]">
+                    <div className="flex-1 h-full">
                         <StatusDistribution data={stats.byStatus} />
                     </div>
-                    <div className="flex-1 space-y-1.5">
+                    <div className="w-1/2 space-y-2">
                         {stats.byStatus.slice(0, 3).map((s, idx) => (
-                            <div key={idx} className="flex justify-between items-center text-[8px] font-black uppercase tracking-widest">
+                            <div key={idx} className="flex justify-between items-center text-[9px] font-black uppercase tracking-widest">
                                 <span className="text-slate-400 truncate mr-2">{s.status}</span>
                                 <span className="text-slate-900 dark:text-slate-200">{s.count}</span>
                             </div>
@@ -270,20 +313,32 @@ export const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 md:gap-10">
-          <div className="lg:col-span-4 bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2rem] md:rounded-[3rem] shadow-soft border border-slate-100 dark:border-slate-800 flex flex-col min-h-[300px] overflow-hidden">
-            <h2 className="text-xl md:text-2xl font-black font-serif text-slate-900 dark:text-slate-50 mb-4 md:mb-8 italic text-center">Tipos de Mídia</h2>
-            <div className="flex-1 flex items-center justify-center">
-                <TypePieChart data={stats.byType} />
-            </div>
-            <p className="text-[8px] md:text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest text-center mt-4">Proporção Livros vs HQs</p>
+        {/* ROW 4: MEDIA & GENRES */}
+        <div className="lg:col-span-4 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 hover:shadow-xl transition-all flex flex-col min-h-[350px]">
+          <h2 className="text-xl md:text-2xl font-black font-serif text-slate-900 dark:text-slate-50 mb-8 italic text-center">Tipos de Mídia</h2>
+          <div className="flex-1 flex items-center justify-center">
+              <TypePieChart data={stats.byType} />
           </div>
-          
-          <div className="lg:col-span-8">
-            <LatestReadings books={latestReadBooks} />
+          <p className="text-[8px] md:text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest text-center mt-6">Proporção Livros vs HQs</p>
+        </div>
+
+        <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 hover:shadow-xl transition-all">
+          <div className="flex items-center justify-between mb-8">
+              <div>
+                  <h2 className="text-2xl md:text-3xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Gêneros Favoritos</h2>
+                  <p className="text-slate-400 dark:text-slate-500 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] mt-1">✦ Seus temas mais explorados</p>
+              </div>
           </div>
+          <div className="h-[250px] md:h-[300px]">
+              <GenreBarChart data={stats.byGenre} />
+          </div>
+        </div>
+
+        {/* ROW 5: ACTIVITY */}
+        <div className="lg:col-span-12">
+          <LatestReadings books={latestReadBooks} />
+        </div>
       </div>
 
       <Recommendations 
@@ -295,4 +350,4 @@ export const Dashboard: React.FC<DashboardProps> = ({
       />
     </div>
   );
-};
+});

@@ -105,7 +105,7 @@ export const WishlistItem: React.FC<WishlistItemProps> = ({ book, onEdit, onDele
       </div>
 
       <div className="flex flex-col gap-2 w-full md:w-52 lg:w-56 justify-center">
-        <button onClick={() => onMoveToShelf(book)} className="w-full px-4 py-3 md:py-3.5 text-[10px] md:text-xs font-black rounded-xl md:rounded-2xl bg-primary text-white hover:bg-blue-700 shadow-lg transition-all active:scale-95 uppercase tracking-widest">
+        <button onClick={() => onMoveToShelf(book)} className="w-full px-4 py-3 md:py-3.5 text-[10px] md:text-xs font-black rounded-xl md:rounded-2xl bg-primary text-white hover:bg-slate-900 shadow-lg transition-all active:scale-95 uppercase tracking-widest">
           Para Estante
         </button>
         

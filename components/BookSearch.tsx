@@ -55,6 +55,7 @@ export const BookSearch: React.FC<BookSearchProps> = ({ onAddWishlist, existingB
           type="text"
           placeholder="Busque por título, autor ou ISBN..."
           value={query}
+          onFocus={(e) => e.target.select()}
           onChange={(e) => setQuery(e.target.value)}
           className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full py-5 pl-14 pr-32 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all shadow-xl text-lg font-medium"
         />

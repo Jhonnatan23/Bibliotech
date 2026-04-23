@@ -181,7 +181,7 @@ export const Auth: React.FC = () => {
           <div>
             <div className="flex justify-between items-center mb-2 ml-1">
                 <label className="block text-[10px] font-black uppercase tracking-widest text-slate-400">Senha</label>
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-[9px] font-bold text-primary uppercase hover:underline">
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-[9px] font-bold text-tertiary uppercase hover:underline">
                     {showPassword ? 'Ocultar' : 'Mostrar'}
                 </button>
             </div>

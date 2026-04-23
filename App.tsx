@@ -1,24 +1,34 @@
 
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useBookData } from './hooks/useBookData';
 import { Header } from './components/Header';
-import { Dashboard } from './components/Dashboard';
 import { AddBookModal } from './components/AddBookModal';
 import { SettingsModal } from './components/SettingsModal';
 import { PlusIcon, XMarkIcon } from './components/Icons';
 import type { Book, NewBook, Profile } from './types';
-import { BookList } from './components/BookList';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { BookStatus } from './types';
-import { Wishlist } from './components/Wishlist';
 import { BottomNav } from './components/BottomNav';
 import { Auth } from './components/Auth';
-import { StatsView } from './components/StatsView';
 import { PricePaidModal } from './components/PricePaidModal'; 
-import { BookSearch } from './components/BookSearch';
 import { BookDetailsModal } from './components/BookDetailsModal';
 import { supabase } from './services/supabase';
 import { dbService } from './services/database';
+
+// Lazy loaded views
+const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
+const BookList = lazy(() => import('./components/BookList').then(m => ({ default: m.BookList })));
+const Wishlist = lazy(() => import('./components/Wishlist').then(m => ({ default: m.Wishlist })));
+const StatsView = lazy(() => import('./components/StatsView').then(m => ({ default: m.StatsView })));
+const HistoryView = lazy(() => import('./components/HistoryView').then(m => ({ default: m.HistoryView })));
+const BookSearch = lazy(() => import('./components/BookSearch').then(m => ({ default: m.BookSearch })));
+
+const ViewLoader = () => (
+  <div className="flex flex-col items-center justify-center py-20 animate-pulse">
+    <div className="w-12 h-12 border-4 border-slate-200 border-t-primary rounded-full animate-spin mb-4"></div>
+    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Carregando visualização...</p>
+  </div>
+);
 
 export default function App() {
   const [session, setSession] = useState<any>(null);
@@ -102,7 +112,7 @@ export default function App() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history'>('dashboard');
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [viewingBook, setViewingBook] = useState<Book | null>(null);
   const [isDuplicating, setIsDuplicating] = useState(false);
@@ -200,32 +210,47 @@ export default function App() {
       )}
 
       <main className="p-4 md:p-8">
-        {view === 'dashboard' && (
-          <Dashboard 
-            stats={stats} 
-            currentlyReading={currentlyReading} 
-            updateBook={handleUpdateBook} 
-            dateFilter={dateFilter} 
-            setDateFilter={setDateFilter} 
-            selectedYear={selectedYear} 
-            setSelectedYear={setSelectedYear} 
-            availableYears={availableYears} 
-            books={books} 
-            customRange={customRange} 
-            setCustomRange={setCustomRange} 
-            readingGoal={readingGoal} 
-            onSetReadingGoal={handleSetReadingGoal} 
-            addBook={handleAddBook}
-          />
-        )}
-        {view === 'list' && <BookList profile={userProfile} books={books.filter(b => b.status !== BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onViewDetails={setViewingBook} onUpdateBook={handleUpdateBook} />}
-        {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onMoveToShelf={(b) => setConvertingBook(b)} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
-        {view === 'stats' && <StatsView books={books} availableYears={availableYears} />}
-        {view === 'search' && <BookSearch onAddWishlist={handleAddBook} existingBooks={books} />}
+        <Suspense fallback={<ViewLoader />}>
+          {view === 'dashboard' && (
+            <Dashboard 
+              stats={stats} 
+              currentlyReading={currentlyReading} 
+              updateBook={handleUpdateBook} 
+              dateFilter={dateFilter} 
+              setDateFilter={setDateFilter} 
+              selectedYear={selectedYear} 
+              setSelectedYear={setSelectedYear} 
+              availableYears={availableYears} 
+              books={books} 
+              customRange={customRange} 
+              setCustomRange={setCustomRange} 
+              readingGoal={readingGoal} 
+              onSetReadingGoal={handleSetReadingGoal} 
+              addBook={handleAddBook}
+            />
+          )}
+          {view === 'list' && (
+            <BookList 
+              profile={userProfile} 
+              books={books.filter(b => b.status !== BookStatus.Wishlist)} 
+              allBooks={books}
+              stats={stats}
+              onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} 
+              onDelete={setDeletingBook} 
+              onDuplicate={handleDuplicateRequest} 
+              onViewDetails={setViewingBook} 
+              onUpdateBook={handleUpdateBook} 
+            />
+          )}
+          {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onMoveToShelf={(b) => setConvertingBook(b)} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
+          {view === 'stats' && <StatsView books={books} availableYears={availableYears} />}
+          {view === 'history' && <HistoryView books={books} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} />}
+          {view === 'search' && <BookSearch onAddWishlist={handleAddBook} existingBooks={books} />}
+        </Suspense>
       </main>
       
       <div className="fixed bottom-24 right-6 flex flex-col gap-3">
-        <button onClick={() => openAddModal()} className="bg-primary text-background p-4 rounded-full shadow-2xl hover:bg-blue-700 transition-all z-40 active:scale-95"><PlusIcon className="h-6 w-6" /></button>
+        <button onClick={() => openAddModal()} className="bg-primary text-white p-4 rounded-full shadow-2xl hover:bg-tertiary transition-all z-40 active:scale-95"><PlusIcon className="h-6 w-6" /></button>
       </div>
 
       <BottomNav view={view} setView={setView} />

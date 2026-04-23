@@ -13,7 +13,7 @@ interface WishlistProps {
   onAddWishlistItem: () => void;
 }
 
-export const Wishlist: React.FC<WishlistProps> = ({ books, onEdit, onDelete, onDuplicate, onMoveToShelf, onAddWishlistItem }) => {
+export const Wishlist: React.FC<WishlistProps> = React.memo(({ books, onEdit, onDelete, onDuplicate, onMoveToShelf, onAddWishlistItem }) => {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredBooks = useMemo(() => {
@@ -110,7 +110,7 @@ export const Wishlist: React.FC<WishlistProps> = ({ books, onEdit, onDelete, onD
       </div>
     </div>
   );
-};
+});
 
 // Import necessário para o ícone de coração no estado vazio
 import { HeartIcon } from './Icons';

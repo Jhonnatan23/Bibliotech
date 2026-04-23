@@ -64,6 +64,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const [dateFinished, setDateFinished] = useState(isDuplicating ? new Date().toISOString().split('T')[0] : (bookToEdit?.dateFinished || new Date().toISOString().split('T')[0]));
   const [daysToFinish, setDaysToFinish] = useState(isDuplicating ? '' : (bookToEdit?.daysToFinish?.toString() || ''));
   const [timesRead, setTimesRead] = useState(isDuplicating ? 0 : (bookToEdit?.timesRead || (bookToEdit?.status === BookStatus.Read ? 1 : 0)));
+  const [historyObservation, setHistoryObservation] = useState(isDuplicating ? '' : (bookToEdit?.historyObservation || ''));
 
   const [errors, setErrors] = useState<FormErrors>({});
   const [isShaking, setIsShaking] = useState(false);
@@ -241,11 +242,12 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
             currentPage: status === BookStatus.Read ? pages : (status === BookStatus.TBR || status === BookStatus.Wishlist ? 0 : currentPage),
             dateStarted: isDuplicating ? undefined : bookToEdit?.dateStarted,
             dateFinished: status === BookStatus.Read ? dateFinished : undefined,
-            daysToFinish: status === BookStatus.Read && daysToFinish ? parseInt(daysToFinish, 10) : null,
+            daysToFinish: status === BookStatus.Read && daysToFinish ? parseInt(daysToFinish, 10) : undefined,
             timesRead: status === BookStatus.Read ? Number(timesRead) : (isDuplicating ? 0 : (bookToEdit?.timesRead || 0)),
             wasWishlist: isDuplicating ? (status === BookStatus.Wishlist) : (bookToEdit?.wasWishlist || (status === BookStatus.Wishlist)),
             linkedBookIds,
-            tags: selectedTags
+            tags: selectedTags,
+            historyObservation: (status === BookStatus.Read || status === BookStatus.Dropped) ? historyObservation : undefined
         };
         if (isEditMode) {
             await onUpdateBook({ ...bookToEdit, ...bookData });
@@ -326,8 +328,10 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                     <input 
                       type="text" 
                       value={title} 
+                      autoFocus
                       onChange={handleTitleChange}
                       onKeyDown={(e) => handleKeyDown(e, 'title')}
+                      onFocus={(e) => e.target.select()}
                       placeholder="Ex: Cem Anos de Solidão"
                       className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl px-5 py-3.5 outline-none transition-all focus:ring-4 focus:ring-primary/5 ${errors.title ? 'border-red-400 bg-red-50/30 dark:bg-red-950/20' : 'border-slate-200 dark:border-slate-700 focus:border-primary font-bold'}`} 
                     />
@@ -350,7 +354,14 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                             type="text" 
                             value={authorInput} 
                             onChange={handleAuthorInputChange}
-                            onKeyDown={(e) => handleKeyDown(e, 'author')}
+                            onKeyDown={(e) => {
+                                handleKeyDown(e, 'author');
+                                if (e.key === 'Enter' && !showAuthorSug) {
+                                    e.preventDefault();
+                                    addAuthor();
+                                }
+                            }}
+                            onFocus={(e) => e.target.select()}
                             placeholder="Adicione um autor..."
                             className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl px-5 py-3.5 outline-none transition-all focus:ring-4 focus:ring-primary/5 ${errors.authors ? 'border-red-400' : 'border-slate-200 dark:border-slate-700 focus:border-primary font-bold'}`} 
                           />
@@ -394,7 +405,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
 
                 <div>
                     <label className={labelClass(false)}>Total de Páginas</label>
-                    <input type="number" min="0" value={pages} onChange={(e) => setPages(Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" />
+                    <input type="number" min="0" value={pages} onFocus={(e) => e.target.select()} onChange={(e) => setPages(Number(e.target.value))} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" />
                 </div>
 
                 {/* Vínculo de Obras Relacionadas */}
@@ -473,6 +484,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                             min="0" 
                             max={pages || undefined}
                             value={currentPage} 
+                            onFocus={(e) => e.target.select()}
                             onChange={(e) => setCurrentPage(Number(e.target.value))} 
                             className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
                         />
@@ -492,6 +504,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                             <input 
                               type="text" 
                               value={estimatedPrice} 
+                              onFocus={(e) => e.target.select()}
                               onChange={(e) => setEstimatedPrice(e.target.value)} 
                               placeholder="0,00"
                               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
@@ -503,6 +516,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                                 <input 
                                   type="text" 
                                   value={pricePaid} 
+                                  onFocus={(e) => e.target.select()}
                                   onChange={(e) => setPricePaid(e.target.value)} 
                                   placeholder="0,00"
                                   className="w-full bg-emerald-50/30 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800 rounded-2xl px-5 py-3.5 outline-none focus:border-emerald-500 font-bold text-emerald-700 dark:text-emerald-400" 
@@ -557,6 +571,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                       <input 
                         type="number" 
                         value={daysToFinish} 
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => setDaysToFinish(e.target.value)} 
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
                       />
@@ -567,6 +582,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                         type="number" 
                         min="1"
                         value={timesRead} 
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => setTimesRead(Number(e.target.value))} 
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
                       />
@@ -581,7 +597,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                             {selectedGenres.map(g => (
                                 <span key={g} className="bg-primary text-white text-[10px] font-black uppercase tracking-widest px-4 py-2 rounded-xl flex items-center gap-2 shadow-md">
                                     {g}
-                                    <button type="button" onClick={() => toggleGenre(g)} className="hover:text-blue-200 transition-colors p-0.5">
+                                    <button type="button" onClick={() => toggleGenre(g)} className="hover:text-tertiary transition-colors p-0.5">
                                         <XMarkIcon className="h-3.5 w-3.5" />
                                     </button>
                                 </span>
@@ -643,7 +659,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                     type="button" 
                     onClick={handleGenerateSummary} 
                     disabled={isGeneratingSummary || isSubmitting || !title || authors.length === 0} 
-                    className="px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl bg-primary text-white shadow-md active:scale-95 disabled:opacity-50"
+                    className="px-6 py-3 text-[10px] font-black uppercase tracking-widest rounded-xl bg-tertiary text-white shadow-md active:scale-95 disabled:opacity-50"
                 >
                     {isGeneratingSummary ? 'Gerando...' : 'Gerar Resumo'}
                 </button>
@@ -660,16 +676,29 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                 ></textarea>
             </div>
 
-            <div className="space-y-3">
-                <label className={labelClass(false)}>Notas Pessoais</label>
-                <textarea 
-                    value={notes} 
-                    onChange={(e) => setNotes(e.target.value)} 
-                    rows={4} 
-                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 rounded-[1.5rem] px-5 py-4 outline-none focus:border-primary text-sm leading-relaxed" 
-                    placeholder="Suas anotações..."
-                ></textarea>
-            </div>
+                <div className="space-y-3">
+                    <label className={labelClass(false)}>Notas Pessoais</label>
+                    <textarea 
+                        value={notes} 
+                        onChange={(e) => setNotes(e.target.value)} 
+                        rows={4} 
+                        className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 rounded-[1.5rem] px-5 py-4 outline-none focus:border-primary text-sm leading-relaxed" 
+                        placeholder="Suas anotações..."
+                    ></textarea>
+                </div>
+
+                {(status === BookStatus.Read || status === BookStatus.Dropped) && (
+                    <div className="space-y-3">
+                        <label className={labelClass(false)}>Observação do Histórico (O que achou?)</label>
+                        <textarea 
+                            value={historyObservation} 
+                            onChange={(e) => setHistoryObservation(e.target.value)} 
+                            rows={4} 
+                            className="w-full bg-gradient-to-br from-indigo-50/30 to-slate-50 dark:from-indigo-900/10 dark:to-slate-800 border border-indigo-100 dark:border-indigo-900/50 rounded-[1.5rem] px-5 py-4 outline-none focus:border-primary text-sm leading-relaxed" 
+                            placeholder="Deixe aqui sua opinião definitiva sobre a obra..."
+                        ></textarea>
+                    </div>
+                )}
 
             <div className="flex justify-end gap-4 pt-8 border-t border-slate-100 mt-6">
                 <button 

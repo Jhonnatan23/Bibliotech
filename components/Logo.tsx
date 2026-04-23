@@ -91,12 +91,12 @@ export const Logo: React.FC<LogoProps> = ({ className = '', size = 'md', showTex
 
           <defs>
             <linearGradient id="logo-grad-left" x1="10" y1="20" x2="50" y2="80" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#3b82f6" />
-              <stop offset="1" stopColor="#2563eb" />
+              <stop stopColor="#05A0E6" />
+              <stop offset="1" stopColor="#274C68" />
             </linearGradient>
             <linearGradient id="logo-grad-right" x1="50" y1="20" x2="90" y2="80" gradientUnits="userSpaceOnUse">
-              <stop stopColor="#2563eb" />
-              <stop offset="1" stopColor="#4f46e5" />
+              <stop stopColor="#274C68" />
+              <stop offset="1" stopColor="#05A0E6" />
             </linearGradient>
           </defs>
         </svg>

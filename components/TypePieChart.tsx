@@ -8,8 +8,8 @@ interface TypePieChartProps {
 }
 
 const COLORS = [
-  '#2563eb', // Azul BiblioTech
-  '#f59e0b', // Âmbar
+  '#274C68', // Primária
+  '#05A0E6', // Terciária
   '#10b981', // Esmeralda
   '#ec4899', // Rosa
   '#8b5cf6', // Violeta
@@ -64,29 +64,31 @@ export const TypePieChart: React.FC<TypePieChartProps> = ({ data }) => {
     };
 
   return (
-    <div className="w-full h-full relative flex flex-col items-center">
-      {/* Central Label Overlay - Adjusted for better centering */}
-      <div className="absolute top-[40%] left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-10 flex flex-col items-center justify-center">
-          <span className="text-4xl md:text-5xl font-black text-slate-900 dark:text-slate-100 tracking-tighter leading-none font-serif italic">{totalBooks}</span>
-          <span className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em] mt-1">Acervo</span>
+    <div className="w-full h-full relative flex flex-col items-center justify-center">
+      {/* Central Label Overlay */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none z-10 flex flex-col items-center justify-center mt-[-20px]">
+          <span className="text-3xl sm:text-4xl md:text-5xl font-black text-slate-900 dark:text-slate-100 tracking-tighter leading-none font-serif italic">{totalBooks}</span>
+          <span className="text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em] mt-1">Acervo</span>
       </div>
 
-      <div className="w-full h-[320px] md:h-[400px]">
+      <div className="w-full h-[280px] sm:h-[320px] md:h-[400px]">
         <ResponsiveContainer width="100%" height="100%">
             <PieChart>
             <Pie
-                activeIndex={activeIndex}
-                activeShape={renderActiveShape}
-                data={chartData}
-                cx="50%"
-                cy="45%"
-                innerRadius={75}
-                outerRadius={100}
-                paddingAngle={4}
-                dataKey="value"
-                onMouseEnter={onPieEnter}
-                onMouseLeave={onPieLeave}
-                stroke="none"
+                {...{
+                    activeIndex,
+                    activeShape: renderActiveShape,
+                    data: chartData,
+                    cx: "50%",
+                    cy: "50%",
+                    innerRadius: 60,
+                    outerRadius: 80,
+                    paddingAngle: 4,
+                    dataKey: "value",
+                    onMouseEnter: onPieEnter,
+                    onMouseLeave: onPieLeave,
+                    stroke: "none"
+                } as any}
             >
                 {chartData.map((entry, index) => (
                 <Cell 

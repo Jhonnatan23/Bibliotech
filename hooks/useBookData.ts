@@ -122,8 +122,8 @@ export const useBookData = () => {
   }, [dateFilter, selectedYear, customRange]);
 
   const stats: ReadingStats = useMemo(() => {
-    const global = { booksRead: 0, pagesRead: 0, totalRating: 0, ratingCount: 0 };
-    const yearly = { booksRead: 0, pagesRead: 0, totalRating: 0, ratingCount: 0 };
+    const global = { booksRead: 0, pagesRead: 0, totalRating: 0, ratingCount: 0, totalSpent: 0 };
+    const yearly = { booksRead: 0, pagesRead: 0, totalRating: 0, ratingCount: 0, totalSpent: 0, totalDays: 0 };
     
     const monthlyDataMap = MONTHS.map(month => ({ month, booksRead: 0, pagesRead: 0, totalRating: 0, ratingCount: 0 }));
     
@@ -133,6 +133,7 @@ export const useBookData = () => {
     };
 
     const genreCountMap: Record<string, number> = {};
+    const authorCountMap: Record<string, number> = {};
     const statusCountMap: Record<string, number> = {};
 
     let tbrCountTotal = 0;
@@ -151,6 +152,10 @@ export const useBookData = () => {
         global.ratingCount++;
       }
 
+      if (book.pricePaid) {
+        global.totalSpent += book.pricePaid;
+      }
+
       if (book.status === BookStatus.Read) {
         const reads = Math.max(1, book.timesRead || 1);
         global.booksRead += reads;
@@ -162,12 +167,20 @@ export const useBookData = () => {
         // Distribuição de Status no Período
         statusCountMap[book.status] = (statusCountMap[book.status] || 0) + 1;
 
+        if (book.pricePaid) {
+          yearly.totalSpent += book.pricePaid;
+        }
+
         if (book.status === BookStatus.Read) {
           yearly.booksRead++;
           yearly.pagesRead += (book.pages || 0);
           if (book.rating && book.rating > 0) {
             yearly.totalRating += book.rating;
             yearly.ratingCount++;
+          }
+
+          if (book.daysToFinish) {
+            yearly.totalDays += book.daysToFinish;
           }
           
           // Agregação por Tipo (no período)
@@ -187,6 +200,12 @@ export const useBookData = () => {
             genreCountMap[g] = (genreCountMap[g] || 0) + 1;
           });
 
+          // Agregação por Autor (no período)
+          const authors = book.author.split(',').map(a => a.trim()).filter(a => a !== '');
+          authors.forEach(a => {
+            authorCountMap[a] = (authorCountMap[a] || 0) + 1;
+          });
+
           // Mensal (no período)
           if (book.dateFinished) {
             const monthIndex = new Date(book.dateFinished).getMonth();
@@ -204,9 +223,15 @@ export const useBookData = () => {
       }
     });
 
+    const activeMonths = monthlyDataMap.filter(m => m.booksRead > 0).length;
+    const consistency = (activeMonths / 12) * 100;
+
     return {
       tbrCount: tbrCountTotal,
       wishlistCount: wishlistCountTotal,
+      totalSpent: yearly.totalSpent,
+      avgPagesPerDay: yearly.totalDays > 0 ? yearly.pagesRead / yearly.totalDays : 0,
+      consistency,
       global: {
         booksRead: global.booksRead,
         pagesRead: global.pagesRead,
@@ -229,6 +254,10 @@ export const useBookData = () => {
         .map(([genre, count]) => ({ genre, count }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 10),
+      byAuthor: Object.entries(authorCountMap)
+        .map(([author, count]) => ({ author, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5),
       byStatus: Object.entries(statusCountMap)
         .map(([status, count]) => ({ status, count }))
         .sort((a, b) => b.count - a.count)

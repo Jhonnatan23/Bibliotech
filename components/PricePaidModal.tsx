@@ -44,6 +44,7 @@ export const PricePaidModal: React.FC<PricePaidModalProps> = ({ book, onClose, o
                     autoFocus
                     placeholder="0,00"
                     value={price}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setPrice(e.target.value)}
                     className="w-full bg-slate-50 dark:bg-slate-800 border-2 border-slate-100 dark:border-slate-700 rounded-2xl py-5 pl-14 pr-6 text-2xl font-black text-slate-900 dark:text-white outline-none focus:border-primary transition-all text-right"
                 />

@@ -16,7 +16,7 @@ interface GenreBarChartProps {
   data: GenreStat[];
 }
 
-const COLORS = ['#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe', '#dbeafe'];
+const COLORS = ['#274C68', '#05A0E6', '#3b82f6', '#60a5fa', '#93c5fd', '#bfdbfe'];
 
 const CustomTooltip = ({ active, payload }: any) => {
   if (active && payload && payload.length) {
@@ -57,8 +57,8 @@ export const GenreBarChart: React.FC<GenreBarChartProps> = ({ data }) => {
             type="category" 
             axisLine={false} 
             tickLine={false}
-            tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 700 }}
-            width={80}
+            tick={{ fill: '#94a3b8', fontSize: 9, fontWeight: 700 }}
+            width={70}
           />
           <Tooltip content={<CustomTooltip />} cursor={{ fill: 'transparent' }} />
           <Bar 

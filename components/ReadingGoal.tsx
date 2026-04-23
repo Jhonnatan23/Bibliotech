@@ -43,6 +43,7 @@ export const ReadingGoal: React.FC<ReadingGoalProps> = ({ current, goal, onSetGo
                type="number" 
                step="1"
                value={goal}
+               onFocus={(e) => e.target.select()}
                onChange={handleGoalChange}
                className="text-lg font-bold text-primary w-12 bg-transparent border-b border-dashed border-slate-200 dark:border-slate-700 focus:border-primary outline-none"
              />
@@ -51,7 +52,7 @@ export const ReadingGoal: React.FC<ReadingGoalProps> = ({ current, goal, onSetGo
         </div>
         
         <div className="flex flex-col items-end gap-1.5">
-            <div className="bg-primary/5 dark:bg-primary/10 p-3 rounded-full text-primary shadow-inner">
+            <div className="bg-tertiary/5 dark:bg-tertiary/10 p-3 rounded-full text-tertiary shadow-inner">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>

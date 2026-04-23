@@ -94,8 +94,8 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-lg border border-white/20 dark:border-slate-800 overflow-hidden animate-in zoom-in-95 duration-500">
         <div className="p-7 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/30">
           <div className="flex items-center gap-3">
-            <div className="bg-primary/10 p-2 rounded-xl">
-              <Cog6ToothIcon className="h-5 w-5 text-primary" />
+            <div className="bg-tertiary/10 p-2 rounded-xl">
+              <Cog6ToothIcon className="h-5 w-5 text-tertiary" />
             </div>
             <h2 className="text-xl font-black font-serif text-slate-900 dark:text-slate-50 tracking-tight">Preferências</h2>
           </div>
@@ -111,6 +111,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 type="text"
                 placeholder="Seu nome completo"
                 value={fullName}
+                onFocus={(e) => e.target.select()}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-200 transition-all"
              />
@@ -120,7 +121,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
           <section className="space-y-4 pt-6 border-t border-slate-50 dark:border-slate-800">
              <div className="flex items-center justify-between mb-4">
                 <div className="flex items-center gap-2">
-                    <TagIcon className="h-4 w-4 text-primary" />
+                    <TagIcon className="h-4 w-4 text-tertiary" />
                     <h3 className="text-[10px] font-black text-slate-600 dark:text-slate-400 uppercase tracking-widest">Minhas Tags Personalizadas</h3>
                 </div>
              </div>
@@ -130,7 +131,14 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                     type="text"
                     placeholder="Nome da tag (ex: Favoritos)"
                     value={tagInput}
+                    onFocus={(e) => e.target.select()}
                     onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            addTag();
+                        }
+                    }}
                     className="flex-1 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-primary font-bold text-sm"
                 />
                 <button 
@@ -172,6 +180,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         type="password"
                         placeholder="Mínimo 6 caracteres"
                         value={newPassword}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => setNewPassword(e.target.value)}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-medium dark:text-white transition-all shadow-sm"
                     />
@@ -182,6 +191,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         type="password"
                         placeholder="Repita a nova senha"
                         value={confirmPassword}
+                        onFocus={(e) => e.target.select()}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-medium dark:text-white transition-all shadow-sm"
                     />

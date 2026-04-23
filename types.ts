@@ -28,7 +28,7 @@ export interface StatusConfig {
 export type StatusConfigs = Record<BookStatus, StatusConfig>;
 
 export const STATUS_COLORS = {
-  blue: { bg: 'bg-blue-50', text: 'text-primary', border: 'border-blue-100' },
+  blue: { bg: 'bg-blue-50', text: 'text-secondary', border: 'border-blue-100' },
   green: { bg: 'bg-green-50', text: 'text-green-600', border: 'border-green-100' },
   amber: { bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-100' },
   pink: { bg: 'bg-pink-50', text: 'text-pink-600', border: 'border-pink-100' },
@@ -75,6 +75,7 @@ export interface Book {
   wasWishlist?: boolean;
   linkedBookIds?: string[];
   tags?: string[];
+  historyObservation?: string;
 }
 
 export interface Recommendation {
@@ -120,12 +121,30 @@ export interface StatusStat {
 export interface ReadingStats {
   tbrCount: number;
   wishlistCount: number;
+  totalSpent: number;
+  avgPagesPerDay: number;
+  consistency: number;
   global: YearlyStats; // Métricas de todo o tempo
   yearly: YearlyStats; // Métricas do período filtrado
   monthly: MonthlyStat[];
   byType: TypeStat[];
   byGenre: GenreStat[];
+  byAuthor: AuthorStat[];
   byStatus: StatusStat[];
 }
 
+export interface AuthorStat {
+  author: string;
+  count: number;
+}
+
 export type DateFilter = 'thisYear' | 'allTime' | 'custom' | 'specificYear';
+
+declare global {
+  interface Window {
+    aistudio?: {
+      hasSelectedApiKey: () => Promise<boolean>;
+      openSelectKey: () => Promise<void>;
+    };
+  }
+}

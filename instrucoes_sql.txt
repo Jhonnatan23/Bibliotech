@@ -4,9 +4,10 @@
 -- ATUALIZAÇÃO PARA VÍNCULOS E TAGS
 -- ======================================================
 
--- 1. ADIÇÃO DA COLUNA DE VÍNCULOS E TAGS
+-- 1. ADIÇÃO DA COLUNA DE VÍNCULOS, TAGS E OBSERVAÇÃO DE HISTÓRICO
 ALTER TABLE public.books ADD COLUMN IF NOT EXISTS linked_book_ids UUID[] DEFAULT '{}';
 ALTER TABLE public.books ADD COLUMN IF NOT EXISTS tags TEXT[] DEFAULT '{}';
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS history_observation TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS custom_tags TEXT[] DEFAULT '{}';
 
 -- 2. GARANTIA DE ESTRUTURA PARA PERFIS E LIVROS
@@ -42,7 +43,8 @@ CREATE TABLE IF NOT EXISTS public.books (
   times_read INTEGER DEFAULT 1,
   was_wishlist BOOLEAN DEFAULT FALSE,
   linked_book_ids UUID[] DEFAULT '{}',
-  tags TEXT[] DEFAULT '{}'
+  tags TEXT[] DEFAULT '{}',
+  history_observation TEXT
 );
 
 -- 3. RE-SINCERIZAÇÃO DE ÍNDICES

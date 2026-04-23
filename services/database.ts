@@ -11,7 +11,7 @@ const FETCH_TIMEOUT_MS = 12000;
  * Função utilitária para lidar com Timeouts e Retentativas
  */
 const withRetry = async <T>(
-  promiseFn: () => Promise<any>,
+  promiseFn: () => PromiseLike<any>,
   maxRetries: number = 2,
   delay: number = 1000
 ): Promise<T> => {
@@ -77,7 +77,8 @@ const mapBookToDb = (book: any) => {
         times_read: (book.timesRead !== undefined && book.timesRead !== null) ? Math.floor(parseInt(String(book.timesRead), 10)) : 0,
         was_wishlist: book.wasWishlist === true,
         linked_book_ids: book.linkedBookIds || [],
-        tags: book.tags || []
+        tags: book.tags || [],
+        history_observation: book.historyObservation || null
     };
 };
 
@@ -104,7 +105,8 @@ const mapDbToBook = (db: any): Book => ({
     timesRead: db.times_read || 0,
     wasWishlist: db.was_wishlist === true,
     linkedBookIds: db.linked_book_ids || [],
-    tags: db.tags || []
+    tags: db.tags || [],
+    historyObservation: db.history_observation
 });
 
 export class DatabaseService {
@@ -141,7 +143,7 @@ export class DatabaseService {
           current_page, date_added, date_started, 
           date_finished, days_to_finish, times_read, was_wishlist,
           summary, notes, estimated_price, price_paid, buy_link, user_id,
-          linked_book_ids, tags
+          linked_book_ids, tags, history_observation
         `)
         .eq('user_id', user.id)
         .order('date_added', { ascending: false })
@@ -151,8 +153,8 @@ export class DatabaseService {
       await this.saveLocalBooks(books);
       return books;
     } catch (err: any) {
-      if (err.code === '42703' || (err.message && err.message.includes('linked_book_ids'))) {
-        this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada.');
+      if (err.code === '42703' || (err.message && (err.message.includes('linked_book_ids') || err.message.includes('history_observation')))) {
+        this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada (history_observation).');
       }
       console.error("Erro na nuvem, carregando local:", err.message || err);
       return await this.getLocalBooks();
@@ -193,8 +195,8 @@ export class DatabaseService {
     await this.saveLocalBooks(books);
 
     withRetry(() => supabase.from(TABLE_NAME).upsert(dbPayload)).catch((err: any) => {
-        if (err.code === '42703') {
-            this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada.');
+        if (err.code === '42703' || (err.message && err.message.includes('history_observation'))) {
+            this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada (history_observation).');
         }
     });
   }

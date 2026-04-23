@@ -37,7 +37,7 @@ const CustomTooltip = ({ active, payload, label, prefix = '' }: any) => {
   return null;
 };
 
-export const StatsView: React.FC<StatsViewProps> = ({ books, availableYears }) => {
+export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availableYears }) => {
     const [selectedYear, setSelectedYear] = useState<number | 'all'>('all');
 
     const filteredBooks = useMemo(() => {
@@ -365,4 +365,4 @@ export const StatsView: React.FC<StatsViewProps> = ({ books, availableYears }) =
             </div>
         </div>
     );
-};
+});

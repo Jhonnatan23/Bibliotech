@@ -1,12 +1,15 @@
 
 import React, { useState, useMemo } from 'react';
-import type { Book, Profile } from '../types';
+import type { Book, Profile, ReadingStats } from '../types';
 import { BookStatus, GENRES } from '../types';
 import { BookListItem } from './BookListItem';
+import { ShelfProgress } from './ShelfProgress';
 import { XMarkIcon, TagIcon } from './Icons';
 
 interface BookListProps {
   books: Book[];
+  allBooks: Book[];
+  stats: ReadingStats;
   onEdit: (book: Book) => void;
   onDelete: (book: Book) => void;
   onDuplicate: (book: Book) => void;
@@ -18,7 +21,7 @@ interface BookListProps {
 type FilterStatus = 'all' | BookStatus;
 type SortOrder = 'title' | 'dateAdded';
 
-export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onDuplicate, onViewDetails, onUpdateBook, profile }) => {
+export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, stats, onEdit, onDelete, onDuplicate, onViewDetails, onUpdateBook, profile }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
   const [sortBy, setSortBy] = useState<SortOrder>('dateAdded');
@@ -125,6 +128,8 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onD
           />
         </div>
       </div>
+
+      <ShelfProgress books={allBooks} stats={stats} />
 
       <div className="bg-white dark:bg-slate-900 p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft space-y-8 transition-all hover:border-slate-200 dark:hover:border-slate-700">
         {/* Status and Sort */}
@@ -245,6 +250,7 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onD
             <BookListItem 
               key={book.id} 
               book={book} 
+              allBooks={books}
               onEdit={onEdit} 
               onDelete={onDelete} 
               onDuplicate={onDuplicate}
@@ -272,4 +278,4 @@ export const BookList: React.FC<BookListProps> = ({ books, onEdit, onDelete, onD
       </div>
     </div>
   );
-};
+});

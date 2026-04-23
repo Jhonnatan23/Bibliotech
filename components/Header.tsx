@@ -15,7 +15,7 @@ interface HeaderProps {
   hasApiKey?: boolean;
 }
 
-export const Header: React.FC<HeaderProps> = ({ 
+export const Header: React.FC<HeaderProps> = React.memo(({ 
   profile, 
   onLogoClick, 
   onSettingsClick, 
@@ -72,14 +72,14 @@ export const Header: React.FC<HeaderProps> = ({
 
           <button 
             onClick={toggleTheme}
-            className="p-2 sm:p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-all active:scale-95"
+            className="p-2 sm:p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:text-tertiary dark:hover:text-tertiary transition-all active:scale-95"
           >
             {theme === 'light' ? <MoonIcon className="h-4 w-4 sm:h-5 sm:w-5" /> : <SunIcon className="h-4 w-4 sm:h-5 sm:w-5" />}
           </button>
 
           <button 
             onClick={onSettingsClick}
-            className="hidden sm:flex p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-primary transition-all active:scale-95"
+            className="hidden sm:flex p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:text-tertiary dark:hover:text-tertiary transition-all active:scale-95"
           >
             <Cog6ToothIcon className="h-5 w-5" />
           </button>
@@ -105,4 +105,4 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
     </header>
   );
-};
+});
