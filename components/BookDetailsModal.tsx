@@ -69,6 +69,21 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
                     <span className="px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border bg-slate-100 dark:bg-slate-800 text-slate-400">
                         {book.type}
                     </span>
+                    <button 
+                        onClick={async () => {
+                            if (isUpdating) return;
+                            setIsUpdating(true);
+                            try {
+                                await onUpdateBook({ ...book, isDigital: !book.isDigital });
+                            } finally {
+                                setIsUpdating(false);
+                            }
+                        }}
+                        disabled={isUpdating}
+                        className={`px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border transition-all ${book.isDigital ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800' : 'bg-slate-100 dark:bg-slate-800 text-slate-400 border-slate-200 dark:border-slate-700'}`}
+                    >
+                        {book.isDigital ? 'Digital' : 'Físico'}
+                    </button>
                 </div>
                 <h2 className="text-3xl font-black font-serif italic text-slate-900 dark:text-white leading-tight">
                     {book.title}
@@ -160,6 +175,81 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
                             {(profile?.customTags?.length || 0) === 0 && (
                                 <p className="text-[9px] font-bold text-slate-400 uppercase italic">Crie tags nas configurações primeiro!</p>
                             )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Controle de Empréstimos */}
+            <div className={`p-6 rounded-[2.5rem] border transition-all ${book.isLoaned ? 'bg-amber-50 dark:bg-amber-900/10 border-amber-200 dark:border-amber-800' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-100 dark:border-slate-800'}`}>
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl ${book.isLoaned ? 'bg-amber-500 text-white shadow-lg shadow-amber-500/20' : 'bg-slate-200 dark:bg-slate-700 text-slate-500'}`}>
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-5 w-5">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+                            </svg>
+                        </div>
+                        <div>
+                            <h3 className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500 dark:text-slate-400">Controle de Empréstimo</h3>
+                            <p className="text-xs font-bold text-slate-900 dark:text-white">
+                                {book.isLoaned ? `Emprestado para ${book.borrowerName}` : 'Disponível na sua estante'}
+                            </p>
+                        </div>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                            type="checkbox" 
+                            className="sr-only peer" 
+                            checked={book.isLoaned || false} 
+                            onChange={async (e) => {
+                                if (isUpdating) return;
+                                const isNowLoaned = e.target.checked;
+                                setIsUpdating(true);
+                                try {
+                                    await onUpdateBook({
+                                        ...book,
+                                        isLoaned: isNowLoaned,
+                                        borrowerName: isNowLoaned ? (book.borrowerName || 'Amigo') : undefined,
+                                        loanDate: isNowLoaned ? (book.loanDate || new Date().toISOString().split('T')[0]) : undefined
+                                    });
+                                } finally {
+                                    setIsUpdating(false);
+                                }
+                            }}
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none dark:bg-slate-700 peer-focus:ring-4 peer-focus:ring-amber-300 dark:peer-focus:ring-amber-800 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-amber-500"></div>
+                    </label>
+                </div>
+                
+                {book.isLoaned && (
+                    <div className="animate-in slide-in-from-top-2 duration-300 space-y-3 mt-4 pt-4 border-t border-amber-200/50 dark:border-amber-800/50">
+                        <div className="flex flex-col sm:flex-row gap-4">
+                            <div className="flex-1">
+                                <label className="text-[9px] font-black uppercase text-amber-600 mb-1 block">Nome do Tomador</label>
+                                <input 
+                                    type="text" 
+                                    defaultValue={book.borrowerName}
+                                    onBlur={async (e) => {
+                                        if (e.target.value !== book.borrowerName) {
+                                            await onUpdateBook({ ...book, borrowerName: e.target.value });
+                                        }
+                                    }}
+                                    className="w-full bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-amber-500/20"
+                                />
+                            </div>
+                            <div className="w-full sm:w-40">
+                                <label className="text-[9px] font-black uppercase text-amber-600 mb-1 block">Data</label>
+                                <input 
+                                    type="date" 
+                                    defaultValue={book.loanDate}
+                                    onBlur={async (e) => {
+                                        if (e.target.value !== book.loanDate) {
+                                            await onUpdateBook({ ...book, loanDate: e.target.value });
+                                        }
+                                    }}
+                                    className="w-full bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-800 rounded-xl px-4 py-2 text-sm font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-amber-500/20"
+                                />
+                            </div>
                         </div>
                     </div>
                 )}

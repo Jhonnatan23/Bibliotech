@@ -19,11 +19,15 @@ interface BookListProps {
 }
 
 type FilterStatus = 'all' | BookStatus;
-type SortOrder = 'title' | 'dateAdded';
+type FormatFilter = 'all' | 'physical' | 'digital';
+type LoanFilter = 'all' | 'loaned' | 'not_loaned';
+type SortOrder = 'title' | 'dateAdded' | 'isDigital' | 'isLoaned';
 
 export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, stats, onEdit, onDelete, onDuplicate, onViewDetails, onUpdateBook, profile }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
+  const [formatFilter, setFormatFilter] = useState<FormatFilter>('all');
+  const [loanFilter, setLoanFilter] = useState<LoanFilter>('all');
   const [sortBy, setSortBy] = useState<SortOrder>('dateAdded');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -53,6 +57,10 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
     // Sort
     if (sortBy === 'title') {
       result.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortBy === 'isDigital') {
+      result.sort((a, b) => (a.isDigital === b.isDigital ? 0 : a.isDigital ? -1 : 1));
+    } else if (sortBy === 'isLoaned') {
+      result.sort((a, b) => (a.isLoaned === b.isLoaned ? 0 : a.isLoaned ? -1 : 1));
     } else {
       result.sort((a, b) => b.dateAdded.localeCompare(a.dateAdded));
     }
@@ -60,6 +68,20 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
     // Status Filter
     if (statusFilter !== 'all') {
       result = result.filter(book => book.status === statusFilter);
+    }
+
+    // Format Filter
+    if (formatFilter === 'physical') {
+      result = result.filter(book => !book.isDigital);
+    } else if (formatFilter === 'digital') {
+      result = result.filter(book => book.isDigital);
+    }
+
+    // Loan Filter
+    if (loanFilter === 'loaned') {
+      result = result.filter(book => book.isLoaned);
+    } else if (loanFilter === 'not_loaned') {
+      result = result.filter(book => !book.isLoaned);
     }
 
     // Search Query
@@ -88,7 +110,7 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
     }
 
     return result;
-  }, [books, searchQuery, statusFilter, sortBy, selectedGenres, selectedTags]);
+  }, [books, searchQuery, statusFilter, formatFilter, loanFilter, sortBy, selectedGenres, selectedTags]);
 
   const filteredGenresList = useMemo(() => {
     if (!genreSearch) return GENRES;
@@ -133,34 +155,78 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
 
       <div className="bg-white dark:bg-slate-900 p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft space-y-8 transition-all hover:border-slate-200 dark:hover:border-slate-700">
         {/* Status and Sort */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8 pb-6 border-b border-slate-50 dark:border-slate-800">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em] mr-1">Status:</span>
-            {filterButtons.map((btn) => (
-              <button
-                key={btn.value}
-                onClick={() => setStatusFilter(btn.value)}
-                className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
-                  statusFilter === btn.value
-                    ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25'
-                    : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700 hover:border-primary/30'
-                }`}
+        <div className="flex flex-col space-y-6 pb-6 border-b border-slate-50 dark:border-slate-800">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em] mr-1">Status:</span>
+              {filterButtons.map((btn) => (
+                <button
+                  key={btn.value}
+                  onClick={() => setStatusFilter(btn.value)}
+                  className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                    statusFilter === btn.value
+                      ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700 hover:border-primary/30'
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Ordenar:</span>
+              <select 
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value as SortOrder)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 outline-none focus:ring-4 focus:ring-primary/5 transition-all cursor-pointer"
               >
-                {btn.label}
-              </button>
-            ))}
+                <option value="dateAdded">Mais Recentes</option>
+                <option value="title">Título (A-Z)</option>
+                <option value="isDigital">Digitais Primeiro</option>
+                <option value="isLoaned">Emprestados Primeiro</option>
+              </select>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Ordenar:</span>
-            <select 
-              value={sortBy} 
-              onChange={(e) => setSortBy(e.target.value as SortOrder)}
-              className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 outline-none focus:ring-4 focus:ring-primary/5 transition-all cursor-pointer"
-            >
-              <option value="dateAdded">Mais Recentes</option>
-              <option value="title">Título (A-Z)</option>
-            </select>
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em] mr-1">Formato:</span>
+              <div className="flex gap-2 p-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl">
+                {(['all', 'physical', 'digital'] as FormatFilter[]).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setFormatFilter(f)}
+                    className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                      formatFilter === f 
+                        ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' 
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {f === 'all' ? 'Todos' : f === 'physical' ? 'Físico' : 'Digital'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em] mr-1">Empréstimo:</span>
+              <div className="flex gap-2 p-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl">
+                {(['all', 'loaned', 'not_loaned'] as LoanFilter[]).map(l => (
+                  <button
+                    key={l}
+                    onClick={() => setLoanFilter(l)}
+                    className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                      loanFilter === l 
+                        ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' 
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {l === 'all' ? 'Todos' : l === 'loaned' ? 'Emprestado' : 'Na Estante'}
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -268,7 +334,15 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
             <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50 font-serif">Nenhum livro corresponde à busca</h3>
             <p className="text-slate-400 dark:text-slate-500 mt-2 max-w-xs mx-auto text-sm">Parece que seus filtros estão muito específicos.</p>
             <button 
-                onClick={() => { setStatusFilter('all'); setSearchQuery(''); setSelectedGenres([]); setSelectedTags([]); setGenreSearch(''); }}
+                onClick={() => { 
+                    setStatusFilter('all'); 
+                    setSearchQuery(''); 
+                    setSelectedGenres([]); 
+                    setSelectedTags([]); 
+                    setGenreSearch(''); 
+                    setFormatFilter('all');
+                    setLoanFilter('all');
+                }}
                 className="mt-8 px-6 py-2.5 rounded-xl bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg active:scale-95"
             >
                 Redefinir Filtros

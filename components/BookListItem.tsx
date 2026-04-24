@@ -158,6 +158,17 @@ export const BookListItem: React.FC<BookListItemProps> = React.memo(({
             <span className="px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-[0.05em] md:tracking-[0.1em] border bg-blue-50/50 dark:bg-blue-900/10 text-primary border-blue-100">
                 {book.pages}p
             </span>
+            <span className={`px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-[0.05em] md:tracking-[0.1em] border shadow-sm ${book.isDigital ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-100'}`}>
+                {book.isDigital ? 'Digital' : 'Físico'}
+            </span>
+            {book.isLoaned && (
+                <span className="px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest border bg-amber-500 text-white shadow-sm flex items-center gap-1.5">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
+                        <path d="M1 8.25c0-2.485 2.099-4.5 4.688-4.5 1.935 0 3.597 1.126 4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C2.1 3.75 0 5.765 0 8.25c0 7.22 9 12 9 12s9-4.78 9-12Z" />
+                    </svg>
+                    Emprestado
+                </span>
+            )}
             
             <div className="hidden sm:flex flex-wrap gap-1.5">
                 {genresList.slice(0, 3).map(g => {

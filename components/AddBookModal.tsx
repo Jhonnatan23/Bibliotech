@@ -4,6 +4,7 @@ import type { NewBook, Book, StatusConfigs, Profile } from '../types';
 import { BookStatus, BookType, GENRES, STATUS_CONFIGS } from '../types';
 import { XMarkIcon, BookOpenIcon, StarIcon, StarIconFilled, PlusIcon, TagIcon, MagnifyingGlassIcon } from './Icons';
 import { generateBookSummary } from '../services/geminiService';
+import { fetchBookByIsbn } from '../services/googleBooksService';
 
 interface AddBookModalProps {
   onClose: () => void;
@@ -37,6 +38,8 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const isEditMode = !!bookToEdit && !isDuplicating;
 
   const [title, setTitle] = useState(bookToEdit?.title || '');
+  const [isbn, setIsbn] = useState('');
+  const [isIsbnLoading, setIsIsbnLoading] = useState(false);
   const [authors, setAuthors] = useState<string[]>(
     bookToEdit?.author ? bookToEdit.author.split(',').map(a => a.trim()).filter(a => a !== '') : []
   );
@@ -56,6 +59,10 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const [buyLink, setBuyLink] = useState(bookToEdit?.buyLink || '');
   const [linkedBookIds, setLinkedBookIds] = useState<string[]>(bookToEdit?.linkedBookIds || []);
   const [selectedTags, setSelectedTags] = useState<string[]>(bookToEdit?.tags || []);
+  const [isLoaned, setIsLoaned] = useState<boolean>(bookToEdit?.isLoaned || false);
+  const [borrowerName, setBorrowerName] = useState(bookToEdit?.borrowerName || '');
+  const [loanDate, setLoanDate] = useState(bookToEdit?.loanDate || new Date().toISOString().split('T')[0]);
+  const [isDigital, setIsDigital] = useState<boolean>(bookToEdit?.isDigital || false);
   
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -247,6 +254,10 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
             wasWishlist: isDuplicating ? (status === BookStatus.Wishlist) : (bookToEdit?.wasWishlist || (status === BookStatus.Wishlist)),
             linkedBookIds,
             tags: selectedTags,
+            isLoaned,
+            borrowerName: isLoaned ? borrowerName.trim() : undefined,
+            loanDate: isLoaned ? loanDate : undefined,
+            isDigital,
             historyObservation: (status === BookStatus.Read || status === BookStatus.Dropped) ? historyObservation : undefined
         };
         if (isEditMode) {
@@ -271,6 +282,35 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
       setIsGeneratingSummary(false);
     }
   }, [title, authors]);
+
+  const handleIsbnLookup = async () => {
+    if (!isbn.trim()) return;
+    setIsIsbnLoading(true);
+    try {
+        const book = await fetchBookByIsbn(isbn);
+        if (book) {
+            setTitle(book.title);
+            setAuthors(book.authors);
+            setPages(book.pageCount);
+            setSummary(book.description);
+            if (book.categories && book.categories.length > 0) {
+                const category = book.categories[0];
+                if (!selectedGenres.includes(category)) {
+                    setSelectedGenres(prev => [...prev, category]);
+                }
+            }
+            if (errors.title) setErrors(prev => ({ ...prev, title: undefined }));
+            if (errors.authors) setErrors(prev => ({ ...prev, authors: undefined }));
+        } else {
+            setErrors(prev => ({ ...prev, title: 'ISBN não encontrado. Verifique os números.' }));
+            setTimeout(() => setErrors(prev => ({ ...prev, title: undefined })), 4000);
+        }
+    } catch (err) {
+        console.error("Erro ao buscar ISBN:", err);
+    } finally {
+        setIsIsbnLoading(false);
+    }
+  };
 
   const labelClass = (isRequired: boolean) => 
     `block text-[10px] font-black uppercase tracking-[0.15em] mb-1.5 ml-1 flex items-center gap-1 ${isRequired ? 'text-slate-500 dark:text-slate-400' : 'text-slate-400 dark:text-slate-500'}`;
@@ -321,6 +361,38 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
         
         <form onSubmit={handleSubmit} className="p-8 space-y-8 overflow-y-auto custom-scrollbar">
             <div className={`grid grid-cols-1 md:grid-cols-2 gap-8 ${isSubmitting ? 'opacity-50 pointer-events-none' : ''}`}>
+                {!isEditMode && (
+                    <div className="md:col-span-2">
+                        <label className={labelClass(false)}>Buscar por Código ISBN</label>
+                        <div className="flex gap-2">
+                            <div className="relative flex-1">
+                                <input 
+                                    type="text" 
+                                    value={isbn} 
+                                    onChange={(e) => setIsbn(e.target.value)}
+                                    placeholder="Ex: 9788535914849"
+                                    onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleIsbnLookup())}
+                                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300 transition-all focus:ring-4 focus:ring-primary/5" 
+                                />
+                                {isIsbnLoading && (
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                                        <div className="w-4 h-4 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                                    </div>
+                                )}
+                            </div>
+                            <button 
+                                type="button"
+                                onClick={handleIsbnLookup}
+                                disabled={isIsbnLoading || !isbn.trim()}
+                                className="px-6 rounded-2xl bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 font-black text-[10px] uppercase tracking-widest hover:bg-primary transition-all disabled:opacity-50 active:scale-95 whitespace-nowrap shadow-md"
+                            >
+                                Carregar Dados
+                            </button>
+                        </div>
+                        <p className="text-[9px] text-slate-400 font-bold mt-2 uppercase tracking-tight ml-1 animate-pulse">✦ Preencha automaticamente o título, autor, páginas e resumo via ISBN.</p>
+                    </div>
+                )}
+
                 <div className="md:col-span-2 relative" ref={titleRef}>
                     <label className={labelClass(true)}>
                       Título <span className="text-red-500">*</span>
@@ -537,6 +609,49 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                     />
                 </div>
 
+                <div className="md:col-span-2 space-y-4">
+                    <label className="flex items-center gap-3 cursor-pointer group p-4 bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 rounded-2xl transition-all hover:border-primary/40">
+                        <div className={`w-10 h-6 flex items-center rounded-full p-1 transition-colors ${isLoaned ? 'bg-primary' : 'bg-slate-300 dark:bg-slate-700'}`}>
+                            <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${isLoaned ? 'translate-x-4' : 'translate-x-0'}`} />
+                        </div>
+                        <input 
+                            type="checkbox" 
+                            className="hidden" 
+                            checked={isLoaned} 
+                            onChange={(e) => setIsLoaned(e.target.checked)} 
+                        />
+                        <span className="text-sm font-black text-slate-700 dark:text-slate-200 uppercase tracking-widest">Este livro está emprestado no momento?</span>
+                    </label>
+
+                    {isLoaned && (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-6 bg-amber-50/30 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-900/30 rounded-[2rem] animate-in slide-in-from-top-2 duration-300">
+                            <div>
+                                <label className={labelClass(true)}>Nome de quem pegou emprestado</label>
+                                <input 
+                                    type="text" 
+                                    value={borrowerName} 
+                                    onChange={(e) => setBorrowerName(e.target.value)} 
+                                    placeholder="Ex: João Silva"
+                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
+                                />
+                            </div>
+                            <div>
+                                <label className={labelClass(true)}>Data do Empréstimo</label>
+                                <input 
+                                    type="date" 
+                                    value={loanDate} 
+                                    onChange={(e) => setLoanDate(e.target.value)} 
+                                    className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
+                                />
+                            </div>
+                            <p className="md:col-span-2 text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase tracking-wide flex items-center gap-2">
+                                <span className="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+                                Livros emprestados aparecem na aba dedicada de Empréstimos.
+                            </p>
+                        </div>
+                    )}
+                </div>
+
                 <div>
                     <label className={labelClass(false)}>Data de Registro</label>
                     <input 
@@ -553,6 +668,26 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                         <option value={BookType.Book}>Livro</option>
                         <option value={BookType.HQ}>HQ</option>
                     </select>
+                </div>
+
+                <div>
+                    <label className={labelClass(false)}>Formato</label>
+                    <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl">
+                        <button 
+                            type="button"
+                            onClick={() => setIsDigital(false)}
+                            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${!isDigital ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Físico
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => setIsDigital(true)}
+                            className={`flex-1 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${isDigital ? 'bg-primary text-white shadow-md' : 'text-slate-400 hover:text-slate-600'}`}
+                        >
+                            Digital
+                        </button>
+                    </div>
                 </div>
 
                 {status === BookStatus.Read && (

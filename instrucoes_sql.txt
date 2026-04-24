@@ -1,6 +1,13 @@
+-- ======================================================
+-- INSTRUÇÕES DE ATUALIZAÇÃO DO BANCO DE DADOS
+-- 1. Acesse o painel do Supabase (https://supabase.com)
+-- 2. Entre no seu projeto e vá em "SQL Editor"
+-- 3. Crie uma nova query e cole TODO o conteúdo abaixo
+-- 4. Clique em "Run" para aplicar as mudanças
+-- ======================================================
 
 -- ======================================================
--- SCRIPT DE LIMPEZA E OTIMIZAÇÃO: BIBLIOTECH (v20)
+-- SCRIPT DE LIMPEZA E OTIMIZAÇÃO: BIBLIOTECH (v21)
 -- ATUALIZAÇÃO PARA VÍNCULOS E TAGS
 -- ======================================================
 
@@ -51,3 +58,9 @@ CREATE TABLE IF NOT EXISTS public.books (
 CREATE INDEX IF NOT EXISTS idx_books_user_id ON public.books(user_id);
 CREATE INDEX IF NOT EXISTS idx_books_status ON public.books(status);
 CREATE INDEX IF NOT EXISTS idx_books_date_added ON public.books(date_added DESC);
+
+-- 4. CONTROLE DE EMPRÉSTIMOS (v21)
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS is_loaned BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS borrower_name TEXT;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS loan_date DATE;
+ALTER TABLE public.books ADD COLUMN IF NOT EXISTS is_digital BOOLEAN DEFAULT FALSE;

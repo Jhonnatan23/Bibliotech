@@ -138,6 +138,7 @@ export const useBookData = () => {
 
     let tbrCountTotal = 0;
     let wishlistCountTotal = 0;
+    let loanedCountTotal = 0;
 
     books.forEach(book => {
       const isInFilter = isBookInFilter(book);
@@ -145,6 +146,7 @@ export const useBookData = () => {
       // Contagens globais simples para os cards rápidos que não sofrem filtro
       if (book.status === BookStatus.TBR) tbrCountTotal++;
       if (book.status === BookStatus.Wishlist) wishlistCountTotal++;
+      if (book.isLoaned) loanedCountTotal++;
 
       // MÉTRICAS GLOBAIS VITAIS (Sempre baseadas no acervo todo)
       if (book.rating !== undefined && book.rating > 0) {
@@ -229,6 +231,7 @@ export const useBookData = () => {
     return {
       tbrCount: tbrCountTotal,
       wishlistCount: wishlistCountTotal,
+      loanedCount: loanedCountTotal,
       totalSpent: yearly.totalSpent,
       avgPagesPerDay: yearly.totalDays > 0 ? yearly.pagesRead / yearly.totalDays : 0,
       consistency,

@@ -87,19 +87,27 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
 
         const readBooks = filteredBooks.filter(b => b.status === BookStatus.Read);
         const readTotal = readBooks.length;
+        const readDigital = readBooks.filter(b => b.isDigital).length;
+        const readPhysical = readTotal - readDigital;
         const readHQ = readBooks.filter(b => b.type === BookType.HQ).length;
         const readBook = readBooks.filter(b => b.type === BookType.Book).length;
 
         const pagesTotal = readBooks.reduce((acc, b) => acc + (b.pages || 0), 0);
+        const pagesDigital = readBooks.filter(b => b.isDigital).reduce((acc, b) => acc + (b.pages || 0), 0);
+        const pagesPhysical = pagesTotal - pagesDigital;
         const pagesHQ = readBooks.filter(b => b.type === BookType.HQ).reduce((acc, b) => acc + (b.pages || 0), 0);
         const pagesBook = readBooks.filter(b => b.type === BookType.Book).reduce((acc, b) => acc + (b.pages || 0), 0);
 
         const avgPagesTotal = readTotal > 0 ? pagesTotal / readTotal : 0;
+        const avgPagesDigital = readDigital > 0 ? pagesDigital / readDigital : 0;
+        const avgPagesPhysical = readPhysical > 0 ? pagesPhysical / readPhysical : 0;
         const avgPagesHQ = readHQ > 0 ? pagesHQ / readHQ : 0;
         const avgPagesBook = readBook > 0 ? pagesBook / readBook : 0;
 
         const booksWithRating = readBooks.filter(b => b.rating !== undefined);
         const avgRatingTotal = booksWithRating.length > 0 ? booksWithRating.reduce((acc, b) => acc + (b.rating || 0), 0) / booksWithRating.length : 0;
+        const avgRatingDigital = readBooks.filter(b => b.isDigital && b.rating !== undefined).reduce((acc, b) => acc + (b.rating || 0), 0) / (readBooks.filter(b => b.isDigital && b.rating !== undefined).length || 1);
+        const avgRatingPhysical = readBooks.filter(b => !b.isDigital && b.rating !== undefined).reduce((acc, b) => acc + (b.rating || 0), 0) / (readBooks.filter(b => !b.isDigital && b.rating !== undefined).length || 1);
         const avgRatingHQ = readBooks.filter(b => b.type === BookType.HQ && b.rating !== undefined).reduce((acc, b) => acc + (b.rating || 0), 0) / (readBooks.filter(b => b.type === BookType.HQ && b.rating !== undefined).length || 1);
         const avgRatingBook = readBooks.filter(b => b.type === BookType.Book && b.rating !== undefined).reduce((acc, b) => acc + (b.rating || 0), 0) / (readBooks.filter(b => b.type === BookType.Book && b.rating !== undefined).length || 1);
 
@@ -141,6 +149,12 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
               savings: diffValue,
               book: convertedBooks.filter(b => b.type === BookType.Book).length,
               hq: convertedBooks.filter(b => b.type === BookType.HQ).length
+            },
+            digital: {
+                total: readDigital,
+                physical: readPhysical,
+                avgRatingDigital,
+                avgRatingPhysical
             }
         };
     }, [books, filteredBooks]);
@@ -148,6 +162,11 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
     const typeData = [
         { name: 'Livros', value: metrics.read.book, color: '#2563eb' },
         { name: 'HQs', value: metrics.read.hq, color: '#f59e0b' },
+    ];
+
+    const digitalData = [
+        { name: 'Digital', value: metrics.digital.total, color: '#8b5cf6' },
+        { name: 'Físico', value: metrics.digital.physical, color: '#10b981' },
     ];
 
     const StatCard = ({ title, value, subValues, icon, prefix = '' }: any) => (
@@ -212,6 +231,58 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
                     subValues={{ book: metrics.pages.book, hq: metrics.pages.hq }}
                     icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>}
                 />
+            </div>
+
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft">
+                    <h3 className="text-xl font-black font-serif italic mb-8 uppercase tracking-widest">Digital vs Físico</h3>
+                    <div className="h-[350px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                                <Pie 
+                                    data={digitalData} 
+                                    innerRadius={80} 
+                                    outerRadius={120} 
+                                    paddingAngle={5} 
+                                    dataKey="value"
+                                >
+                                    {digitalData.map((entry, index) => (
+                                        <Cell key={`cell-${index}`} fill={entry.color} />
+                                    ))}
+                                </Pie>
+                                <Tooltip content={<CustomTooltip />} />
+                                <Legend verticalAlign="bottom" align="center" />
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft flex flex-col justify-between">
+                    <h3 className="text-xl font-black font-serif italic mb-8 uppercase tracking-widest">Satisfação por Formato</h3>
+                    <div className="space-y-6">
+                        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Média de Nota (Digital)</p>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-2xl font-black">{metrics.digital.avgRatingDigital.toFixed(1)}</p>
+                                    <svg className="w-5 h-5 text-violet-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl">
+                            <div>
+                                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Média de Nota (Físico)</p>
+                                <div className="flex items-center gap-2">
+                                    <p className="text-2xl font-black">{metrics.digital.avgRatingPhysical.toFixed(1)}</p>
+                                    <svg className="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" /></svg>
+                                </div>
+                            </div>
+                        </div>
+
+                        <p className="text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.2em] text-center">✦ Qual formato mais te agrada?</p>
+                    </div>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">

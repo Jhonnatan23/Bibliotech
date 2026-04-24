@@ -76,6 +76,10 @@ export interface Book {
   linkedBookIds?: string[];
   tags?: string[];
   historyObservation?: string;
+  isLoaned?: boolean;
+  borrowerName?: string;
+  loanDate?: string;
+  isDigital?: boolean;
 }
 
 export interface Recommendation {
@@ -121,6 +125,7 @@ export interface StatusStat {
 export interface ReadingStats {
   tbrCount: number;
   wishlistCount: number;
+  loanedCount: number;
   totalSpent: number;
   avgPagesPerDay: number;
   consistency: number;

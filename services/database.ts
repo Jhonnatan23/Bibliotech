@@ -78,7 +78,11 @@ const mapBookToDb = (book: any) => {
         was_wishlist: book.wasWishlist === true,
         linked_book_ids: book.linkedBookIds || [],
         tags: book.tags || [],
-        history_observation: book.historyObservation || null
+        history_observation: book.historyObservation || null,
+        is_loaned: book.isLoaned === true,
+        borrower_name: book.borrowerName || null,
+        loan_date: book.loanDate || null,
+        is_digital: book.isDigital === true
     };
 };
 
@@ -106,7 +110,11 @@ const mapDbToBook = (db: any): Book => ({
     wasWishlist: db.was_wishlist === true,
     linkedBookIds: db.linked_book_ids || [],
     tags: db.tags || [],
-    historyObservation: db.history_observation
+    historyObservation: db.history_observation,
+    isLoaned: db.is_loaned === true,
+    borrowerName: db.borrower_name,
+    loanDate: db.loan_date,
+    isDigital: db.is_digital === true
 });
 
 export class DatabaseService {
@@ -143,7 +151,8 @@ export class DatabaseService {
           current_page, date_added, date_started, 
           date_finished, days_to_finish, times_read, was_wishlist,
           summary, notes, estimated_price, price_paid, buy_link, user_id,
-          linked_book_ids, tags, history_observation
+          linked_book_ids, tags, history_observation,
+          is_loaned, borrower_name, loan_date, is_digital
         `)
         .eq('user_id', user.id)
         .order('date_added', { ascending: false })
@@ -153,8 +162,8 @@ export class DatabaseService {
       await this.saveLocalBooks(books);
       return books;
     } catch (err: any) {
-      if (err.code === '42703' || (err.message && (err.message.includes('linked_book_ids') || err.message.includes('history_observation')))) {
-        this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada (history_observation).');
+      if (err.code === '42703' || (err.message && (err.message.includes('linked_book_ids') || err.message.includes('history_observation') || err.message.includes('is_loaned') || err.message.includes('is_digital')))) {
+        this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada (módulos de empréstimo, digital ou histórico).');
       }
       console.error("Erro na nuvem, carregando local:", err.message || err);
       return await this.getLocalBooks();
@@ -195,8 +204,8 @@ export class DatabaseService {
     await this.saveLocalBooks(books);
 
     withRetry(() => supabase.from(TABLE_NAME).upsert(dbPayload)).catch((err: any) => {
-        if (err.code === '42703' || (err.message && err.message.includes('history_observation'))) {
-            this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada (history_observation).');
+        if (err.code === '42703' || (err.message && (err.message.includes('history_observation') || err.message.includes('is_loaned') || err.message.includes('is_digital')))) {
+            this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada (módulos de empréstimo, digital ou histórico).');
         }
     });
   }
@@ -251,17 +260,19 @@ export class DatabaseService {
     if (!user) return null;
     try {
       const data = await withRetry<any[]>(() => 
-        supabase.from(TABLE_NAME).select('status').eq('user_id', user.id)
+        supabase.from(TABLE_NAME).select('status, is_loaned').eq('user_id', user.id)
       );
       const counts = (data || []).reduce((acc: any, curr: any) => {
         acc[curr.status] = (acc[curr.status] || 0) + 1;
+        if (curr.is_loaned) acc.loaned = (acc.loaned || 0) + 1;
         return acc;
       }, {});
       return {
         readCount: counts['Lido'] || 0,
         tbrCount: counts['Não lido'] || 0,
         wishlistCount: counts['Lista de Desejos'] || 0,
-        droppedCount: counts['Abandonado'] || 0
+        droppedCount: counts['Abandonado'] || 0,
+        loanedCount: counts.loaned || 0
       };
     } catch (e) { return null; }
   }

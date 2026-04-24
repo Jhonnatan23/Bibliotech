@@ -21,6 +21,7 @@ const BookList = lazy(() => import('./components/BookList').then(m => ({ default
 const Wishlist = lazy(() => import('./components/Wishlist').then(m => ({ default: m.Wishlist })));
 const StatsView = lazy(() => import('./components/StatsView').then(m => ({ default: m.StatsView })));
 const HistoryView = lazy(() => import('./components/HistoryView').then(m => ({ default: m.HistoryView })));
+const LoansView = lazy(() => import('./components/LoansView').then(m => ({ default: m.LoansView })));
 const BookSearch = lazy(() => import('./components/BookSearch').then(m => ({ default: m.BookSearch })));
 
 const ViewLoader = () => (
@@ -112,7 +113,7 @@ export default function App() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans'>('dashboard');
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [viewingBook, setViewingBook] = useState<Book | null>(null);
   const [isDuplicating, setIsDuplicating] = useState(false);
@@ -245,6 +246,7 @@ export default function App() {
           {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onMoveToShelf={(b) => setConvertingBook(b)} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
           {view === 'stats' && <StatsView books={books} availableYears={availableYears} />}
           {view === 'history' && <HistoryView books={books} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} />}
+          {view === 'loans' && <LoansView books={books} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onViewDetails={setViewingBook} />}
           {view === 'search' && <BookSearch onAddWishlist={handleAddBook} existingBooks={books} />}
         </Suspense>
       </main>
