@@ -250,6 +250,7 @@ export class DatabaseService {
     if (!user) return;
     const dbPayload: any = { id: user.id, updated_at: new Date().toISOString() };
     if (profile.fullName !== undefined) dbPayload.full_name = profile.fullName;
+    if (profile.avatarUrl !== undefined) dbPayload.avatar_url = profile.avatarUrl;
     if (profile.customTags !== undefined) dbPayload.custom_tags = profile.customTags;
     
     withRetry(() => supabase.from('profiles').upsert(dbPayload)).catch(() => {});

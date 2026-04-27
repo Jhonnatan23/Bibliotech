@@ -2,6 +2,7 @@
 import { supabase } from './supabase';
 
 const BUCKET_NAME = 'book-covers';
+const AVATAR_BUCKET = 'avatars';
 
 /**
  * Converte uma string Base64 em um objeto Blob para upload.
@@ -54,6 +55,40 @@ export const storageService = {
       return data.publicUrl;
     } catch (err) {
       console.error('Falha crítica no upload:', err);
+      return null;
+    }
+  },
+
+  /**
+   * Faz o upload do avatar do usuário.
+   */
+  async uploadAvatar(userId: string, base64Data: string): Promise<string | null> {
+    try {
+      if (!base64Data.startsWith('data:image')) return base64Data;
+
+      const blob = base64ToBlob(base64Data);
+      const fileExt = blob.type.split('/')[1] || 'webp';
+      const filePath = `${userId}/avatar.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(AVATAR_BUCKET)
+        .upload(filePath, blob, {
+          contentType: blob.type,
+          upsert: true
+        });
+
+      if (uploadError) {
+        console.error('Erro no upload de avatar:', uploadError.message);
+        return null;
+      }
+
+      const { data } = supabase.storage
+        .from(AVATAR_BUCKET)
+        .getPublicUrl(filePath);
+
+      return data.publicUrl;
+    } catch (err) {
+      console.error('Falha ao subir avatar:', err);
       return null;
     }
   },

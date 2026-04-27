@@ -97,8 +97,15 @@ export const Header: React.FC<HeaderProps> = React.memo(({
                 {profile?.fullName || 'Usuário'}
               </span>
             </div>
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-black text-xs sm:text-sm shadow-inner overflow-hidden">
-               {userInitial}
+            <div 
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-black text-xs sm:text-sm shadow-inner overflow-hidden cursor-pointer hover:ring-4 hover:ring-primary/10 transition-all active:scale-90"
+              onClick={onSettingsClick}
+            >
+               {profile?.avatarUrl ? (
+                 <img src={profile.avatarUrl} className="w-full h-full object-cover" alt="Profile" />
+               ) : (
+                 userInitial
+               )}
             </div>
           </div>
         </div>

@@ -3,7 +3,7 @@ import React, { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useBookData } from './hooks/useBookData';
 import { Header } from './components/Header';
 import { AddBookModal } from './components/AddBookModal';
-import { SettingsModal } from './components/SettingsModal';
+import { ProfileModal } from './components/ProfileModal';
 import { PlusIcon, XMarkIcon } from './components/Icons';
 import type { Book, NewBook, Profile } from './types';
 import { ConfirmationModal } from './components/ConfirmationModal';
@@ -264,7 +264,7 @@ export default function App() {
       
       {convertingBook && <PricePaidModal book={convertingBook} onClose={() => setConvertingBook(null)} onConfirm={handleFinishConversion} />}
       
-      {isSettingsOpen && <SettingsModal onClose={() => setIsSettingsOpen(false)} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} profile={userProfile} onUpdateProfile={handleUpdateProfile} />}
+      {isSettingsOpen && <ProfileModal onClose={() => setIsSettingsOpen(false)} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} profile={userProfile} onUpdateProfile={handleUpdateProfile} />}
       
       {deletingBook && <ConfirmationModal isOpen={!!deletingBook} onClose={() => setDeletingBook(null)} onConfirm={async () => { await deleteBook(deletingBook.id); setDeletingBook(null); showToast(`Removido.`); }} title="Excluir" message={`Apagar "${deletingBook.title}"?`} />}
     </div>
