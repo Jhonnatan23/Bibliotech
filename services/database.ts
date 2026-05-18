@@ -82,9 +82,27 @@ const mapBookToDb = (book: any) => {
         is_loaned: book.isLoaned === true,
         borrower_name: book.borrowerName || null,
         loan_date: book.loanDate || null,
-        is_digital: book.isDigital === true
+        is_digital: book.isDigital === true,
+        series: book.series || null,
+        volume: book.volume !== undefined ? Math.floor(parseInt(String(book.volume), 10)) : null,
+        series_id: book.seriesId || null
     };
 };
+
+const mapSeriesToDb = (series: any) => ({
+    id: series.id,
+    user_id: series.user_id,
+    name: series.name,
+    total_volumes: series.total_volumes !== undefined ? Math.floor(parseInt(String(series.total_volumes), 10)) : null
+});
+
+const mapDbToSeries = (db: any): any => ({
+    id: db.id,
+    user_id: db.user_id,
+    name: db.name,
+    total_volumes: db.total_volumes,
+    created_at: db.created_at
+});
 
 const mapDbToBook = (db: any): Book => ({
     id: db.id,
@@ -114,7 +132,10 @@ const mapDbToBook = (db: any): Book => ({
     isLoaned: db.is_loaned === true,
     borrowerName: db.borrower_name,
     loanDate: db.loan_date,
-    isDigital: db.is_digital === true
+    isDigital: db.is_digital === true,
+    series: db.series,
+    volume: db.volume ? parseInt(String(db.volume), 10) : undefined,
+    seriesId: db.series_id
 });
 
 export class DatabaseService {
@@ -152,7 +173,8 @@ export class DatabaseService {
           date_finished, days_to_finish, times_read, was_wishlist,
           summary, notes, estimated_price, price_paid, buy_link, user_id,
           linked_book_ids, tags, history_observation,
-          is_loaned, borrower_name, loan_date, is_digital
+          is_loaned, borrower_name, loan_date, is_digital,
+          series, volume, series_id
         `)
         .eq('user_id', user.id)
         .order('date_added', { ascending: false })
@@ -189,11 +211,13 @@ export class DatabaseService {
 
   async saveBook(book: Partial<Book>): Promise<void> {
     const user = await this.getSafeUser();
-    if (!user) return;
+    if (!user) throw new Error("Usuário não autenticado");
 
     const bookId = book.id || crypto.randomUUID();
     const updatedBookForDb = { ...book, id: bookId, user_id: user.id };
     const dbPayload = mapBookToDb(updatedBookForDb);
+
+    console.log(`[Database] Preparando para salvar livro: "${dbPayload.title}"`, { bookId, seriesId: dbPayload.series_id });
 
     const books = await this.getLocalBooks();
     const index = books.findIndex(b => b.id === bookId);
@@ -203,11 +227,26 @@ export class DatabaseService {
     else books.unshift(updatedBookState);
     await this.saveLocalBooks(books);
 
-    withRetry(() => supabase.from(TABLE_NAME).upsert(dbPayload)).catch((err: any) => {
-        if (err.code === '42703' || (err.message && (err.message.includes('history_observation') || err.message.includes('is_loaned') || err.message.includes('is_digital')))) {
-            this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada (módulos de empréstimo, digital ou histórico).');
-        }
-    });
+    try {
+      const { data, error, status } = await supabase
+        .from(TABLE_NAME)
+        .upsert(dbPayload, { onConflict: 'id' })
+        .select()
+        .single();
+
+      if (error) {
+        console.error(`[Supabase] Erro no upsert de livro (Status: ${status}):`, error);
+        throw error;
+      }
+      
+      console.log("[Database] Livro salvo com sucesso no Supabase:", data.title);
+    } catch (err: any) {
+      console.error("[Database] Exceção ao salvar livro:", err);
+      if (err.code === '42703' || (err.message && (err.message.includes('history_observation') || err.message.includes('is_loaned') || err.message.includes('is_digital')))) {
+        this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada (módulos de empréstimo, digital ou histórico).');
+      }
+      throw err;
+    }
   }
 
   async deleteBook(id: string): Promise<void> {
@@ -285,6 +324,127 @@ export class DatabaseService {
       const data = localStorage.getItem(`${BASE_LOCAL_STORAGE_KEY}${user.id}_stats`);
       return data ? JSON.parse(data) : null;
     } catch (e) { return null; }
+  }
+
+  // --- Séries / Sagas ---
+  async getAllSeries(): Promise<any[]> {
+    const user = await this.getSafeUser();
+    if (!user) return [];
+    try {
+      const { data, error } = await supabase
+        .from('series')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name');
+      
+      if (error) throw error;
+      return (data || []).map(mapDbToSeries);
+    } catch (err) {
+      console.error("Erro ao buscar séries:", err);
+      return [];
+    }
+  }
+
+  async saveSeries(series: any): Promise<void> {
+    const user = await this.getSafeUser();
+    if (!user) throw new Error("Usuário não autenticado. Por favor, faça login novamente.");
+    
+    const seriesId = series.id || crypto.randomUUID();
+
+    const dbPayload: any = {
+      id: seriesId,
+      user_id: user.id,
+      name: series.name.trim(),
+      total_volumes: (series.total_volumes !== undefined && series.total_volumes !== null && series.total_volumes !== '') 
+        ? parseInt(String(series.total_volumes), 10) 
+        : null
+    };
+
+    if (isNaN(dbPayload.total_volumes)) {
+      dbPayload.total_volumes = null;
+    }
+
+    try {
+      console.log(`[Database] Salvando série. User: ${user.id}`, dbPayload);
+      
+      // Usando upsert para simplificar e garantir que RLS com ID manual funcione melhor
+      const { error, data, status } = await supabase
+        .from('series')
+        .upsert(dbPayload)
+        .select()
+        .single();
+          
+      if (error) {
+        console.error(`[Supabase Error] Upsert em 'series' falhou (Status: ${status}):`, error);
+        throw error;
+      }
+      
+      console.log("[Database] Série salva com sucesso:", data);
+    } catch (error: any) {
+      console.error("Supabase error in saveSeries:", error);
+      if (error.code === '42501' || error.message?.includes('row-level security policy')) {
+        throw new Error("Erro de permissão: Certifique-se de que as políticas (RLS) foram aplicadas na tabela 'series'.");
+      }
+      throw new Error(error.message || "Erro desconhecido ao salvar série");
+    }
+  }
+
+  async deleteSeries(id: string): Promise<void> {
+    const { error } = await supabase.from('series').delete().eq('id', id);
+    if (error) throw error;
+  }
+
+  // --- Histórias (Estúdio Criativo) ---
+  async getAllStories(): Promise<any[]> {
+    const user = await this.getSafeUser();
+    if (!user) return [];
+    try {
+      const { data, error } = await supabase
+        .from('stories')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('updated_at', { ascending: false });
+      
+      if (error) throw error;
+      return data || [];
+    } catch (err) {
+      console.error("Erro ao buscar histórias:", err);
+      return [];
+    }
+  }
+
+  async saveStory(story: Partial<any>): Promise<any> {
+    const user = await this.getSafeUser();
+    if (!user) throw new Error("Usuário não autenticado.");
+    
+    const storyId = story.id || crypto.randomUUID();
+    const dbPayload: any = {
+      id: storyId,
+      user_id: user.id,
+      title: story.title || 'História sem título',
+      content: story.content || '',
+      influences: story.influences || { books: [], authors: [] },
+      updated_at: new Date().toISOString()
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('stories')
+        .upsert(dbPayload)
+        .select()
+        .single();
+          
+      if (error) throw error;
+      return data;
+    } catch (error: any) {
+      console.error("Supabase error in saveStory:", error);
+      throw new Error(error.message || "Erro ao salvar história");
+    }
+  }
+
+  async deleteStory(id: string): Promise<void> {
+    const { error } = await supabase.from('stories').delete().eq('id', id);
+    if (error) throw error;
   }
 }
 

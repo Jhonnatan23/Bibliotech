@@ -13,6 +13,7 @@ interface HeaderProps {
   toggleTheme: () => void;
   isConnected?: boolean;
   hasApiKey?: boolean;
+  setView: (view: 'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series') => void;
 }
 
 export const Header: React.FC<HeaderProps> = React.memo(({ 
@@ -22,7 +23,8 @@ export const Header: React.FC<HeaderProps> = React.memo(({
   theme, 
   toggleTheme, 
   isConnected = true,
-  hasApiKey = true
+  hasApiKey = true,
+  setView
 }) => {
   const handleLogout = async () => {
     await supabase.auth.signOut();

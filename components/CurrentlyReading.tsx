@@ -93,6 +93,19 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
         }
     };
 
+    const handleAbandonClick = async () => {
+        setIsSaving(true);
+        try {
+            await updateBook({ 
+                ...book, 
+                currentPage, 
+                status: BookStatus.Dropped 
+            });
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
     const handleConfirmFinish = async () => {
         setIsSaving(true);
         try {
@@ -214,9 +227,16 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                 <button
                     onClick={() => setIsFinishing(true)}
                     disabled={isSaving}
-                    className="px-10 py-3.5 text-[10px] font-black rounded-2xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-xl shadow-emerald-500/20 transition-all active:scale-95 uppercase tracking-[0.2em]"
+                    className="px-10 py-3.5 text-[10px] font-black rounded-2xl bg-emerald-500 text-white hover:bg-emerald-600 shadow-xl shadow-emerald-500/20 transition-all active:scale-95 uppercase tracking-[0.2em] flex-1 sm:flex-none"
                 >
                     Finalizar
+                </button>
+                <button
+                    onClick={handleAbandonClick}
+                    disabled={isSaving}
+                    className="px-6 py-3.5 text-[10px] font-black rounded-2xl bg-red-50 dark:bg-red-950/20 text-red-500 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/30 transition-all active:scale-95 uppercase tracking-[0.2em] border border-red-100 dark:border-red-900/30 flex-1 sm:flex-none"
+                >
+                    Abandonar
                 </button>
               </div>
             </div>

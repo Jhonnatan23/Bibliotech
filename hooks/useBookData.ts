@@ -270,7 +270,7 @@ export const useBookData = () => {
   const currentlyReading = useMemo(() => books.find(b => b.status === BookStatus.Reading) || null, [books]);
 
   return {
-    books, stats, currentlyReading, addBook, updateBook, deleteBook, 
+    books, stats, currentlyReading, addBook, updateBook, deleteBook, refresh: syncWithCloud,
     dateFilter, setDateFilter, selectedYear, setSelectedYear, availableYears,
     customRange, setCustomRange, isLocalMode, schemaError, isLoading
   };

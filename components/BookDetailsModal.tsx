@@ -35,6 +35,13 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
     );
   }, [book.id, book.linkedBookIds, allBooks]);
 
+  const seriesBooks = useMemo(() => {
+    if (!book.series) return [];
+    return allBooks
+        .filter(b => b.series === book.series && b.id !== book.id)
+        .sort((a, b) => (a.volume || 0) - (b.volume || 0));
+  }, [book.series, book.id, allBooks]);
+
   const toggleTag = async (tag: string) => {
     if (isUpdating) return;
     setIsUpdating(true);
@@ -116,10 +123,25 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
                     <p className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">{config.label}</p>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
-                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Lido</p>
-                    <p className="text-xl font-black text-slate-800 dark:text-slate-200">{book.timesRead || 0}x</p>
+                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Volume</p>
+                    <p className="text-xl font-black text-slate-800 dark:text-slate-200">{book.volume || 'S/N'}</p>
                 </div>
             </div>
+
+            {/* Série / Saga */}
+            {book.series && (
+                <div className="bg-primary/5 dark:bg-primary/10 border border-primary/20 p-6 rounded-[2.5rem] flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-white dark:bg-slate-800 w-12 h-12 rounded-[1.5rem] flex items-center justify-center font-black text-primary border border-slate-100 dark:border-slate-700 shadow-md">
+                            {book.volume || '?'}
+                        </div>
+                        <div>
+                            <p className="text-[10px] font-black text-primary uppercase tracking-[0.25em]">Série ou Saga</p>
+                            <h4 className="text-xl font-black text-slate-900 dark:text-white font-serif italic">{book.series}</h4>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Tags e Gêneros */}
             <div className="space-y-4">
@@ -312,6 +334,37 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic ml-1">Nenhum vínculo registrado.</p>
                 )}
             </div>
+
+            {/* Outros Volumes da Série */}
+            {book.series && (
+                <div className="space-y-4">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-4 w-4"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9.776c.112-.001.217-.006.315-.018l8.28-1.55c1.472-.31 3.125-.453 4.298-.41.52.02.946.423.957.943L18 20.25m-9.375-10.478a.498.498 0 0 0-.625-.43L3 10.5M3 10.5V21l9.375-2.25V8.625L3 10.5Z" /></svg> Outros Volumes da Coleção
+                    </h3>
+                    {seriesBooks.length > 0 ? (
+                        <div className="flex gap-4 overflow-x-auto pb-4 custom-scrollbar">
+                            {seriesBooks.map(seriesBook => (
+                                <button
+                                    key={seriesBook.id}
+                                    onClick={() => onNavigateToBook(seriesBook)}
+                                    className="flex-shrink-0 w-48 p-4 bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 rounded-[2rem] text-left hover:border-primary transition-all group active:scale-95 shadow-sm"
+                                >
+                                    <div className="flex justify-between items-start mb-3">
+                                        <div className="bg-white dark:bg-slate-900 w-8 h-8 rounded-xl flex items-center justify-center font-black text-[10px] text-primary border border-slate-100 dark:border-slate-700 shadow-sm group-hover:bg-primary group-hover:text-white transition-colors">
+                                            {seriesBook.volume || '?'}
+                                        </div>
+                                        <div className={`w-2 h-2 rounded-full ${seriesBook.status === BookStatus.Read ? 'bg-green-500' : 'bg-amber-500'}`} />
+                                    </div>
+                                    <p className="text-xs font-black text-slate-800 dark:text-slate-200 truncate mb-1">{seriesBook.title}</p>
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{seriesBook.status}</p>
+                                </button>
+                            ))}
+                        </div>
+                    ) : (
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic ml-1">Apenas este volume na sua estante.</p>
+                    )}
+                </div>
+            )}
         </div>
 
         <div className="p-7 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">

@@ -5,6 +5,7 @@ import { BookStatus, BookType, GENRES, STATUS_CONFIGS } from '../types';
 import { XMarkIcon, BookOpenIcon, StarIcon, StarIconFilled, PlusIcon, TagIcon, MagnifyingGlassIcon } from './Icons';
 import { generateBookSummary } from '../services/geminiService';
 import { fetchBookByIsbn } from '../services/googleBooksService';
+import { dbService } from '../services/database';
 
 interface AddBookModalProps {
   onClose: () => void;
@@ -63,6 +64,9 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const [borrowerName, setBorrowerName] = useState(bookToEdit?.borrowerName || '');
   const [loanDate, setLoanDate] = useState(bookToEdit?.loanDate || new Date().toISOString().split('T')[0]);
   const [isDigital, setIsDigital] = useState<boolean>(bookToEdit?.isDigital || false);
+  const [series, setSeries] = useState(bookToEdit?.series || '');
+  const [volume, setVolume] = useState(bookToEdit?.volume?.toString() || '');
+  const [seriesId, setSeriesId] = useState(bookToEdit?.seriesId || '');
   
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -83,10 +87,21 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(0);
   const [showTitleSug, setShowTitleSug] = useState(false);
   const [showAuthorSug, setShowAuthorSug] = useState(false);
+  const [showSeriesSug, setShowSeriesSug] = useState(false);
+  const [definedSeries, setDefinedSeries] = useState<any[]>([]);
 
   const titleRef = useRef<HTMLDivElement>(null);
   const authorRef = useRef<HTMLDivElement>(null);
   const linkRef = useRef<HTMLDivElement>(null);
+  const seriesRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const loadSeries = async () => {
+        const data = await dbService.getAllSeries();
+        setDefinedSeries(data);
+    };
+    loadSeries();
+  }, []);
 
   const uniqueTitles = useMemo(() => Array.from(new Set(existingBooks.map(b => b.title))), [existingBooks]);
   const uniqueAuthors = useMemo(() => {
@@ -106,6 +121,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
       if (titleRef.current && !titleRef.current.contains(event.target as Node)) setShowTitleSug(false);
       if (authorRef.current && !authorRef.current.contains(event.target as Node)) setShowAuthorSug(false);
       if (linkRef.current && !linkRef.current.contains(event.target as Node)) setShowLinkSuggestions(false);
+      if (seriesRef.current && !seriesRef.current.contains(event.target as Node)) setShowSeriesSug(false);
     };
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -184,13 +200,13 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
           setShowTitleSug(false);
         } else if (type === 'author') {
           addAuthor(selected as string);
-        } else {
+        } else if (type === 'link') {
             toggleLinkedBook((selected as Book).id);
         }
       } else if (e.key === 'Escape') {
         if (type === 'title') setShowTitleSug(false);
         else if (type === 'author') setShowAuthorSug(false);
-        else setShowLinkSuggestions(false);
+        else if (type === 'link') setShowLinkSuggestions(false);
       }
     }
   };
@@ -258,6 +274,9 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
             borrowerName: isLoaned ? borrowerName.trim() : undefined,
             loanDate: isLoaned ? loanDate : undefined,
             isDigital,
+            series: series.trim() || undefined,
+            volume: volume ? parseInt(volume, 10) : undefined,
+            seriesId: seriesId || undefined,
             historyObservation: (status === BookStatus.Read || status === BookStatus.Dropped) ? historyObservation : undefined
         };
         if (isEditMode) {
@@ -461,6 +480,47 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                                 </button>
                             </span>
                         ))}
+                    </div>
+                </div>
+
+                <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-slate-100 dark:border-slate-800 pt-6 mt-2">
+                    <div className="md:col-span-2 relative" ref={seriesRef}>
+                        <label className={labelClass(false)}>Série ou Saga (Ex: Harry Potter, Berserk)</label>
+                        <input 
+                            type="text" 
+                            value={series} 
+                            onChange={(e) => {
+                                setSeries(e.target.value);
+                                setSeriesId(''); // Reset ID if name changes manually
+                                setShowSeriesSug(true);
+                                setActiveSuggestionIndex(0);
+                            }}
+                            onFocus={() => series && setShowSeriesSug(true)}
+                            placeholder="Nome da coleção..."
+                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300"
+                        />
+                        <SuggestionDropdown 
+                            suggestions={definedSeries.filter(s => s.name.toLowerCase().includes(series.toLowerCase())).slice(0, 5)} 
+                            show={showSeriesSug && series.length > 0} 
+                            activeIndex={activeSuggestionIndex}
+                            onSelect={(s) => { 
+                                setSeries(s.name); 
+                                setSeriesId(s.id); 
+                                setShowSeriesSug(false); 
+                            }} 
+                        />
+                    </div>
+                    <div>
+                        <label className={labelClass(false)}>Volume / Edição</label>
+                        <input 
+                            type="number" 
+                            min="1"
+                            value={volume} 
+                            onFocus={(e) => e.target.select()}
+                            onChange={(e) => setVolume(e.target.value)} 
+                            placeholder="Nº"
+                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300 text-center" 
+                        />
                     </div>
                 </div>
 

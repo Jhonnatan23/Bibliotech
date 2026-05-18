@@ -16,6 +16,7 @@ interface BookListProps {
   onViewDetails?: (book: Book) => void;
   onUpdateBook?: (book: Book) => void;
   profile: Profile | null;
+  onRandomPick: () => void;
 }
 
 type FilterStatus = 'all' | BookStatus;
@@ -23,7 +24,7 @@ type FormatFilter = 'all' | 'physical' | 'digital';
 type LoanFilter = 'all' | 'loaned' | 'not_loaned';
 type SortOrder = 'title' | 'dateAdded' | 'isDigital' | 'isLoaned';
 
-export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, stats, onEdit, onDelete, onDuplicate, onViewDetails, onUpdateBook, profile }) => {
+export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, stats, onEdit, onDelete, onDuplicate, onViewDetails, onUpdateBook, profile, onRandomPick }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
   const [formatFilter, setFormatFilter] = useState<FormatFilter>('all');
@@ -128,11 +129,23 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
   return (
     <div className="space-y-8">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-        <div>
-          <h2 className="text-3xl font-bold font-serif text-slate-900 dark:text-slate-50 tracking-tight">
-            Minha Estante <span className="text-primary/50 text-xl ml-2">({filteredBooks.length})</span>
-          </h2>
-          <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mt-1">Explore e organize sua jornada literária.</p>
+        <div className="flex items-center gap-6">
+          <div>
+            <h2 className="text-3xl font-bold font-serif text-slate-900 dark:text-slate-50 tracking-tight">
+              Minha Estante <span className="text-primary/50 text-xl ml-2">({filteredBooks.length})</span>
+            </h2>
+            <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mt-1">Explore e organize sua jornada literária.</p>
+          </div>
+          <button
+            onClick={onRandomPick}
+            className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest border border-emerald-500/20"
+            title="Sortear próximo livro"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" />
+            </svg>
+            Leitura Aleatória
+          </button>
         </div>
         
         <div className="relative w-full lg:w-96 group">

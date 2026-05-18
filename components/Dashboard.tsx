@@ -12,7 +12,7 @@ import { ReadingGoal } from './ReadingGoal';
 import { Recommendations } from './Recommendations';
 import { LatestReadings } from './LatestReadings';
 import { ShelfProgress } from './ShelfProgress';
-import { BookOpenIcon, ChartBarIcon, StarIcon, TagIcon, HeartIcon } from './Icons';
+import { BookOpenIcon, ChartBarIcon, StarIcon, TagIcon, HeartIcon, SparklesIcon } from './Icons';
 import { getAIRecommendations } from '../services/geminiService';
 
 interface DashboardProps {
@@ -30,6 +30,7 @@ interface DashboardProps {
   readingGoal: number;
   onSetReadingGoal: (val: number) => void;
   addBook: (book: NewBook) => Promise<void>;
+  onRandomPick: () => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = React.memo(({ 
@@ -46,7 +47,8 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
   setCustomRange,
   readingGoal,
   onSetReadingGoal,
-  addBook
+  addBook,
+  onRandomPick
 }) => {
   const [aiRecs, setAiRecs] = useState<Recommendation[]>([]);
   const [isLoadingRecs, setIsLoadingRecs] = useState(false);
@@ -116,6 +118,30 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
     await addBook(newBook);
   };
 
+  const seriesGaps = useMemo(() => {
+    const groups: Record<string, number[]> = {};
+    books.forEach(b => {
+      if (b.series && b.volume) {
+        if (!groups[b.series]) groups[b.series] = [];
+        groups[b.series].push(b.volume);
+      }
+    });
+
+    const gaps: { name: string; volume: number }[] = [];
+    Object.entries(groups).forEach(([name, volumes]) => {
+      if (volumes.length > 0) {
+        const min = Math.min(...volumes);
+        const max = Math.max(...volumes);
+        for (let i = min; i <= max; i++) {
+          if (!volumes.includes(i)) {
+            gaps.push({ name, volume: i });
+          }
+        }
+      }
+    });
+    return gaps.slice(0, 3);
+  }, [books]);
+
   return (
     <div className="max-w-7xl mx-auto space-y-6 md:space-y-10 pb-10 px-4 sm:px-6 lg:px-8">
       <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
@@ -125,6 +151,14 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
         </div>
         
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white dark:bg-slate-900 p-2 md:p-2.5 rounded-[1.5rem] md:rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-xl w-full sm:w-auto">
+            <button
+                onClick={onRandomPick}
+                className="flex items-center justify-center gap-2 px-4 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all rounded-xl text-[10px] font-black uppercase tracking-widest border border-primary/20"
+                title="Sortear próximo livro"
+            >
+                <SparklesIcon className="h-4 w-4" />
+                Sortear Leitura
+            </button>
             <div className="flex items-center p-1 bg-slate-50 dark:bg-slate-800 rounded-xl md:rounded-2xl border border-slate-100 dark:border-slate-700 w-full sm:w-auto overflow-x-auto custom-scrollbar">
                 <button
                     onClick={() => setDateFilter('thisYear')}
@@ -185,6 +219,30 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
             onSetGoal={onSetReadingGoal} 
           />
         </div>
+
+        {seriesGaps.length > 0 && (
+            <div className="lg:col-span-12 animate-in slide-in-from-left duration-700">
+                <div className="bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800 p-6 md:p-8 rounded-[2.5rem] flex flex-col md:flex-row items-center justify-between gap-6">
+                    <div className="flex items-center gap-6">
+                        <div className="bg-amber-100 dark:bg-amber-900/40 p-4 rounded-2xl text-amber-600">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.34c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+                        </div>
+                        <div>
+                            <h3 className="text-xl font-black text-slate-900 dark:text-slate-50 font-serif italic">Volumes Faltantes Identificados!</h3>
+                            <p className="text-slate-500 dark:text-slate-400 text-xs font-medium mt-1">Você tem lacunas nas suas coleções de <span className="font-bold text-amber-600">{Array.from(new Set(seriesGaps.map(g => g.name))).join(', ')}</span>.</p>
+                        </div>
+                    </div>
+                    <div className="flex gap-3">
+                         {seriesGaps.map((gap, i) => (
+                             <div key={i} className="bg-white dark:bg-slate-800 px-4 py-2.5 rounded-xl border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col items-center min-w-[100px]">
+                                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{gap.name}</span>
+                                 <span className="text-sm font-black text-amber-500 italic">Vol. {gap.volume}</span>
+                             </div>
+                         ))}
+                    </div>
+                </div>
+            </div>
+        )}
 
         <div className="lg:col-span-12">
           <ShelfProgress books={books} stats={stats} />

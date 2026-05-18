@@ -84,7 +84,11 @@ export const WishlistItem: React.FC<WishlistItemProps> = ({ book, onEdit, onDele
             <span className="px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-widest border bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-100">
                 {book.pages}p
             </span>
-            
+            {book.series && (
+                <span className="px-2.5 py-1 md:px-3 md:py-1.5 rounded-lg md:rounded-xl text-[8px] md:text-[10px] font-black uppercase tracking-widest border bg-primary/10 text-primary border-primary/20 shadow-sm">
+                    {book.series} {book.volume ? `#${book.volume}` : ''}
+                </span>
+            )}
             {book.buyLink && (
               <a 
                 href={book.buyLink} 

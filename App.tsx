@@ -12,6 +12,8 @@ import { BottomNav } from './components/BottomNav';
 import { Auth } from './components/Auth';
 import { PricePaidModal } from './components/PricePaidModal'; 
 import { BookDetailsModal } from './components/BookDetailsModal';
+import { NextReadModal } from './components/NextReadModal';
+import { AnimatePresence } from 'framer-motion';
 import { supabase } from './services/supabase';
 import { dbService } from './services/database';
 
@@ -23,6 +25,8 @@ const StatsView = lazy(() => import('./components/StatsView').then(m => ({ defau
 const HistoryView = lazy(() => import('./components/HistoryView').then(m => ({ default: m.HistoryView })));
 const LoansView = lazy(() => import('./components/LoansView').then(m => ({ default: m.LoansView })));
 const BookSearch = lazy(() => import('./components/BookSearch').then(m => ({ default: m.BookSearch })));
+const SeriesView = lazy(() => import('./components/SeriesView').then(m => ({ default: m.SeriesView })));
+const CreativeStudio = lazy(() => import('./components/CreativeStudio').then(m => ({ default: m.CreativeStudio })));
 
 const ViewLoader = () => (
   <div className="flex flex-col items-center justify-center py-20 animate-pulse">
@@ -72,13 +76,13 @@ export default function App() {
         const selected = await window.aistudio.hasSelectedApiKey();
         setHasApiKey(selected);
     } else {
-        const envKey = process.env.API_KEY;
-        setHasApiKey(!!(envKey && envKey !== 'undefined' && envKey !== ''));
+        // Enviamos true pois o servidor deve ter a chave GEMINI_API_KEY configurada
+        setHasApiKey(true);
     }
   };
 
   const { 
-    books, stats, currentlyReading, addBook, updateBook, deleteBook, 
+    books, stats, currentlyReading, addBook, updateBook, deleteBook, refresh,
     dateFilter, setDateFilter, selectedYear, setSelectedYear, availableYears,
     customRange, setCustomRange, isLocalMode, schemaError, isLoading
   } = useBookData();
@@ -113,7 +117,7 @@ export default function App() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'creative'>('dashboard');
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [viewingBook, setViewingBook] = useState<Book | null>(null);
   const [isDuplicating, setIsDuplicating] = useState(false);
@@ -121,6 +125,11 @@ export default function App() {
   const [convertingBook, setConvertingBook] = useState<Book | null>(null); 
   const [defaultStatusForModal, setDefaultStatusForModal] = useState<BookStatus | undefined>();
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [recommendation, setRecommendation] = useState<{
+    finishedBook?: Book;
+    recommendedBook: Book;
+    ruleUsed: 'linked' | 'tag' | 'genre' | 'random' | 'random_pick';
+  } | null>(null);
 
   useEffect(() => {
     theme === 'dark' ? document.documentElement.classList.add('dark') : document.documentElement.classList.remove('dark');
@@ -142,7 +151,11 @@ export default function App() {
     }
   };
   
+  // App component
   const handleUpdateBook = async (updatedBook: Book) => {
+    const oldBook = books.find(b => b.id === updatedBook.id);
+    const wasJustFinished = oldBook && oldBook.status !== BookStatus.Read && updatedBook.status === BookStatus.Read;
+
     try {
         await updateBook(updatedBook);
         if (viewingBook?.id === updatedBook.id) {
@@ -150,9 +163,103 @@ export default function App() {
         }
         setIsModalOpen(false);
         showToast(`"${updatedBook.title}" atualizado.`);
+
+        if (wasJustFinished) {
+            // Pequeno delay para permitir que o toast e a atualização da UI aconteçam antes do popup de recomendação
+            setTimeout(() => {
+                findAndSetRecommendation(updatedBook);
+            }, 800);
+        }
     } catch (err: any) {
         showToast(`Erro ao atualizar: ${err.message}`);
     }
+  };
+
+  const findAndSetRecommendation = (finishedBook: Book) => {
+    // Candidatos: Livros que não estão Lidos e não estão na Lista de Desejos
+    // Focamos em livros na estante (Quero Ler ou Lendo Atualmente)
+    const candidates = books.filter(b => 
+        b.id !== finishedBook.id && 
+        b.status !== BookStatus.Read && 
+        b.status !== BookStatus.Wishlist &&
+        b.status !== BookStatus.Dropped
+    );
+    
+    if (candidates.length === 0) return;
+
+    // Regra 1: Livros Vinculados (linkedBookIds) que ainda não foram lidos
+    if (finishedBook.linkedBookIds && finishedBook.linkedBookIds.length > 0) {
+        const linkedCandidates = candidates.filter(b => finishedBook.linkedBookIds?.includes(b.id));
+        if (linkedCandidates.length > 0) {
+            setRecommendation({
+                finishedBook,
+                recommendedBook: linkedCandidates[Math.floor(Math.random() * linkedCandidates.length)],
+                ruleUsed: 'linked'
+            });
+            return;
+        }
+    }
+
+    // Regra 2: Mesma Tag
+    if (finishedBook.tags && finishedBook.tags.length > 0) {
+        const tagCandidates = candidates.filter(b => b.tags?.some(t => finishedBook.tags?.includes(t)));
+        if (tagCandidates.length > 0) {
+            setRecommendation({
+                finishedBook,
+                recommendedBook: tagCandidates[Math.floor(Math.random() * tagCandidates.length)],
+                ruleUsed: 'tag'
+            });
+            return;
+        }
+    }
+
+    // Regra 3: Mesmo Tema (Genre)
+    const finishedGenres = finishedBook.genre.split(',').map(g => g.trim()).filter(g => g !== '');
+    if (finishedGenres.length > 0) {
+        const genreCandidates = candidates.filter(b => {
+            const bGenres = b.genre.split(',').map(g => g.trim()).filter(g => g !== '');
+            return bGenres.some(bg => finishedGenres.includes(bg));
+        });
+        if (genreCandidates.length > 0) {
+            setRecommendation({
+                finishedBook,
+                recommendedBook: genreCandidates[Math.floor(Math.random() * genreCandidates.length)],
+                ruleUsed: 'genre'
+            });
+            return;
+        }
+    }
+
+    // Regra 4: Aleatório dentro dos candidatos (estante)
+    setRecommendation({
+        finishedBook,
+        recommendedBook: candidates[Math.floor(Math.random() * candidates.length)],
+        ruleUsed: 'random'
+    });
+  };
+
+  const handleRandomPick = () => {
+    // Candidatos: Livros que não estão Lidos e não estão na Lista de Desejos
+    const candidates = books.filter(b => 
+        b.status === BookStatus.TBR || 
+        b.status === BookStatus.Reading
+    );
+    
+    if (candidates.length === 0) {
+        showToast("Nenhum livro para sortear na sua estante.");
+        return;
+    }
+
+    // Preferência para livros que ainda não começou (TBR)
+    const tbrOnly = candidates.filter(b => b.status === BookStatus.TBR);
+    const pool = tbrOnly.length > 0 ? tbrOnly : candidates;
+
+    const picked = pool[Math.floor(Math.random() * pool.length)];
+    
+    setRecommendation({
+        recommendedBook: picked,
+        ruleUsed: 'random_pick'
+    });
   };
 
   const handleFinishConversion = async (price: number) => {
@@ -193,6 +300,7 @@ export default function App() {
         profile={userProfile} onLogoClick={() => setView('dashboard')} onSettingsClick={() => setIsSettingsOpen(true)}
         theme={theme} toggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')} 
         isConnected={!isLocalMode} hasApiKey={hasApiKey}
+        setView={setView}
       />
       
       {schemaError && (
@@ -228,6 +336,7 @@ export default function App() {
               readingGoal={readingGoal} 
               onSetReadingGoal={handleSetReadingGoal} 
               addBook={handleAddBook}
+              onRandomPick={handleRandomPick}
             />
           )}
           {view === 'list' && (
@@ -240,13 +349,27 @@ export default function App() {
               onDelete={setDeletingBook} 
               onDuplicate={handleDuplicateRequest} 
               onViewDetails={setViewingBook} 
-              onUpdateBook={handleUpdateBook} 
+              onUpdateBook={handleUpdateBook}
+              onRandomPick={handleRandomPick}
             />
           )}
           {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onMoveToShelf={(b) => setConvertingBook(b)} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
           {view === 'stats' && <StatsView books={books} availableYears={availableYears} />}
-          {view === 'history' && <HistoryView books={books} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} />}
+          {view === 'history' && <HistoryView books={books} profile={userProfile} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} />}
           {view === 'loans' && <LoansView books={books} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onViewDetails={setViewingBook} />}
+          {view === 'series' && (
+            <SeriesView 
+              books={books} 
+              profile={userProfile} 
+              onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} 
+              onUpdateBook={handleUpdateBook}
+              onDelete={setDeletingBook} 
+              onViewDetails={setViewingBook} 
+              onAddBook={() => openAddModal()} 
+              onRefresh={refresh} 
+            />
+          )}
+          {view === 'creative' && <CreativeStudio books={books} profile={userProfile} />}
           {view === 'search' && <BookSearch onAddWishlist={handleAddBook} existingBooks={books} />}
         </Suspense>
       </main>
@@ -267,6 +390,23 @@ export default function App() {
       {isSettingsOpen && <ProfileModal onClose={() => setIsSettingsOpen(false)} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} profile={userProfile} onUpdateProfile={handleUpdateProfile} />}
       
       {deletingBook && <ConfirmationModal isOpen={!!deletingBook} onClose={() => setDeletingBook(null)} onConfirm={async () => { await deleteBook(deletingBook.id); setDeletingBook(null); showToast(`Removido.`); }} title="Excluir" message={`Apagar "${deletingBook.title}"?`} />}
+
+      <AnimatePresence>
+        {recommendation && (
+            <NextReadModal 
+                finishedBook={recommendation.finishedBook}
+                recommendedBook={recommendation.recommendedBook}
+                ruleUsed={recommendation.ruleUsed}
+                onClose={() => setRecommendation(null)}
+                onStartReading={(book) => {
+                    if (book.status !== BookStatus.Reading) {
+                        handleUpdateBook({ ...book, status: BookStatus.Reading, dateStarted: new Date().toISOString().split('T')[0] });
+                    }
+                    setView('dashboard');
+                }}
+            />
+        )}
+      </AnimatePresence>
     </div>
   );
 }

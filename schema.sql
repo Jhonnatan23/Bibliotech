@@ -37,9 +37,84 @@ CREATE TABLE IF NOT EXISTS public.books (
   is_loaned BOOLEAN DEFAULT FALSE,
   borrower_name TEXT,
   loan_date DATE,
-  is_digital BOOLEAN DEFAULT FALSE
+  is_digital BOOLEAN DEFAULT FALSE,
+  series TEXT,
+  volume INTEGER,
+  series_id UUID REFERENCES public.series(id) ON DELETE SET NULL
 );
+
+CREATE TABLE IF NOT EXISTS public.series (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  name TEXT NOT NULL,
+  total_volumes INTEGER,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+-- Habilitar RLS e criar políticas
+ALTER TABLE public.series ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.books ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Garantir permissões
+GRANT ALL ON public.series TO authenticated;
+GRANT ALL ON public.series TO service_role;
+GRANT ALL ON public.books TO authenticated;
+GRANT ALL ON public.books TO service_role;
+GRANT ALL ON public.profiles TO authenticated;
+GRANT ALL ON public.profiles TO service_role;
+
+-- Políticas para SERIES
+CREATE POLICY "Users can select their own series" ON public.series
+  FOR SELECT USING ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can insert their own series" ON public.series
+  FOR INSERT WITH CHECK ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can update their own series" ON public.series
+  FOR UPDATE USING ((auth.uid())::uuid = (user_id)::uuid) WITH CHECK ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can delete their own series" ON public.series
+  FOR DELETE USING ((auth.uid())::uuid = (user_id)::uuid);
+
+-- Políticas para BOOKS
+CREATE POLICY "Users can select their own books" ON public.books
+  FOR SELECT USING ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can insert their own books" ON public.books
+  FOR INSERT WITH CHECK ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can update their own books" ON public.books
+  FOR UPDATE USING ((auth.uid())::uuid = (user_id)::uuid) WITH CHECK ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can delete their own books" ON public.books
+  FOR DELETE USING ((auth.uid())::uuid = (user_id)::uuid);
+
+-- Políticas para PROFILES
+CREATE POLICY "Users can manage their own profile" ON public.profiles
+  USING ((auth.uid())::uuid = (id)::uuid);
 
 CREATE INDEX IF NOT EXISTS idx_books_user_id ON public.books(user_id);
 CREATE INDEX IF NOT EXISTS idx_books_status ON public.books(status);
 CREATE INDEX IF NOT EXISTS idx_books_date_added ON public.books(date_added DESC);
+
+-- Tabela STORIES para o Estúdio Criativo
+CREATE TABLE IF NOT EXISTS public.stories (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT DEFAULT '',
+  influences JSONB DEFAULT '{"books": [], "authors": []}',
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+
+ALTER TABLE public.stories ENABLE ROW LEVEL SECURITY;
+
+GRANT ALL ON public.stories TO authenticated;
+GRANT ALL ON public.stories TO service_role;
+
+CREATE POLICY "Users can select their own stories" ON public.stories
+  FOR SELECT USING ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can insert their own stories" ON public.stories
+  FOR INSERT WITH CHECK ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can update their own stories" ON public.stories
+  FOR UPDATE USING ((auth.uid())::uuid = (user_id)::uuid) WITH CHECK ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can delete their own stories" ON public.stories
+  FOR DELETE USING ((auth.uid())::uuid = (user_id)::uuid);
+
+CREATE INDEX IF NOT EXISTS idx_stories_user_id ON public.stories(user_id);

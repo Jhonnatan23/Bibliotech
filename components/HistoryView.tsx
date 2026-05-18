@@ -1,35 +1,121 @@
 
 import React, { useState, useMemo } from 'react';
-import type { Book } from '../types';
-import { BookStatus, STATUS_CONFIGS, STATUS_COLORS } from '../types';
-import { TrashIcon, PencilIcon, XMarkIcon, PlusIcon } from './Icons';
+import type { Book, Profile } from '../types';
+import { BookStatus, STATUS_CONFIGS, STATUS_COLORS, GENRES } from '../types';
+import { TrashIcon, PencilIcon, XMarkIcon, PlusIcon, TagIcon } from './Icons';
 
 interface HistoryViewProps {
   books: Book[];
   onUpdateBook: (book: Book) => Promise<void>;
   onEdit: (book: Book) => void;
   onDelete: (book: Book) => void;
+  profile: Profile | null;
 }
 
-export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUpdateBook, onEdit, onDelete }) => {
+type FilterStatus = 'all' | BookStatus.Read | BookStatus.Dropped;
+type FormatFilter = 'all' | 'physical' | 'digital';
+type LoanFilter = 'all' | 'loaned' | 'not_loaned';
+type SortOrder = 'dateFinished' | 'title' | 'isDigital' | 'pages' | 'rating' | 'isLoaned';
+
+export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUpdateBook, onEdit, onDelete, profile }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
+  const [formatFilter, setFormatFilter] = useState<FormatFilter>('all');
+  const [loanFilter, setLoanFilter] = useState<LoanFilter>('all');
+  const [sortBy, setSortBy] = useState<SortOrder>('dateFinished');
+  const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [genreSearch, setGenreSearch] = useState('');
   const [editingObsId, setEditingObsId] = useState<string | null>(null);
   const [obsInput, setObsInput] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
-  // Filtra apenas lidos e abandonados
+  const toggleGenre = (genre: string) => {
+    setSelectedGenres(prev => 
+      prev.includes(genre) ? prev.filter(g => g !== genre) : [...prev, genre]
+    );
+  };
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags(prev => 
+      prev.includes(tag) ? prev.filter(t => t !== tag) : [...prev, tag]
+    );
+  };
+
+  // Filtra apenas lidos e abandonados com base nos novos filtros
   const historyBooks = useMemo(() => {
-    return books.filter(b => b.status === BookStatus.Read || b.status === BookStatus.Dropped)
-      .filter(b => 
-        b.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        b.author.toLowerCase().includes(searchTerm.toLowerCase())
-      )
-      .sort((a, b) => {
+    let result = books.filter(b => b.status === BookStatus.Read || b.status === BookStatus.Dropped);
+
+    // Search
+    if (searchTerm) {
+      const query = searchTerm.toLowerCase();
+      result = result.filter(b => 
+        b.title.toLowerCase().includes(query) || 
+        b.author.toLowerCase().includes(query)
+      );
+    }
+
+    // Status Filter
+    if (statusFilter !== 'all') {
+      result = result.filter(b => b.status === statusFilter);
+    }
+
+    // Format Filter
+    if (formatFilter === 'physical') {
+      result = result.filter(book => !book.isDigital);
+    } else if (formatFilter === 'digital') {
+      result = result.filter(book => book.isDigital);
+    }
+
+    // Loan Filter
+    if (loanFilter === 'loaned') {
+      result = result.filter(book => book.isLoaned);
+    } else if (loanFilter === 'not_loaned') {
+      result = result.filter(book => !book.isLoaned);
+    }
+
+    // Genre Filter
+    if (selectedGenres.length > 0) {
+      result = result.filter(book => {
+        const bookGenres = book.genre.split(',').map(g => g.trim().toLowerCase());
+        return selectedGenres.some(sg => bookGenres.includes(sg.toLowerCase()));
+      });
+    }
+
+    // Tag Filter
+    if (selectedTags.length > 0) {
+      result = result.filter(book => {
+        const bookTags = book.tags || [];
+        return selectedTags.some(st => bookTags.includes(st));
+      });
+    }
+
+    // Sort
+    result.sort((a, b) => {
+      if (sortBy === 'title') {
+        return a.title.localeCompare(b.title);
+      } else if (sortBy === 'isDigital') {
+        return (a.isDigital === b.isDigital ? 0 : a.isDigital ? -1 : 1);
+      } else if (sortBy === 'isLoaned') {
+        return (a.isLoaned === b.isLoaned ? 0 : a.isLoaned ? -1 : 1);
+      } else if (sortBy === 'pages') {
+        return (b.pages || 0) - (a.pages || 0);
+      } else if (sortBy === 'rating') {
+        return (b.rating || 0) - (a.rating || 0);
+      } else {
         const dateA = a.dateFinished || a.dateAdded;
         const dateB = b.dateFinished || b.dateAdded;
         return new Date(dateB).getTime() - new Date(dateA).getTime();
-      });
-  }, [books, searchTerm]);
+      }
+    });
+
+    return result;
+  }, [books, searchTerm, statusFilter, formatFilter, loanFilter, sortBy, selectedGenres, selectedTags]);
+
+  const filteredGenresList = useMemo(() => {
+    if (!genreSearch) return GENRES;
+    return GENRES.filter(g => g.toLowerCase().includes(genreSearch.toLowerCase()));
+  }, [genreSearch]);
 
   const handleStartEditObs = (book: Book) => {
     setEditingObsId(book.id);
@@ -65,13 +151,182 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
         <div className="relative w-full md:w-80 group">
           <input 
             type="text" 
-            placeholder="Filtrar histórico..." 
+            placeholder="Buscar histórico..." 
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl px-5 py-3 text-sm font-bold outline-none focus:border-primary transition-all shadow-sm"
           />
           <div className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-300">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4"><path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" /></svg>
+          </div>
+        </div>
+      </div>
+
+      <div className="bg-white dark:bg-slate-900 p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft space-y-8">
+        {/* Status and Sort */}
+        <div className="flex flex-col space-y-6 pb-6 border-b border-slate-50 dark:border-slate-800">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em] mr-1">Status:</span>
+              {[
+                { label: 'Todos', value: 'all' },
+                { label: 'Lidos', value: BookStatus.Read },
+                { label: 'Abandonados', value: BookStatus.Dropped },
+              ].map((btn) => (
+                <button
+                  key={btn.value}
+                  onClick={() => setStatusFilter(btn.value as FilterStatus)}
+                  className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
+                    statusFilter === btn.value
+                      ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25'
+                      : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700 hover:border-primary/30'
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Ordenar:</span>
+              <select 
+                value={sortBy} 
+                onChange={(e) => setSortBy(e.target.value as SortOrder)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-4 py-2 text-[10px] font-black uppercase tracking-wider text-slate-600 dark:text-slate-300 outline-none focus:ring-4 focus:ring-primary/5 transition-all cursor-pointer"
+              >
+                <option value="dateFinished">Mais Recentes</option>
+                <option value="title">Título (A-Z)</option>
+                <option value="pages">Páginas</option>
+                <option value="rating">Avaliação</option>
+                <option value="isDigital">Digitais Primeiro</option>
+                <option value="isLoaned">Emprestados Primeiro</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex flex-col md:flex-row gap-6">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em] mr-1">Formato:</span>
+              <div className="flex gap-2 p-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl">
+                {(['all', 'physical', 'digital'] as FormatFilter[]).map(f => (
+                  <button
+                    key={f}
+                    onClick={() => setFormatFilter(f)}
+                    className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                      formatFilter === f 
+                        ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' 
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {f === 'all' ? 'Todos' : f === 'physical' ? 'Físico' : 'Digital'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em] mr-1">Empréstimo:</span>
+              <div className="flex gap-2 p-1 bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl">
+                {(['all', 'loaned', 'not_loaned'] as LoanFilter[]).map(l => (
+                  <button
+                    key={l}
+                    onClick={() => setLoanFilter(l)}
+                    className={`px-4 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all ${
+                      loanFilter === l 
+                        ? 'bg-white dark:bg-slate-700 text-primary shadow-sm' 
+                        : 'text-slate-400 hover:text-slate-600'
+                    }`}
+                  >
+                    {l === 'all' ? 'Todos' : l === 'loaned' ? 'Emprestado' : 'Na Estante'}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Tags Filter */}
+        {profile?.customTags && profile.customTags.length > 0 && (
+            <div className="space-y-4 pb-6 border-b border-slate-50 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                    <TagIcon className="h-3 w-3 text-emerald-500" />
+                    <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Filtrar por Minhas Tags:</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                    {profile.customTags.map(tag => {
+                        const isSelected = selectedTags.includes(tag);
+                        return (
+                            <button
+                                key={tag}
+                                onClick={() => toggleTag(tag)}
+                                className={`px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                                    isSelected 
+                                    ? 'bg-emerald-500 text-white border-emerald-500 shadow-md scale-95' 
+                                    : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
+                                }`}
+                            >
+                                {tag}
+                            </button>
+                        );
+                    })}
+                </div>
+            </div>
+        )}
+
+        {/* Genre Filter */}
+        <div className="space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Filtrar por Gênero:</span>
+              {(selectedGenres.length > 0 || selectedTags.length > 0 || statusFilter !== 'all' || formatFilter !== 'all' || loanFilter !== 'all') && (
+                <button 
+                  onClick={() => { 
+                    setSelectedGenres([]); 
+                    setSelectedTags([]); 
+                    setStatusFilter('all');
+                    setFormatFilter('all');
+                    setLoanFilter('all');
+                  }}
+                  className="bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
+                >
+                  Limpar Todos
+                </button>
+              )}
+            </div>
+            
+            <div className="relative">
+              <input 
+                type="text" 
+                placeholder="Pesquisar gênero..." 
+                value={genreSearch}
+                onChange={(e) => setGenreSearch(e.target.value)}
+                className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl px-3 py-1.5 text-[10px] font-bold text-slate-600 dark:text-slate-300 outline-none focus:border-primary/40 w-full sm:w-48 transition-all"
+              />
+              {genreSearch && (
+                <button onClick={() => setGenreSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                  <XMarkIcon className="h-3 w-3" />
+                </button>
+              )}
+            </div>
+          </div>
+          
+          <div className="flex flex-wrap gap-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar p-1">
+            {filteredGenresList.map((genre) => {
+              const isSelected = selectedGenres.includes(genre);
+              return (
+                <button
+                  key={genre}
+                  onClick={() => toggleGenre(genre)}
+                  className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all border ${
+                    isSelected
+                      ? 'bg-primary text-white border-primary shadow-md scale-95 ring-2 ring-primary/20'
+                      : 'bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:border-primary/40 hover:text-primary hover:bg-primary/5 dark:hover:bg-primary/10'
+                  }`}
+                >
+                  {genre}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -104,6 +359,11 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
                     <div>
                       <h3 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-50 leading-tight font-serif italic mb-1 group-hover:text-primary transition-colors">
                         {book.title}
+                        {book.series && (
+                            <span className="ml-3 text-sm font-black text-primary/40 not-italic font-sans uppercase tracking-[0.2em]">
+                                {book.series} {book.volume ? `#${book.volume}` : ''}
+                            </span>
+                        )}
                       </h3>
                       <p className="text-slate-400 dark:text-slate-500 font-bold text-base">de {book.author}</p>
                     </div>
@@ -213,12 +473,26 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
             );
           })
         ) : (
-          <div className="text-center py-32 bg-slate-50 dark:bg-slate-900/50 rounded-[4rem] border-2 border-dashed border-slate-200 dark:border-slate-800">
-             <div className="bg-white dark:bg-slate-800 p-8 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6 shadow-xl border border-slate-100 dark:border-slate-700">
+          <div className="text-center py-32 bg-white dark:bg-slate-900 rounded-[4rem] border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center">
+             <div className="bg-slate-50 dark:bg-slate-800 p-8 rounded-full w-24 h-24 flex items-center justify-center mx-auto mb-6 shadow-xl border border-slate-100 dark:border-slate-700">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 text-slate-300"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" /></svg>
              </div>
-             <h3 className="text-xl font-black text-slate-900 dark:text-slate-50 mb-2 font-serif italic">Seu Histórico está Limpo</h3>
-             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest max-w-sm mx-auto">Conclua ou abandone livros para vê-los listados aqui com suas observações.</p>
+             <h3 className="text-xl font-black text-slate-900 dark:text-slate-50 mb-2 font-serif italic">Nenhum registro encontrado</h3>
+             <p className="text-xs font-bold text-slate-400 uppercase tracking-widest max-w-sm mx-auto">Tente ajustar seus filtros para encontrar o que procura.</p>
+             <button 
+                onClick={() => { 
+                    setStatusFilter('all'); 
+                    setSearchTerm(''); 
+                    setSelectedGenres([]); 
+                    setSelectedTags([]); 
+                    setGenreSearch(''); 
+                    setFormatFilter('all');
+                    setLoanFilter('all');
+                }}
+                className="mt-8 px-8 py-3 rounded-2xl bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg active:scale-95"
+            >
+                Limpar Filtros
+            </button>
           </div>
         )}
       </div>

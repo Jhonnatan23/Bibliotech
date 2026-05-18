@@ -80,6 +80,30 @@ export interface Book {
   borrowerName?: string;
   loanDate?: string;
   isDigital?: boolean;
+  series?: string;
+  volume?: number;
+  seriesId?: string;
+}
+
+export interface Series {
+  id: string;
+  user_id: string;
+  name: string;
+  total_volumes?: number;
+  created_at: string;
+}
+
+export interface Story {
+  id: string;
+  user_id: string;
+  title: string;
+  content: string;
+  influences: {
+    books: string[];
+    authors: string[];
+  };
+  created_at: string;
+  updated_at: string;
 }
 
 export interface Recommendation {

@@ -161,6 +161,11 @@ export const BookListItem: React.FC<BookListItemProps> = React.memo(({
             <span className={`px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-[0.05em] md:tracking-[0.1em] border shadow-sm ${book.isDigital ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 border-indigo-100 dark:border-indigo-800' : 'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-100'}`}>
                 {book.isDigital ? 'Digital' : 'Físico'}
             </span>
+            {book.series && (
+                <span className="px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest border bg-primary/10 text-primary border-primary/20 flex items-center gap-1.5 shadow-sm">
+                    {book.series} {book.volume ? `#${book.volume}` : ''}
+                </span>
+            )}
             {book.isLoaned && (
                 <span className="px-3 py-1 md:px-4 md:py-1.5 rounded-full text-[8px] md:text-[10px] font-black uppercase tracking-widest border bg-amber-500 text-white shadow-sm flex items-center gap-1.5">
                     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-3 h-3">
