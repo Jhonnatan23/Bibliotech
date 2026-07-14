@@ -1,6 +1,6 @@
 
 import React, { useMemo, useState, useEffect } from 'react';
-import type { ReadingStats, Book, DateFilter, Recommendation, NewBook } from '../types';
+import type { ReadingStats, Book, DateFilter, Recommendation, NewBook, Profile } from '../types';
 import { BookStatus, BookType } from '../types';
 import { StatCard } from './StatCard';
 import { CurrentlyReading } from './CurrentlyReading';
@@ -9,11 +9,15 @@ import { TypePieChart } from './TypePieChart';
 import { GenreBarChart } from './GenreBarChart';
 import { StatusDistribution } from './StatusDistribution';
 import { ReadingGoal } from './ReadingGoal';
+import { YearlyGoalChart } from './YearlyGoalChart';
 import { Recommendations } from './Recommendations';
 import { LatestReadings } from './LatestReadings';
 import { ShelfProgress } from './ShelfProgress';
-import { BookOpenIcon, ChartBarIcon, StarIcon, TagIcon, HeartIcon, SparklesIcon } from './Icons';
+import { CronogramaLeitura } from './CronogramaLeitura';
+import { Achievements } from './Achievements';
+import { BookOpenIcon, ChartBarIcon, StarIcon, TagIcon, HeartIcon, SparklesIcon, MagnifyingGlassIcon, XMarkIcon, PlayIcon } from './Icons';
 import { getAIRecommendations } from '../services/geminiService';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface DashboardProps {
   stats: ReadingStats;
@@ -31,6 +35,7 @@ interface DashboardProps {
   onSetReadingGoal: (val: number) => void;
   addBook: (book: NewBook) => Promise<void>;
   onRandomPick: () => void;
+  profile: Profile | null;
 }
 
 export const Dashboard: React.FC<DashboardProps> = React.memo(({ 
@@ -48,13 +53,52 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
   readingGoal,
   onSetReadingGoal,
   addBook,
-  onRandomPick
+  onRandomPick,
+  profile
 }) => {
   const [aiRecs, setAiRecs] = useState<Recommendation[]>([]);
   const [isLoadingRecs, setIsLoadingRecs] = useState(false);
+  const [quotaExceeded, setQuotaExceeded] = useState(false);
+  const [demandExceeded, setDemandExceeded] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedBookToStart, setSelectedBookToStart] = useState<Book | null>(null);
+  const [isStartingReading, setIsStartingReading] = useState(false);
+
+  const searchedBooks = useMemo(() => {
+    if (!searchTerm.trim()) return [];
+    const term = searchTerm.toLowerCase().trim();
+    return books.filter(b => 
+      b.status !== BookStatus.Wishlist &&
+      (b.title.toLowerCase().includes(term) || 
+       b.author.toLowerCase().includes(term))
+    );
+  }, [searchTerm, books]);
+
+  const handleStartReadingSearch = async (book: Book) => {
+    setIsStartingReading(true);
+    try {
+      const updated: Book = {
+        ...book,
+        status: BookStatus.Reading,
+        dateStarted: new Date().toISOString().split('T')[0]
+      };
+      await updateBook(updated);
+      setSelectedBookToStart(null);
+      setSearchTerm('');
+    } catch (err) {
+      console.error("Erro ao iniciar leitura do livro pesquisado:", err);
+    } finally {
+      setIsStartingReading(false);
+    }
+  };
 
   const fetchRecs = async () => {
     setIsLoadingRecs(true);
+    setAiError(null);
+    setQuotaExceeded(false);
+    setDemandExceeded(false);
     const readBooksContext = books
       .filter(b => b.status === BookStatus.Read)
       .map(b => ({ 
@@ -66,15 +110,22 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
     try {
       const recs = await getAIRecommendations(readBooksContext);
       setAiRecs(recs);
-    } catch (err) {
-      console.error("Erro ao carregar recomendações:", err);
+    } catch (err: any) {
+      if (err.message === 'QUOTA_EXCEEDED') {
+        setQuotaExceeded(true);
+      } else if (err.message === 'HIGH_DEMAND') {
+        setDemandExceeded(true);
+      } else {
+        setAiError(err.message || "Erro inesperado ao carregar recomendações.");
+        console.error("Erro ao carregar recomendações:", err);
+      }
     } finally {
       setIsLoadingRecs(false);
     }
   };
 
   useEffect(() => {
-    if (aiRecs.length === 0) {
+    if (aiRecs.length === 0 && !isLoadingRecs && !quotaExceeded && !demandExceeded && !aiError) {
         fetchRecs();
     }
   }, []);
@@ -107,13 +158,13 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
       title: rec.title,
       author: rec.author,
       genre: rec.genre,
-      status: BookStatus.Wishlist,
+      status: BookStatus.TBR,
       type: BookType.Book,
       pages: 0,
       buyLink: rec.buyLink,
       summary: rec.reason,
       dateAdded: new Date().toISOString().split('T')[0],
-      wasWishlist: true
+      wasWishlist: false
     };
     await addBook(newBook);
   };
@@ -144,21 +195,77 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
 
   return (
     <div className="max-w-7xl mx-auto space-y-6 md:space-y-10 pb-10 px-4 sm:px-6 lg:px-8">
-      <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6">
-        <div>
-            <h2 className="text-3xl md:text-5xl font-black font-serif text-slate-900 dark:text-slate-50 tracking-tight italic">Painel de Controle</h2>
-            <p className="text-slate-500 dark:text-slate-400 text-[10px] md:text-[11px] font-black uppercase tracking-[0.25em] mt-1 md:mt-2 ml-1">✦ Sincronizado com sua biblioteca digital</p>
+      <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
+        {/* Barra de Pesquisa */}
+        <div className="relative flex-1 max-w-xl w-full z-30">
+          <div className="relative">
+            <input 
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Pesquise para iniciar uma nova leitura..."
+              className="w-full bg-white dark:bg-slate-900 border-2 border-slate-100 dark:border-slate-800 focus:border-primary/40 outline-none rounded-[1.5rem] md:rounded-[2rem] pl-12 pr-10 py-3.5 md:py-4 font-bold text-xs shadow-xl transition-all text-slate-900 dark:text-white"
+            />
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+              <MagnifyingGlassIcon className="h-5 w-5" />
+            </div>
+            {searchTerm && (
+              <button 
+                onClick={() => setSearchTerm('')}
+                className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-primary p-1"
+              >
+                <XMarkIcon className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+
+          {/* Resultados de Pesquisa flutuante */}
+          <AnimatePresence>
+            {searchTerm.trim() !== '' && (
+              <motion.div 
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="absolute left-0 right-0 mt-2 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl shadow-2xl z-50 max-h-64 overflow-y-auto custom-scrollbar p-3 space-y-1"
+              >
+                {searchedBooks.length > 0 ? (
+                  searchedBooks.map(book => {
+                    const isReading = book.status === BookStatus.Reading;
+                    return (
+                      <button
+                        key={book.id}
+                        onClick={() => {
+                          setSelectedBookToStart(book);
+                          setSearchTerm('');
+                        }}
+                        className="w-full flex items-center justify-between p-3.5 rounded-2xl hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors text-left"
+                      >
+                        <div className="flex-1 min-w-0 pr-4">
+                          <h4 className="font-bold text-slate-900 dark:text-white text-xs truncate">{book.title}</h4>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider truncate">de {book.author}</p>
+                        </div>
+                        <span className={`text-[8px] font-black uppercase tracking-widest px-2.5 py-1 rounded-md border ${
+                          isReading 
+                            ? 'bg-blue-50 dark:bg-blue-900/15 text-primary border-blue-100 dark:border-blue-800' 
+                            : 'bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-100 dark:border-slate-700'
+                        }`}>
+                          {isReading ? 'Lendo' : book.status}
+                        </span>
+                      </button>
+                    );
+                  })
+                ) : (
+                  <div className="py-8 text-center text-slate-400 dark:text-slate-500 text-xs italic font-bold">
+                    Nenhum livro encontrado na sua estante.
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white dark:bg-slate-900 p-2 md:p-2.5 rounded-[1.5rem] md:rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-xl w-full sm:w-auto">
-            <button
-                onClick={onRandomPick}
-                className="flex items-center justify-center gap-2 px-4 py-2 bg-primary/10 text-primary hover:bg-primary hover:text-white transition-all rounded-xl text-[10px] font-black uppercase tracking-widest border border-primary/20"
-                title="Sortear próximo livro"
-            >
-                <SparklesIcon className="h-4 w-4" />
-                Sortear Leitura
-            </button>
+
+        {/* Filtro de período */}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 bg-white dark:bg-slate-900 p-2 md:p-2.5 rounded-[1.5rem] md:rounded-[2rem] border border-slate-200 dark:border-slate-800 shadow-xl">
             <div className="flex items-center p-1 bg-slate-50 dark:bg-slate-800 rounded-xl md:rounded-2xl border border-slate-100 dark:border-slate-700 w-full sm:w-auto overflow-x-auto custom-scrollbar">
                 <button
                     onClick={() => setDateFilter('thisYear')}
@@ -200,14 +307,22 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
         {/* ROW 1: DESTAQUE E META */}
         <div className="lg:col-span-8">
           {currentlyReading ? (
-            <CurrentlyReading book={currentlyReading} updateBook={updateBook} />
+            <CurrentlyReading book={currentlyReading} updateBook={updateBook} profile={profile} />
           ) : (
             <div className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-100 dark:border-slate-800 p-8 md:p-16 rounded-[2.5rem] flex flex-col items-center justify-center text-center h-full group transition-all hover:border-primary/20">
               <div className="bg-slate-50 dark:bg-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] mb-6 group-hover:scale-110 transition-transform duration-700">
                 <BookOpenIcon className="h-12 w-12 text-slate-200 dark:text-slate-700" />
               </div>
               <h2 className="text-2xl md:text-3xl font-black text-slate-900 dark:text-slate-50 mb-3 font-serif italic">Nenhuma leitura ativa</h2>
-              <p className="text-slate-400 dark:text-slate-500 max-w-sm text-sm md:text-base font-medium italic">Sua estante está cheia de aventuras esperando por você.</p>
+              <p className="text-slate-400 dark:text-slate-500 max-w-sm text-sm md:text-base font-medium italic mb-8">Sua estante está cheia de aventuras esperando por você.</p>
+              
+              <button
+                onClick={onRandomPick}
+                className="flex items-center justify-center gap-3 px-8 py-4 bg-primary text-white hover:bg-tertiary transition-all rounded-[1.5rem] text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-primary/20 active:scale-95"
+              >
+                <SparklesIcon className="h-5 w-5" />
+                Sortear Próxima Leitura
+              </button>
             </div>
           )}
         </div>
@@ -292,6 +407,11 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
                   description="Porcentagem de meses no ano com pelo menos um livro concluído."
               />
             </div>
+        </div>
+
+        {/* METAS & PROGRESSO MENSAL CHART (CURRENT YEAR VS READING GOAL) */}
+        <div className="lg:col-span-12">
+          <YearlyGoalChart books={books} readingGoal={readingGoal} />
         </div>
 
         {/* ROW 3: ANALYTICS BENTO BOARD */}
@@ -393,6 +513,16 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
           </div>
         </div>
 
+        {/* SISTEMA DE CONQUISTAS (BADGES) */}
+        <div className="lg:col-span-12 animate-in fade-in duration-700">
+          <Achievements books={books} />
+        </div>
+
+        {/* CRONOGRAMA DE LEITURA */}
+        <div className="lg:col-span-12 animate-in fade-in duration-700">
+          <CronogramaLeitura books={books} />
+        </div>
+
         {/* ROW 5: ACTIVITY */}
         <div className="lg:col-span-12">
           <LatestReadings books={latestReadBooks} />
@@ -405,7 +535,69 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
         onRefresh={fetchRecs} 
         onAddWishlist={handleAddRecommendation}
         existingBooks={books}
+        quotaExceeded={quotaExceeded}
+        demandExceeded={demandExceeded}
+        error={aiError}
       />
+
+      {/* Modalzinho para iniciar leitura */}
+      <AnimatePresence>
+        {selectedBookToStart && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedBookToStart(null)}
+              className="absolute inset-0 bg-slate-950/80 backdrop-blur-md"
+            />
+            
+            <motion.div 
+              initial={{ scale: 0.95, opacity: 0, y: 15 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 15 }}
+              className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 p-6 flex flex-col items-center text-center z-10"
+            >
+              <div className="bg-primary/10 dark:bg-primary/20 text-primary p-4 rounded-full mb-4">
+                <BookOpenIcon className="h-8 w-8" />
+              </div>
+              
+              <h3 className="text-sm font-black uppercase tracking-[0.2em] text-primary mb-1">
+                Iniciar Nova Leitura
+              </h3>
+              
+              <h4 className="text-xl font-black text-slate-900 dark:text-slate-50 mb-1 leading-tight font-serif italic mt-2">
+                {selectedBookToStart.title}
+              </h4>
+              <p className="text-xs font-bold text-slate-400 dark:text-slate-500 mb-6">
+                de {selectedBookToStart.author}
+              </p>
+              
+              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed mb-6 font-medium">
+                Deseja marcar este livro como <strong className="text-primary font-black">"Lendo atualmente"</strong> e começar a registrar seu progresso a partir de hoje?
+              </p>
+              
+              <div className="flex flex-col w-full gap-2">
+                <button
+                  onClick={() => handleStartReadingSearch(selectedBookToStart)}
+                  disabled={isStartingReading}
+                  className="w-full py-3.5 bg-primary text-white hover:bg-tertiary transition-all rounded-xl font-black text-[10px] uppercase tracking-[0.15em] shadow-lg shadow-primary/20 active:scale-95 flex items-center justify-center gap-2"
+                >
+                  <PlayIcon className="h-4 w-4" />
+                  {isStartingReading ? 'Iniciando...' : 'Começar a Ler Agora'}
+                </button>
+                <button
+                  onClick={() => setSelectedBookToStart(null)}
+                  disabled={isStartingReading}
+                  className="w-full py-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 font-black text-[10px] uppercase tracking-widest transition-colors"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 });

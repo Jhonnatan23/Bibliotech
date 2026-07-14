@@ -4,6 +4,7 @@ import type { Book, Story, Profile } from '../types';
 import { dbService } from '../services/database';
 import { SparklesIcon, PlusIcon, PencilIcon, TrashIcon, BookOpenIcon, XMarkIcon, CheckIcon } from './Icons';
 import { motion, AnimatePresence } from 'framer-motion';
+import { ConfirmationModal } from './ConfirmationModal';
 
 interface CreativeStudioProps {
   books: Book[];
@@ -19,6 +20,7 @@ export const CreativeStudio: React.FC<CreativeStudioProps> = ({ books, profile }
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [showInfluenceModal, setShowInfluenceModal] = useState(false);
   const [currentPage, setCurrentPage] = useState(0);
+  const [storyToDelete, setStoryToDelete] = useState<string | null>(null);
 
   const pages = useMemo(() => {
     if (!activeStory?.content) return [''];
@@ -85,15 +87,20 @@ export const CreativeStudio: React.FC<CreativeStudioProps> = ({ books, profile }
     setActiveStory(saved);
   };
 
-  const handleDeleteStory = async (id: string, e: React.MouseEvent) => {
+  const handleDeleteStory = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    if (confirm('Tem certeza que deseja excluir esta história?')) {
-      await dbService.deleteStory(id);
-      setStories(stories.filter(s => s.id !== id));
-      if (activeStory?.id === id) {
-        setActiveStory(null);
-        setIsEditing(false);
-      }
+    setStoryToDelete(id);
+  };
+
+  const handleConfirmDeleteStory = async () => {
+    if (!storyToDelete) return;
+    const id = storyToDelete;
+    setStoryToDelete(null);
+    await dbService.deleteStory(id);
+    setStories(stories.filter(s => s.id !== id));
+    if (activeStory?.id === id) {
+      setActiveStory(null);
+      setIsEditing(false);
     }
   };
 
@@ -133,12 +140,24 @@ Conteúdo: "${activeStory.content}"`;
         body: JSON.stringify({
           prompt,
           systemInstruction,
-          model: 'gemini-3-flash-preview'
+          model: 'gemini-1.5-flash'
         })
       });
 
+      const contentType = response.headers.get("content-type");
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        if (text.includes("wait while your application starts")) {
+          throw new Error('O servidor está inicializando. Por favor, aguarde alguns segundos e tente novamente.');
+        }
+        throw new Error('Servidor indisponível ou resposta inválida. Tente novamente em instantes.');
+      }
+
       if (!response.ok) {
         const errData = await response.json();
+        if (response.status === 503 || errData.isHighDemand || errData.error?.includes('high demand')) {
+          throw new Error('ALTA_DEMANDA');
+        }
         throw new Error(errData.error || 'Falha na comunicação com a IA');
       }
 
@@ -146,8 +165,12 @@ Conteúdo: "${activeStory.content}"`;
       const text = data.text;
       setAiResponse(text || 'Não consegui gerar uma resposta no momento.');
     } catch (error: any) {
-      console.error('AI Error:', error);
-      setAiResponse(`Erro: ${error.message || 'Ocorreu um erro ao consultar o assistente.'}`);
+      if (error.message === 'ALTA_DEMANDA') {
+        setAiResponse('O Mentor está muito requisitado no momento! Por favor, aguarde alguns segundos e tente novamente.');
+      } else {
+        console.error('AI Error:', error);
+        setAiResponse(`Erro: ${error.message || 'Ocorreu um erro ao consultar o assistente.'}`);
+      }
     } finally {
       setIsAiLoading(false);
     }
@@ -506,6 +529,14 @@ Conteúdo: "${activeStory.content}"`;
           </div>
         )}
       </div>
+
+      <ConfirmationModal 
+        isOpen={!!storyToDelete}
+        onClose={() => setStoryToDelete(null)}
+        onConfirm={handleConfirmDeleteStory}
+        title="Excluir História"
+        message="Tem certeza que deseja excluir esta história? Esta ação é permanente e não poderá ser desfeita."
+      />
     </div>
   );
 };

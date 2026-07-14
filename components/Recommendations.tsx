@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { Recommendation, Book } from '../types';
-import { ExternalLinkIcon, HeartIcon, BookOpenIcon } from './Icons';
+import { ExternalLinkIcon, HeartIcon, BookOpenIcon, PlusIcon } from './Icons';
 
 interface RecommendationsProps {
   suggestions: Recommendation[];
@@ -9,9 +9,21 @@ interface RecommendationsProps {
   onRefresh: () => void;
   onAddWishlist: (rec: Recommendation) => Promise<void>;
   existingBooks: Book[];
+  quotaExceeded?: boolean;
+  demandExceeded?: boolean;
+  error?: string | null;
 }
 
-export const Recommendations: React.FC<RecommendationsProps> = ({ suggestions, isLoading, onRefresh, onAddWishlist, existingBooks }) => {
+export const Recommendations: React.FC<RecommendationsProps> = ({ 
+  suggestions, 
+  isLoading, 
+  onRefresh, 
+  onAddWishlist, 
+  existingBooks, 
+  quotaExceeded,
+  demandExceeded,
+  error
+}) => {
   const [localAddedTitles, setLocalAddedTitles] = useState<Set<string>>(new Set());
   const hasNoSuggestions = !isLoading && suggestions.length === 0;
 
@@ -82,6 +94,30 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ suggestions, i
                     </div>
                 </div>
             ))
+        ) : quotaExceeded ? (
+            <div className="md:col-span-3 py-24 bg-red-50/30 dark:bg-red-900/10 rounded-[3rem] border-2 border-dashed border-red-200 dark:border-red-800/30 flex flex-col items-center justify-center text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-16 w-16 text-red-300 dark:text-red-900/50 mb-6"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.34c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+                <h3 className="text-xl font-black text-red-600 dark:text-red-400 mb-2 uppercase tracking-widest">Limite de IA Atingido</h3>
+                <p className="text-slate-500 dark:text-slate-400 font-medium italic max-w-sm">A nossa bibliotecária digital precisa descansar um pouco (atingimos o limite de uso gratuito). Tente novamente em alguns minutos!</p>
+            </div>
+        ) : demandExceeded ? (
+            <div className="md:col-span-3 py-24 bg-amber-50/30 dark:bg-amber-900/10 rounded-[3rem] border-2 border-dashed border-amber-200 dark:border-amber-800/30 flex flex-col items-center justify-center text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-16 w-16 text-amber-300 dark:text-amber-900/50 mb-6"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.34c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" /></svg>
+                <h3 className="text-xl font-black text-amber-600 dark:text-amber-400 mb-2 uppercase tracking-widest">Alta Demanda na IA</h3>
+                <p className="text-slate-500 dark:text-slate-400 font-medium italic max-w-sm">Muitos leitores pedindo dicas ao mesmo tempo! O modelo está um pouco sobrecarregado. Por favor, tente clicar em "Renovar" daqui a pouco.</p>
+            </div>
+        ) : error ? (
+            <div className="md:col-span-3 py-24 bg-red-50/10 dark:bg-red-900/10 rounded-[3rem] border-2 border-dashed border-red-100 dark:border-red-900/20 flex flex-col items-center justify-center text-center">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-16 w-16 text-red-200 dark:text-red-900/30 mb-6"><path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" /></svg>
+                <h3 className="text-xl font-black text-red-600 dark:text-red-400 mb-2 uppercase tracking-widest">Ops! Algo deu errado</h3>
+                <p className="text-slate-500 dark:text-slate-400 font-medium italic max-w-lg px-8">{error}</p>
+                <button 
+                  onClick={onRefresh}
+                  className="mt-6 px-6 py-2 bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-200 transition-colors"
+                >
+                  Tentar Novamente
+                </button>
+            </div>
         ) : hasNoSuggestions ? (
             <div className="md:col-span-3 py-24 bg-slate-50/30 dark:bg-slate-900/30 rounded-[3rem] border-2 border-dashed border-slate-200 dark:border-slate-800 flex flex-col items-center justify-center text-center">
                 <BookOpenIcon className="h-16 w-16 text-slate-200 dark:text-slate-800 mb-6" />
@@ -140,8 +176,8 @@ export const Recommendations: React.FC<RecommendationsProps> = ({ suggestions, i
                                     onClick={() => handleAdd(rec)}
                                     className="px-4 py-4 bg-white dark:bg-slate-800 text-primary border border-primary/20 dark:border-slate-700 text-[10px] font-black uppercase tracking-[0.15em] rounded-2xl flex items-center justify-center gap-2 hover:bg-primary/5 transition-all shadow-xl shadow-primary/5 active:scale-95"
                                 >
-                                    <HeartIcon className="h-4 w-4" />
-                                    Desejos
+                                    <PlusIcon className="h-4 w-4" />
+                                    Adicionar
                                 </button>
                             )}
                         </div>

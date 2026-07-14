@@ -375,6 +375,14 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
                              {book.daysToFinish || '--'} <span className="text-[10px] opacity-60">dias</span>
                           </span>
                        </div>
+                       {book.status === BookStatus.Dropped && book.currentPage !== undefined && (
+                          <div className="flex flex-col">
+                             <span className="text-[9px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest mb-1">Parou na pág</span>
+                             <span className="text-sm font-black text-slate-700 dark:text-slate-300">
+                                {book.currentPage} <span className="text-[10px] opacity-60">/ {book.pages}</span>
+                             </span>
+                          </div>
+                       )}
                        <div className="flex flex-col">
                           <span className="text-[9px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest mb-1">Páginas</span>
                           <span className="text-sm font-black text-slate-700 dark:text-slate-300">
@@ -396,7 +404,7 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
                   <div className="w-full md:w-96 flex flex-col gap-4">
                     <div className="flex items-center justify-between">
                       <h4 className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-2">
-                         Observação do Leitor
+                         {book.status === BookStatus.Dropped ? 'Motivo do Abandono / Observações' : 'Observação do Leitor'}
                       </h4>
                       {editingObsId !== book.id && (
                         <button 
@@ -416,7 +424,7 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
                           value={obsInput}
                           onFocus={(e) => e.target.select()}
                           onChange={(e) => setObsInput(e.target.value)}
-                          placeholder="O que você achou dessa obra?"
+                          placeholder={book.status === BookStatus.Dropped ? "O que te fez desistir dessa leitura? Deixe registrado..." : "O que você achou dessa obra?"}
                           className="w-full min-h-[120px] bg-slate-50 dark:bg-slate-800/50 border border-primary/20 rounded-2xl p-4 text-sm font-medium text-slate-700 dark:text-slate-300 outline-none focus:border-primary transition-all resize-none shadow-inner"
                         />
                         <div className="flex gap-2">

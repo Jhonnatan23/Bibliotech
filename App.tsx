@@ -16,6 +16,7 @@ import { NextReadModal } from './components/NextReadModal';
 import { AnimatePresence } from 'framer-motion';
 import { supabase } from './services/supabase';
 import { dbService } from './services/database';
+import { NotificationModal } from './components/NotificationModal';
 
 // Lazy loaded views
 const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -26,7 +27,7 @@ const HistoryView = lazy(() => import('./components/HistoryView').then(m => ({ d
 const LoansView = lazy(() => import('./components/LoansView').then(m => ({ default: m.LoansView })));
 const BookSearch = lazy(() => import('./components/BookSearch').then(m => ({ default: m.BookSearch })));
 const SeriesView = lazy(() => import('./components/SeriesView').then(m => ({ default: m.SeriesView })));
-const CreativeStudio = lazy(() => import('./components/CreativeStudio').then(m => ({ default: m.CreativeStudio })));
+const ReadingChallenges = lazy(() => import('./components/ReadingChallenges').then(m => ({ default: m.ReadingChallenges })));
 
 const ViewLoader = () => (
   <div className="flex flex-col items-center justify-center py-20 animate-pulse">
@@ -117,7 +118,106 @@ export default function App() {
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'creative'>('dashboard');
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [unreadNotifCount, setUnreadNotifCount] = useState(0);
+  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges'>('dashboard');
+
+  useEffect(() => {
+    if (userProfile?.id) {
+      const loadUnreadCount = () => {
+        try {
+          const savedAlerts = localStorage.getItem(`biblio_tech_alerts_${userProfile.id}`);
+          if (savedAlerts) {
+            const parsed = JSON.parse(savedAlerts);
+            const count = parsed.filter((a: any) => !a.isRead).length;
+            setUnreadNotifCount(count);
+          } else {
+            setUnreadNotifCount(1); // default welcoming alert
+          }
+        } catch (e) {}
+      };
+      loadUnreadCount();
+      const interval = setInterval(loadUnreadCount, 2500);
+      return () => clearInterval(interval);
+    }
+  }, [userProfile]);
+
+  const triggerFinishBookNotification = (book: Book) => {
+    if (!userProfile?.id) return;
+    try {
+      const userSettingsKey = `biblio_tech_notif_config_${userProfile.id}`;
+      const userAlertsKey = `biblio_tech_alerts_${userProfile.id}`;
+      const userEmailsKey = `biblio_tech_emails_${userProfile.id}`;
+      
+      const settingsRaw = localStorage.getItem(userSettingsKey);
+      const settings = settingsRaw ? JSON.parse(settingsRaw) : {
+        emailBookFinishedEnabled: true,
+      };
+      
+      const recipientEmail = userProfile.email || 'jhonnatan.fernandes23@gmail.com';
+
+      // 1. Alerta
+      const currentAlerts = JSON.parse(localStorage.getItem(userAlertsKey) || '[]');
+      const newAlert = {
+        id: `alert_finished_${Date.now()}`,
+        title: `🎉 Livro Concluído: ${book.title}`,
+        description: `Parabéns pela conclusão de "${book.title}" por ${book.author}! Você adicionou com sucesso ${book.pages} páginas lidas à sua estante.`,
+        category: 'goals',
+        timestamp: new Date().toISOString(),
+        isRead: false
+      };
+      localStorage.setItem(userAlertsKey, JSON.stringify([newAlert, ...currentAlerts]));
+
+      // 2. Email
+      if (settings.emailBookFinishedEnabled) {
+        const currentEmails = JSON.parse(localStorage.getItem(userEmailsKey) || '[]');
+        const html = `
+          <div style="font-family: system-ui, -apple-system, sans-serif; max-width: 600px; color: #1e293b; background-color: #f5f3ff; padding: 24px;">
+            <div style="background-color: #ffffff; border-radius: 24px; padding: 32px; border: 1px solid #ddd6fe; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);">
+              <p style="font-size: 10px; font-weight: 800; letter-spacing: 0.15em; text-transform: uppercase; color: #7c3aed; margin: 0 0 12px 0;">🏆 Livro Concluído!</p>
+              <h2 style="font-size: 24px; font-weight: 900; color: #1e1b4b; margin: 0 0 12px 0; letter-spacing: -0.02em;">PARABÉNS PELA JORNADA! 🎉</h2>
+              <p style="font-size: 13px; font-weight: 500; color: #475569; line-height: 1.6; margin: 0 0 24px 0;">
+                Olá, <strong>${userProfile.fullName || 'Leitor'}</strong>!<br/><br/>
+                Você acaba de encerrar as páginas de mais uma incrível jornada. Que tremenda conquista pessoal adicionar este marco de dedicação à sua mente!
+              </p>
+              
+              <div style="background-color: #faf5ff; border: 1px solid #e9d5ff; border-radius: 20px; padding: 20px; margin-bottom: 24px;">
+                <p style="font-size: 11px; font-weight: 800; text-transform: uppercase; color: #a21caf; margin: 0 0 8px 0;">Resumo da Obra Concluída:</p>
+                <h4 style="font-size: 16px; font-weight: 950; color: #4c1d95; margin: 0 0 4px 0;">${book.title}</h4>
+                <p style="font-size: 12px; color: #6b21a8; font-weight: 600; margin: 0 0 12px 0;">por ${book.author} — ${book.pages} páginas</p>
+              </div>
+
+              <p style="font-size: 12.5px; font-weight: 500; color: #52525b; line-height: 1.6; margin-bottom: 24px;">
+                💡 Recomendação rápida de IA: Que abrir o seu estúdio e buscar livros similares por gênero, ou escrever suas observações e notas para consolidar seus aprendizados?
+              </p>
+            </div>
+          </div>
+        `;
+        const subject = `🎉 Parabéns! Livro concluído à sua estante: ${book.title}`;
+        const newEmail = {
+          id: `email_finished_${Date.now()}`,
+          subject,
+          recipient: recipientEmail,
+          sentAt: new Date().toISOString(),
+          status: 'Entregue' as const,
+          contentHtml: html
+        };
+        localStorage.setItem(userEmailsKey, JSON.stringify([newEmail, ...currentEmails]));
+
+        // Envia o e-mail real via API
+        fetch("/api/send-email", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ to: recipientEmail, subject, html })
+        })
+        .then(res => res.json())
+        .then(data => console.log("[Email Service] Sucesso no disparo real:", data))
+        .catch(err => console.error("[Email Service] Erro no disparo real:", err));
+      }
+    } catch (e) {
+      console.error("Error triggering auto-finish notification:", e);
+    }
+  };
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [viewingBook, setViewingBook] = useState<Book | null>(null);
   const [isDuplicating, setIsDuplicating] = useState(false);
@@ -165,6 +265,7 @@ export default function App() {
         showToast(`"${updatedBook.title}" atualizado.`);
 
         if (wasJustFinished) {
+            triggerFinishBookNotification(updatedBook);
             // Pequeno delay para permitir que o toast e a atualização da UI aconteçam antes do popup de recomendação
             setTimeout(() => {
                 findAndSetRecommendation(updatedBook);
@@ -301,6 +402,8 @@ export default function App() {
         theme={theme} toggleTheme={() => setTheme(t => t === 'light' ? 'dark' : 'light')} 
         isConnected={!isLocalMode} hasApiKey={hasApiKey}
         setView={setView}
+        onNotifClick={() => setIsNotifOpen(true)}
+        unreadCount={unreadNotifCount}
       />
       
       {schemaError && (
@@ -337,6 +440,7 @@ export default function App() {
               onSetReadingGoal={handleSetReadingGoal} 
               addBook={handleAddBook}
               onRandomPick={handleRandomPick}
+              profile={userProfile}
             />
           )}
           {view === 'list' && (
@@ -354,7 +458,7 @@ export default function App() {
             />
           )}
           {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onMoveToShelf={(b) => setConvertingBook(b)} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
-          {view === 'stats' && <StatsView books={books} availableYears={availableYears} />}
+          {view === 'stats' && <StatsView books={books} availableYears={availableYears} readingGoal={readingGoal} />}
           {view === 'history' && <HistoryView books={books} profile={userProfile} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} />}
           {view === 'loans' && <LoansView books={books} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onViewDetails={setViewingBook} />}
           {view === 'series' && (
@@ -369,8 +473,8 @@ export default function App() {
               onRefresh={refresh} 
             />
           )}
-          {view === 'creative' && <CreativeStudio books={books} profile={userProfile} />}
           {view === 'search' && <BookSearch onAddWishlist={handleAddBook} existingBooks={books} />}
+          {view === 'challenges' && <ReadingChallenges books={books} profile={userProfile} />}
         </Suspense>
       </main>
       
@@ -387,7 +491,9 @@ export default function App() {
       
       {convertingBook && <PricePaidModal book={convertingBook} onClose={() => setConvertingBook(null)} onConfirm={handleFinishConversion} />}
       
-      {isSettingsOpen && <ProfileModal onClose={() => setIsSettingsOpen(false)} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} profile={userProfile} onUpdateProfile={handleUpdateProfile} />}
+      {isSettingsOpen && <ProfileModal books={books} onClose={() => setIsSettingsOpen(false)} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} profile={userProfile} onUpdateProfile={handleUpdateProfile} />}
+      
+      {isNotifOpen && <NotificationModal isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} books={books} profile={userProfile} />}
       
       {deletingBook && <ConfirmationModal isOpen={!!deletingBook} onClose={() => setDeletingBook(null)} onConfirm={async () => { await deleteBook(deletingBook.id); setDeletingBook(null); showToast(`Removido.`); }} title="Excluir" message={`Apagar "${deletingBook.title}"?`} />}
 

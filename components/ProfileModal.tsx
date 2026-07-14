@@ -1,13 +1,14 @@
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
     XMarkIcon, Cog6ToothIcon, PlusIcon, TagIcon, 
     UserIcon, KeyIcon, PhotoIcon, EnvelopeIcon,
     CameraIcon, CheckIcon
 } from './Icons';
-import type { Profile } from '../types';
+import type { Profile, Book } from '../types';
 import { supabase } from '../services/supabase';
 import { storageService } from '../services/storageService';
+import { parseNotesField } from './quickNotesUtils';
 
 interface ProfileModalProps {
   onClose: () => void;
@@ -15,16 +16,18 @@ interface ProfileModalProps {
   onSetReadingGoal: (val: number) => void;
   profile: Profile | null;
   onUpdateProfile: (updates: Partial<Profile>) => Promise<void>;
+  books: Book[];
 }
 
-type Tab = 'profile' | 'preferences' | 'security';
+type Tab = 'profile' | 'preferences' | 'security' | 'backup';
 
 export const ProfileModal: React.FC<ProfileModalProps> = ({ 
   onClose, 
   readingGoal, 
   onSetReadingGoal,
   profile,
-  onUpdateProfile
+  onUpdateProfile,
+  books
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const [isSaving, setIsSaving] = useState(false);
@@ -53,6 +56,158 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordLoading, setPasswordLoading] = useState(false);
   const [passwordMessage, setPasswordMessage] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+
+  // Backup & Export State & Statistics
+  const [backupFeedback, setBackupFeedback] = useState<'csv' | 'json' | null>(null);
+
+  useEffect(() => {
+    if (backupFeedback) {
+      const t = setTimeout(() => setBackupFeedback(null), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [backupFeedback]);
+
+  const backupStats = useMemo(() => {
+    let completedCount = 0;
+    let readingCount = 0;
+    let totalQuickNotes = 0;
+
+    books.forEach(b => {
+      if (b.status === 'Lido') {
+        completedCount++;
+      } else if (b.status === 'Lendo atualmente') {
+        readingCount++;
+      }
+      const { quickNotes } = parseNotesField(b.notes);
+      totalQuickNotes += quickNotes.length;
+    });
+
+    return {
+      total: books.length,
+      completedCount,
+      readingCount,
+      totalQuickNotes
+    };
+  }, [books]);
+
+  const handleExportJSON = () => {
+    try {
+      const dataStr = JSON.stringify(books, null, 2);
+      const blob = new Blob([dataStr], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bibliotech_backup_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setBackupFeedback('json');
+    } catch (err) {
+      console.error('Error exporting JSON:', err);
+    }
+  };
+
+  const handleExportCSV = () => {
+    try {
+      const headers = [
+        'ID',
+        'Título',
+        'Autor',
+        'Gênero',
+        'Tipo',
+        'Status',
+        'Páginas',
+        'Página Atual',
+        'Nota / Avaliação',
+        'Data de Adição',
+        'Data de Início',
+        'Data de Conclusão',
+        'Dias para Concluir',
+        'Vezes Lido',
+        'Preço Estimado',
+        'Preço Pago',
+        'Link de Compra',
+        'Comentários / Observações de Histórico',
+        'Emprestado',
+        'Nome do Mutuário',
+        'Data do Empréstimo',
+        'Digital',
+        'Série',
+        'Volume',
+        'Tags',
+        'Notas Gerais',
+        'Notas Rápidas (Qtd)',
+        'Diário de Frases Rápidas'
+      ];
+
+      const escapeCSVField = (val: any): string => {
+        if (val === undefined || val === null) {
+          return '';
+        }
+        let str = String(val);
+        str = str.replace(/"/g, '""');
+        return `"${str}"`;
+      };
+
+      const rows = books.map(book => {
+        const { generalNotes, quickNotes } = parseNotesField(book.notes);
+        const formattedQuickNotes = quickNotes.map((qn, i) => {
+          const pagePart = qn.page ? ` (pág. ${qn.page})` : '';
+          return `${i + 1}. [${new Date(qn.createdAt).toLocaleDateString('pt-BR')}] "${qn.content}"${pagePart}`;
+        }).join('\n');
+
+        return [
+          book.id,
+          book.title,
+          book.author,
+          book.genre,
+          book.type,
+          book.status,
+          book.pages,
+          book.currentPage || '',
+          book.rating || '',
+          book.dateAdded,
+          book.dateStarted || '',
+          book.dateFinished || '',
+          book.daysToFinish || '',
+          book.timesRead || '',
+          book.estimatedPrice || '',
+          book.pricePaid || '',
+          book.buyLink || '',
+          book.historyObservation || '',
+          book.isLoaned ? 'Sim' : 'Não',
+          book.borrowerName || '',
+          book.loanDate || '',
+          book.isDigital ? 'Sim' : 'Não',
+          book.series || '',
+          book.volume || '',
+          (book.tags || []).join(', '),
+          generalNotes,
+          quickNotes.length,
+          formattedQuickNotes
+        ];
+      });
+
+      const csvContent = [
+        headers.map(escapeCSVField).join(','),
+        ...rows.map(row => row.map(escapeCSVField).join(','))
+      ].join('\r\n');
+
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `bibliotech_backup_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      setBackupFeedback('csv');
+    } catch (err) {
+      console.error('Error exporting CSV:', err);
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -211,6 +366,15 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 <KeyIcon className="h-4 w-4" />
                 Segurança
             </button>
+            <button 
+                onClick={() => setActiveTab('backup')}
+                className={`flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === 'backup' ? 'bg-primary text-white shadow-lg shadow-primary/25' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-4 w-4">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                </svg>
+                Backup
+            </button>
         </div>
 
         {/* Content Area */}
@@ -220,6 +384,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                     {activeTab === 'profile' && 'Meu Perfil'}
                     {activeTab === 'preferences' && 'Preferências'}
                     {activeTab === 'security' && 'Segurança'}
+                    {activeTab === 'backup' && 'Backup & Exportar'}
                 </h2>
                 <button onClick={onClose} className="p-2.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-all hover:rotate-90">
                     <XMarkIcon className="h-5 w-5" />
@@ -469,6 +634,126 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                 </button>
                             </form>
                         </section>
+                    </div>
+                )}
+
+                {activeTab === 'backup' && (
+                    <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+                        {/* Intro description */}
+                        <div>
+                            <h3 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest mb-1">
+                                Portabilidade e Backups Físicos
+                            </h3>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tight leading-relaxed">
+                                Baixe uma cópia de segurança de toda a sua biblioteca de livros, progresso, avaliações, diário de leitura e citações rápidas salvas.
+                            </p>
+                        </div>
+
+                        {/* Fast dynamic dataset preview */}
+                        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800/80 p-4 rounded-2xl text-center">
+                                <span className="block text-xl font-black text-slate-800 dark:text-white">{backupStats.total}</span>
+                                <span className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Acervo Cadastrado</span>
+                            </div>
+                            <div className="bg-emerald-50/50 dark:bg-emerald-950/10 border border-emerald-100/30 p-4 rounded-2xl text-center">
+                                <span className="block text-xl font-black text-emerald-600 dark:text-emerald-400">{backupStats.completedCount}</span>
+                                <span className="text-[8px] font-black text-emerald-500 uppercase tracking-wider">Leituras Concluídas</span>
+                            </div>
+                            <div className="bg-blue-50/50 dark:bg-blue-950/10 border border-blue-100/30 p-4 rounded-2xl text-center">
+                                <span className="block text-xl font-black text-secondary">{backupStats.readingCount}</span>
+                                <span className="text-[8px] font-black text-blue-500 uppercase tracking-wider">Lendo Atualmente</span>
+                            </div>
+                            <div className="bg-amber-50/50 dark:bg-amber-950/10 border border-amber-100/30 p-4 rounded-2xl text-center">
+                                <span className="block text-xl font-black text-amber-600 dark:text-amber-500">{backupStats.totalQuickNotes}</span>
+                                <span className="text-[8px] font-black text-amber-500 uppercase tracking-wider">Notas & Frases</span>
+                            </div>
+                        </div>
+
+                        {/* Export file options */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-4">
+                            {/* JSON CARD */}
+                            <div className="bg-white dark:bg-slate-800/25 border border-slate-200/80 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm flex flex-col justify-between hover:border-primary/40 transition-all group">
+                                <div className="space-y-2 mb-6">
+                                    <div className="bg-slate-100 dark:bg-slate-800 w-10 h-10 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 font-mono text-xs font-black">
+                                        JSON
+                                    </div>
+                                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">Backup Integral (JSON)</h4>
+                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tight leading-relaxed">
+                                        Ideal para arquivamento completo e programático. Mantém todos os metadados brutos e estruturas aninhadas das notas rápidas.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={handleExportJSON}
+                                    disabled={backupStats.total === 0}
+                                    className={`w-full py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest leading-none outline-none transition-all active:scale-95 disabled:opacity-40 select-none shadow-md ${
+                                        backupFeedback === 'json'
+                                            ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/10'
+                                            : 'bg-slate-900 group-hover:bg-primary text-white dark:bg-white dark:text-slate-900 dark:group-hover:bg-primary dark:group-hover:text-white'
+                                    }`}
+                                >
+                                    {backupFeedback === 'json' ? (
+                                        <>
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="h-4 w-4">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                            </svg>
+                                            Exportado!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-4 w-4">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                            </svg>
+                                            Exportar JSON
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+
+                            {/* CSV CARD */}
+                            <div className="bg-white dark:bg-slate-800/25 border border-slate-200/80 dark:border-slate-800 p-6 rounded-[2rem] shadow-sm flex flex-col justify-between hover:border-primary/40 transition-all group">
+                                <div className="space-y-2 mb-6">
+                                    <div className="bg-slate-100 dark:bg-slate-800 w-10 h-10 rounded-xl flex items-center justify-center text-slate-700 dark:text-slate-300 font-mono text-xs font-black">
+                                        CSV
+                                    </div>
+                                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">Planilha Leitora (CSV)</h4>
+                                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tight leading-relaxed">
+                                        Otimizado para Excel, Google Sheets ou Apple Numbers. Formato ideal para visualização de dados, relatórios pessoais ou análises estatísticas.
+                                    </p>
+                                </div>
+                                <button
+                                    onClick={handleExportCSV}
+                                    disabled={backupStats.total === 0}
+                                    className={`w-full py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 text-[10px] font-black uppercase tracking-widest leading-none outline-none transition-all active:scale-95 disabled:opacity-40 select-none shadow-md ${
+                                        backupFeedback === 'csv'
+                                            ? 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-emerald-500/10'
+                                            : 'bg-slate-900 group-hover:bg-primary text-white dark:bg-white dark:text-slate-900 dark:group-hover:bg-primary dark:group-hover:text-white'
+                                    }`}
+                                >
+                                    {backupFeedback === 'csv' ? (
+                                        <>
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={3} stroke="currentColor" className="h-4 w-4">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 12.75 6 6 9-13.5" />
+                                            </svg>
+                                            Exportado!
+                                        </>
+                                    ) : (
+                                        <>
+                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-4 w-4">
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                                            </svg>
+                                            Exportar CSV
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                        </div>
+
+                        {/* Safe notes */}
+                        <div className="bg-amber-50/30 dark:bg-amber-950/10 border border-amber-100/30 p-5 rounded-[1.5rem]">
+                            <p className="text-[9px] font-bold text-amber-700/80 dark:text-amber-500 uppercase tracking-tight leading-relaxed">
+                                Nota de Segurança: Seus dados de leitura são armazenados e exportados diretamente do lado do cliente de forma totalmente segura. A cópia exportada reflete instantaneamente o estado atual da sua biblioteca.
+                            </p>
+                        </div>
                     </div>
                 )}
             </div>

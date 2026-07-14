@@ -91,11 +91,11 @@ export const mapGoogleToNewBook = (gBook: GoogleBookResult): NewBook => {
     pages: gBook.pageCount,
     genre: gBook.categories.length > 0 ? gBook.categories[0] : 'Não especificado',
     type: 'Livro' as any,
-    status: BookStatus.Wishlist,
+    status: BookStatus.TBR,
     dateAdded: new Date().toISOString().split('T')[0],
     summary: gBook.description ? gBook.description.substring(0, 1000) : '',
     currentPage: 0,
     timesRead: 0,
-    wasWishlist: true
+    wasWishlist: false
   };
 };

@@ -1,12 +1,14 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import type { Book } from '../types';
+import type { Book, Profile } from '../types';
 import { BookStatus } from '../types';
 import { StarIcon, StarIconFilled } from './Icons';
+import { ShareProgressModal } from './ShareProgressModal';
 
 interface CurrentlyReadingProps {
   book: Book;
   updateBook: (book: Book) => Promise<void>;
+  profile: Profile | null;
 }
 
 const StarRatingDisplay: React.FC<{ rating: number }> = ({ rating }) => {
@@ -46,12 +48,13 @@ const calculateDaysReading = (startDate?: string) => {
     return diffDays >= 0 ? diffDays : 0;
 }
 
-export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, updateBook }) => {
+export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, updateBook, profile }) => {
     const [currentPage, setCurrentPage] = useState(book.currentPage || 0);
     const [dateStarted, setDateStarted] = useState(book.dateStarted || new Date().toISOString().split('T')[0]);
     const [isFinishing, setIsFinishing] = useState(false);
     const [selectedRating, setSelectedRating] = useState<number>(book.rating || 0);
     const [isSaving, setIsSaving] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
     
     const daysReading = useMemo(() => calculateDaysReading(dateStarted), [dateStarted]);
     const progressPercentage = book.pages > 0 ? (currentPage / book.pages) * 100 : 0;
@@ -96,10 +99,16 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
     const handleAbandonClick = async () => {
         setIsSaving(true);
         try {
+            const startDate = book.dateStarted ? new Date(book.dateStarted) : new Date(book.dateAdded);
+            const finishDate = new Date();
+            const daysToFinish = Math.ceil((finishDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
             await updateBook({ 
                 ...book, 
                 currentPage, 
-                status: BookStatus.Dropped 
+                status: BookStatus.Dropped,
+                dateFinished: finishDate.toISOString().split('T')[0],
+                daysToFinish
             });
         } finally {
             setIsSaving(false);
@@ -131,7 +140,8 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
     <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 h-full flex flex-col relative overflow-hidden group transition-all hover:shadow-2xl">
       <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/5 dark:bg-primary/10 rounded-full blur-3xl pointer-events-none group-hover:bg-primary/10 transition-colors duration-700"></div>
       
-      <div className="flex items-center gap-3 mb-6 relative z-10">
+      <div className="flex items-center justify-between mb-6 relative z-10 w-full gap-4">
+        <div className="flex flex-wrap items-center gap-3">
           <div className="animate-pulse">
             <span className="bg-primary text-white text-[9px] sm:text-[10px] font-black uppercase tracking-[0.15em] px-4 py-1.5 rounded-full shadow-lg shadow-primary/20">
               Lendo agora
@@ -142,6 +152,17 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                Há {daysReading} {daysReading === 1 ? 'dia' : 'dias'}
             </span>
           )}
+        </div>
+        
+        <button
+          onClick={() => setShowShareModal(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-full bg-slate-50 hover:bg-primary dark:bg-slate-800 dark:hover:bg-primary text-slate-500 dark:text-slate-400 hover:text-white dark:hover:text-white transition-all text-[9.5px] sm:text-[10px] font-black uppercase tracking-widest border border-slate-100 dark:border-slate-700 active:scale-95 shadow-md hover:shadow-lg hover:shadow-primary/10"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-3.5 h-3.5">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M7.217 10.907a2.25 2.25 0 1 0 0 2.186m0-2.186.002-.003.001-.002a2.25 2.25 0 0 1 3.869-2.006l1.414.707a2.25 2.25 0 0 0 1.503.203l3.67-.918A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 1 5.25 16.5h13.5A2.25 2.25 0 0 1 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h3.75" />
+          </svg>
+          Compartilhar
+        </button>
       </div>
       
       <div className="flex-1 w-full relative z-10">
@@ -297,6 +318,16 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
             </div>
           )}
       </div>
+
+      <ShareProgressModal
+        isOpen={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        book={book}
+        profile={profile}
+        daysReading={daysReading}
+        pagesPerDay={pagesPerDay}
+        progressPercentage={progressPercentage}
+      />
     </div>
   );
 };

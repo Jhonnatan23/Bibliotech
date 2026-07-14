@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { searchGoogleBooks, mapGoogleToNewBook, type GoogleBookResult } from '../services/googleBooksService';
-import { MagnifyingGlassIcon, HeartIcon, XMarkIcon, StarIconFilled, ExternalLinkIcon } from './Icons';
+import { MagnifyingGlassIcon, HeartIcon, XMarkIcon, StarIconFilled, ExternalLinkIcon, PlusIcon } from './Icons';
 import type { NewBook, Book } from '../types';
 
 interface BookSearchProps {
@@ -121,8 +121,8 @@ export const BookSearch: React.FC<BookSearchProps> = ({ onAddWishlist, existingB
                         onClick={() => handleAdd(book)}
                         className="w-full px-6 py-3.5 text-[10px] font-black uppercase tracking-widest bg-primary text-white rounded-xl shadow-lg hover:bg-slate-900 transition-all active:scale-95 flex items-center justify-center gap-2"
                     >
-                        <HeartIcon className="h-4 w-4" />
-                        Aos Desejos
+                        <PlusIcon className="h-4 w-4" />
+                        Adicionar
                     </button>
                 )}
               </div>
@@ -234,8 +234,8 @@ export const BookSearch: React.FC<BookSearchProps> = ({ onAddWishlist, existingB
                   onClick={() => handleAdd(selectedBook)}
                   className="flex-[2] py-4 bg-primary text-white rounded-2xl text-[11px] font-black uppercase tracking-[0.2em] shadow-xl shadow-primary/20 hover:bg-slate-900 transition-all active:scale-95 flex items-center justify-center gap-2"
                 >
-                  <HeartIcon className="h-4 w-4" />
-                  Adicionar aos Desejos
+                  <PlusIcon className="h-4 w-4" />
+                  Adicionar à Coleção
                 </button>
               )}
             </div>

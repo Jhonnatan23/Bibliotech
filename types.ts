@@ -49,6 +49,7 @@ export interface Profile {
   avatarUrl?: string;
   readingGoal?: number;
   customTags?: string[];
+  email?: string;
 }
 
 export interface Book {

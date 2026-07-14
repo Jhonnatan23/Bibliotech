@@ -34,6 +34,25 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [genreSearch, setGenreSearch] = useState('');
 
+  // Advanced filters state
+  const [minRating, setMinRating] = useState<string | number | 'all' | 'unrated'>('all');
+  const [selectedYear, setSelectedYear] = useState<string | 'all' | 'none'>('all');
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
+  // Dynamic reading years extracted from finished books
+  const availableYears = useMemo(() => {
+    const yearsSet = new Set<string>();
+    books.forEach(b => {
+      if (b.status === BookStatus.Read && b.dateFinished && b.dateFinished.length >= 4) {
+        const year = b.dateFinished.substring(0, 4);
+        if (/^\d{4}$/.test(year)) {
+          yearsSet.add(year);
+        }
+      }
+    });
+    return Array.from(yearsSet).sort((a, b) => b.localeCompare(a));
+  }, [books]);
+
   const toggleGenre = (genre: string) => {
     setSelectedGenres(prev => 
       prev.includes(genre) ? prev.filter(g => g !== genre) : [...prev, genre]
@@ -53,7 +72,7 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
   };
 
   const filteredBooks = useMemo(() => {
-    let result = [...books];
+    let result = books.filter(book => book.status !== BookStatus.Wishlist);
     
     // Sort
     if (sortBy === 'title') {
@@ -110,8 +129,31 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
       });
     }
 
+    // Advanced Rating Filter
+    if (minRating !== 'all') {
+      if (minRating === 'unrated') {
+        result = result.filter(book => book.rating === undefined || book.rating === 0);
+      } else {
+        const minVal = Number(minRating);
+        result = result.filter(book => book.rating !== undefined && book.rating >= minVal);
+      }
+    }
+
+    // Advanced Reading Year Filter
+    if (selectedYear !== 'all') {
+      if (selectedYear === 'none') {
+        result = result.filter(book => book.status === BookStatus.Read && !book.dateFinished);
+      } else {
+        result = result.filter(book => 
+          book.status === BookStatus.Read && 
+          book.dateFinished && 
+          book.dateFinished.substring(0, 4) === selectedYear
+        );
+      }
+    }
+
     return result;
-  }, [books, searchQuery, statusFilter, formatFilter, loanFilter, sortBy, selectedGenres, selectedTags]);
+  }, [books, searchQuery, statusFilter, formatFilter, loanFilter, sortBy, selectedGenres, selectedTags, minRating, selectedYear]);
 
   const filteredGenresList = useMemo(() => {
     if (!genreSearch) return GENRES;
@@ -240,8 +282,115 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
                 ))}
               </div>
             </div>
+
+            {/* Toggle Filtros Avançados Button */}
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all shadow-sm cursor-pointer ${
+                  showAdvanced || minRating !== 'all' || selectedYear !== 'all'
+                    ? 'bg-primary/5 text-primary border-primary/30 dark:bg-primary/10 dark:text-primary'
+                    : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-100 dark:border-slate-700 hover:bg-slate-50'
+                }`}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className={`h-4 w-4 transition-transform duration-300 ${showAdvanced ? 'rotate-180' : ''}`}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" />
+                </svg>
+                {showAdvanced ? 'Ocultar Filtros Avançados' : 'Filtros Avançados'}
+                {(minRating !== 'all' || selectedYear !== 'all') && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                )}
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Advanced Filters Panel */}
+        {showAdvanced && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pb-6 border-b border-slate-50 dark:border-slate-800 animate-in fade-in duration-300">
+            {/* Rating Filter */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Nota Mínima:</span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {([
+                  { label: 'Todas', value: 'all' },
+                  { label: '5 ★', value: '5' },
+                  { label: '4★+', value: '4' },
+                  { label: '3★+', value: '3' },
+                  { label: '2★+', value: '2' },
+                  { label: 'Sem Nota', value: 'unrated' }
+                ] as const).map(option => {
+                  const isSelected = minRating === option.value;
+                  return (
+                    <button
+                      key={option.value}
+                      onClick={() => setMinRating(option.value)}
+                      className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                        isSelected
+                          ? 'bg-amber-500 text-white border-amber-500 shadow-md scale-95 ring-2 ring-amber-500/20'
+                          : 'bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:border-amber-300 hover:text-amber-500'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Year Filter */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Ano de Leitura:</span>
+              </div>
+              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+                <button
+                  onClick={() => setSelectedYear('all')}
+                  className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                    selectedYear === 'all'
+                      ? 'bg-indigo-500 text-white border-indigo-500 shadow-md scale-95 ring-2 ring-indigo-500/20'
+                      : 'bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:border-indigo-300 hover:text-indigo-500'
+                  }`}
+                >
+                  Todos
+                </button>
+
+                {availableYears.map(year => {
+                  const isSelected = selectedYear === year;
+                  return (
+                    <button
+                      key={year}
+                      onClick={() => setSelectedYear(year)}
+                      className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                        isSelected
+                          ? 'bg-indigo-500 text-white border-indigo-500 shadow-md scale-95 ring-2 ring-indigo-500/20'
+                          : 'bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:border-indigo-300 hover:text-indigo-500'
+                      }`}
+                    >
+                      {year}
+                    </button>
+                  );
+                })}
+
+                {books.some(b => b.status === BookStatus.Read && !b.dateFinished) && (
+                  <button
+                    onClick={() => setSelectedYear('none')}
+                    className={`px-3.5 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                      selectedYear === 'none'
+                        ? 'bg-indigo-500 text-white border-indigo-500 shadow-md scale-95 ring-2 ring-indigo-500/20'
+                        : 'bg-white dark:bg-slate-900 text-slate-400 dark:text-slate-500 border-slate-200 dark:border-slate-700 hover:border-indigo-300 hover:text-indigo-500'
+                    }`}
+                  >
+                    Sem data
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Tags Filter */}
         {profile?.customTags && profile.customTags.length > 0 && (
@@ -276,9 +425,17 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em]">Filtrar por Gênero:</span>
-              {(selectedGenres.length > 0 || selectedTags.length > 0) && (
+              {(selectedGenres.length > 0 || selectedTags.length > 0 || minRating !== 'all' || selectedYear !== 'all' || statusFilter !== 'all' || formatFilter !== 'all' || loanFilter !== 'all') && (
                 <button 
-                  onClick={() => { setSelectedGenres([]); setSelectedTags([]); }}
+                  onClick={() => { 
+                    setSelectedGenres([]); 
+                    setSelectedTags([]); 
+                    setMinRating('all');
+                    setSelectedYear('all');
+                    setStatusFilter('all');
+                    setFormatFilter('all');
+                    setLoanFilter('all');
+                  }}
                   className="bg-red-50 dark:bg-red-900/20 text-red-500 dark:text-red-400 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md hover:bg-red-100 dark:hover:bg-red-900/40 transition-colors"
                 >
                   Limpar Todos os Filtros
@@ -355,6 +512,8 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
                     setGenreSearch(''); 
                     setFormatFilter('all');
                     setLoanFilter('all');
+                    setMinRating('all');
+                    setSelectedYear('all');
                 }}
                 className="mt-8 px-6 py-2.5 rounded-xl bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg active:scale-95"
             >

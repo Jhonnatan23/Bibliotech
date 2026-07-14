@@ -9,9 +9,11 @@ import {
 interface StatsViewProps {
   books: Book[];
   availableYears: number[];
+  readingGoal?: number;
 }
 
 const COLORS = ['#2563eb', '#f59e0b', '#10b981', '#ec4899', '#8b5cf6'];
+const GENRE_COLORS = ['#ec4899', '#8b5cf6', '#2563eb', '#10b981', '#f59e0b', '#64748b'];
 
 const CustomTooltip = ({ active, payload, label, prefix = '' }: any) => {
   if (active && payload && payload.length) {
@@ -37,8 +39,42 @@ const CustomTooltip = ({ active, payload, label, prefix = '' }: any) => {
   return null;
 };
 
-export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availableYears }) => {
+export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availableYears, readingGoal = 12 }) => {
     const [selectedYear, setSelectedYear] = useState<number | 'all'>('all');
+
+    const monthlyAverage = useMemo(() => {
+        const targetYear = selectedYear === 'all' ? new Date().getFullYear() : selectedYear;
+        
+        const yearBooks = books.filter(b => {
+            if (b.status !== BookStatus.Read) return false;
+            const date = b.dateFinished || b.dateAdded;
+            return new Date(date).getFullYear() === targetYear;
+        });
+
+        const totalRead = yearBooks.length;
+        
+        const currentYear = new Date().getFullYear();
+        let monthsCount = 12;
+        if (targetYear === currentYear) {
+            monthsCount = new Date().getMonth() + 1; // 1-indexed, e.g., Jun = 6
+        }
+        if (monthsCount < 1) monthsCount = 1;
+
+        const avgPerMonth = totalRead / monthsCount;
+        const targetPerMonth = readingGoal / 12;
+        const percentageOfTarget = targetPerMonth > 0 ? (avgPerMonth / targetPerMonth) * 100 : 0;
+
+        return {
+            targetYear,
+            totalRead,
+            monthsCount,
+            avgPerMonth,
+            targetPerMonth,
+            percentageOfTarget,
+            goal: readingGoal,
+            remainingToAnnualGoal: Math.max(0, readingGoal - totalRead)
+        };
+    }, [books, selectedYear, readingGoal]);
 
     const filteredBooks = useMemo(() => {
         if (selectedYear === 'all') return books;
@@ -169,6 +205,32 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
         { name: 'Físico', value: metrics.digital.physical, color: '#10b981' },
     ];
 
+    const genreData = useMemo(() => {
+        const readBooks = filteredBooks.filter(b => b.status === BookStatus.Read);
+        const counts: Record<string, number> = {};
+        
+        readBooks.forEach(b => {
+            const genre = b.genre ? b.genre.trim() : 'Sem Gênero';
+            counts[genre] = (counts[genre] || 0) + 1;
+        });
+
+        const data = Object.entries(counts).map(([name, value]) => ({
+            name,
+            value
+        }));
+
+        data.sort((a, b) => b.value - a.value);
+
+        if (data.length > 5) {
+            const top5 = data.slice(0, 5);
+            const othersCount = data.slice(5).reduce((acc, curr) => acc + curr.value, 0);
+            top5.push({ name: 'Outros', value: othersCount });
+            return top5;
+        }
+
+        return data;
+    }, [filteredBooks]);
+
     const StatCard = ({ title, value, subValues, icon, prefix = '' }: any) => (
         <div className="bg-white dark:bg-slate-900 p-6 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-soft transition-all hover:shadow-xl">
             <div className="flex items-center gap-4 mb-4">
@@ -231,6 +293,62 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
                     subValues={{ book: metrics.pages.book, hq: metrics.pages.hq }}
                     icon={<svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>}
                 />
+            </div>
+
+            {/* NOVO CARD: DESEMPENHO VS OBJECTIVO/META DE LEITURA POR MÊS */}
+            <div className="bg-gradient-to-br from-indigo-50/70 via-white to-slate-50/70 dark:from-indigo-950/20 dark:via-slate-900/40 dark:to-slate-950/20 p-6 md:p-8 rounded-[2.5rem] border border-indigo-100/50 dark:border-indigo-900/20 shadow-soft grid grid-cols-1 lg:grid-cols-12 gap-8 items-center transition-all hover:shadow-xl">
+                <div className="lg:col-span-4 flex flex-col items-center justify-center text-center p-4 border-b lg:border-b-0 lg:border-r border-slate-100 dark:border-slate-800">
+                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Média de Leituras por Mês</p>
+                    <p className="text-5xl font-black text-primary dark:text-indigo-400 tracking-tighter mb-4">
+                        {monthlyAverage.avgPerMonth.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}
+                    </p>
+                    <div className="flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/50 px-3.5 py-1.5 rounded-full text-xs font-black uppercase text-indigo-600 dark:text-indigo-400">
+                        Meta Mensal: {monthlyAverage.targetPerMonth.toLocaleString('pt-BR', { maximumFractionDigits: 1 })} / mês
+                    </div>
+                </div>
+
+                <div className="lg:col-span-5 space-y-4">
+                    <div>
+                        <h4 className="text-base font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide">
+                            Desempenho no Ano de {monthlyAverage.targetYear}
+                        </h4>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+                            {monthlyAverage.percentageOfTarget >= 100 ? (
+                                <span>🌟 <strong>Ritmo fantástico!</strong> Você está superando o ritmo necessário para atingir o seu objetivo anual de {monthlyAverage.goal} livros.</span>
+                            ) : monthlyAverage.percentageOfTarget >= 75 ? (
+                                <span>📈 <strong>Excelente progresso!</strong> Seu ritmo de leitura está muito próximo do objetivo ideal estabelecido mensalmente.</span>
+                            ) : monthlyAverage.percentageOfTarget >= 40 ? (
+                                <span>📖 <strong>No rumo certo!</strong> Continue lendo suas obras de forma persistente para consolidar o hábito literário.</span>
+                            ) : (
+                                <span>⏱️ <strong>Ritmo moderado.</strong> Tente dedicar alguns minutos a mais por dia para alavancar seu progresso rumo ao objetivo de {monthlyAverage.goal} livros.</span>
+                            )}
+                        </p>
+                    </div>
+
+                    <div className="space-y-1.5">
+                        <div className="flex justify-between items-baseline text-xs">
+                            <span className="text-[9px] font-black text-slate-400 uppercase">Progresso da Meta Mensal</span>
+                            <span className="font-semibold text-primary dark:text-indigo-400">{Math.round(monthlyAverage.percentageOfTarget)}%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-3.5 overflow-hidden p-0.5">
+                            <div 
+                                className="h-full rounded-full bg-gradient-to-r from-primary to-violet-500 transition-all duration-500" 
+                                style={{ width: `${Math.min(100, Math.max(8, monthlyAverage.percentageOfTarget))}%` }}
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="lg:col-span-3 grid grid-cols-2 lg:grid-cols-1 gap-4">
+                    <div className="bg-white/80 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Lidos no Ano</p>
+                        <p className="text-xl font-black text-slate-800 dark:text-slate-100">{monthlyAverage.totalRead} / {monthlyAverage.goal} <span className="text-xs font-normal text-slate-400">livros</span></p>
+                    </div>
+                    <div className="bg-white/80 dark:bg-slate-900/40 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
+                        <p className="text-[8px] font-black text-slate-400 uppercase tracking-wider">Restantes para Meta Anual</p>
+                        <p className="text-xl font-black text-slate-800 dark:text-slate-100">{monthlyAverage.remainingToAnnualGoal} <span className="text-xs font-normal text-slate-400">livros</span></p>
+                    </div>
+                </div>
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
@@ -365,6 +483,81 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
                                 </div>
                             </div>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Gêneros Literários Distribuição */}
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
+                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft">
+                    <h3 className="text-xl font-black font-serif italic mb-2 text-slate-800 dark:text-white">Gêneros & Estilos Favoritos</h3>
+                    <p className="text-slate-400 dark:text-slate-500 text-[9px] font-black uppercase tracking-widest mb-6">Distribuição por gêneros das obras lidas</p>
+                    <div className="h-[350px]">
+                        {genreData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                    <Pie 
+                                        data={genreData} 
+                                        innerRadius={80} 
+                                        outerRadius={120} 
+                                        paddingAngle={4} 
+                                        dataKey="value"
+                                    >
+                                        {genreData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={GENRE_COLORS[index % GENRE_COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip content={<CustomTooltip />} />
+                                    <Legend verticalAlign="bottom" align="center" />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="h-full flex flex-col items-center justify-center text-center">
+                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nenhuma obra lida para analisar gêneros</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft flex flex-col justify-between">
+                    <div>
+                        <h3 className="text-xl font-black font-serif italic mb-2 text-slate-800 dark:text-white">Análise de Estilo</h3>
+                        <p className="text-slate-400 dark:text-slate-500 text-[9px] font-black uppercase tracking-widest mb-6">Sua preferência literária predominante</p>
+                    </div>
+                    
+                    <div className="space-y-6 flex-1 flex flex-col justify-center">
+                        {genreData.length > 0 ? (
+                            <>
+                                <div className="bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl flex items-center justify-between">
+                                    <div>
+                                        <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Gênero Predominante</p>
+                                        <p className="text-2xl font-black text-primary font-serif italic">{genreData[0]?.name}</p>
+                                    </div>
+                                    <div className="bg-primary/10 text-primary text-xs font-black uppercase tracking-widest px-4 py-2 rounded-xl">
+                                        {genreData[0]?.value} {genreData[0]?.value === 1 ? 'Livro lido' : 'Livros lidos'}
+                                    </div>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Top Gêneros Lidos:</p>
+                                    <div className="grid grid-cols-2 gap-3">
+                                        {genreData.map((genre, index) => (
+                                            <div key={genre.name} className="flex items-center gap-2.5 bg-slate-50 dark:bg-slate-800/30 px-4 py-3 rounded-xl border border-slate-100/50 dark:border-slate-800/50">
+                                                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: GENRE_COLORS[index % GENRE_COLORS.length] }}></div>
+                                                <div className="min-w-0 flex-1">
+                                                    <p className="text-[10px] font-black text-slate-750 dark:text-slate-300 truncate uppercase tracking-wider">{genre.name}</p>
+                                                    <p className="text-[9px] font-bold text-slate-400">{genre.value} {genre.value === 1 ? 'unidade' : 'unidades'}</p>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            </>
+                        ) : (
+                            <div className="text-center py-8">
+                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-relaxed">Adicione livros marcados como "Lido" para ver quais são os seus gêneros literários favoritos e ler estatísticas.</p>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

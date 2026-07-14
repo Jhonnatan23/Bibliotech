@@ -1,8 +1,10 @@
 
 import React, { useMemo, useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import type { Book, StatusConfigs, Profile } from '../types';
 import { BookStatus, STATUS_COLORS, STATUS_CONFIGS } from '../types';
-import { XMarkIcon, StarIconFilled, ExternalLinkIcon, BookOpenIcon, TagIcon, PlusIcon } from './Icons';
+import { XMarkIcon, StarIconFilled, ExternalLinkIcon, BookOpenIcon, TagIcon, PlusIcon, TrashIcon } from './Icons';
+import { parseNotesField, serializeNotesField } from './quickNotesUtils';
 
 interface BookDetailsModalProps {
   book: Book;
@@ -27,6 +29,12 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
   const colorStyles = STATUS_COLORS[config.color as keyof typeof STATUS_COLORS];
   const [showTagSelector, setShowTagSelector] = useState(false);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [newQuickNoteText, setNewQuickNoteText] = useState('');
+  const [newQuickNotePage, setNewQuickNotePage] = useState('');
+
+  const { generalNotes, quickNotes } = useMemo(() => {
+    return parseNotesField(book.notes);
+  }, [book.notes]);
   
   const linkedBooks = useMemo(() => {
     return allBooks.filter(b => 
@@ -288,14 +296,144 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
             </div>
 
             {/* Notas Pessoais */}
-            {book.notes && (
-                <div className="space-y-4 p-6 bg-amber-50/50 dark:bg-amber-900/10 rounded-2xl border border-amber-100/50">
-                    <h3 className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-[0.2em]">Notas Pessoais during reading</h3>
-                    <p className="text-sm text-amber-700/80 dark:text-amber-400/80 font-medium whitespace-pre-wrap">
-                        {book.notes}
+            {generalNotes && (
+                <div className="space-y-4 p-6 bg-amber-50/50 dark:bg-amber-900/10 rounded-[1.5rem] border border-amber-100/50">
+                    <h3 className="text-[10px] font-black text-amber-600 dark:text-amber-500 uppercase tracking-[0.2em]">Notas Pessoais durante a leitura</h3>
+                    <p className="text-sm text-amber-700/80 dark:text-amber-400/80 font-medium whitespace-pre-wrap leading-relaxed">
+                        {generalNotes}
                     </p>
                 </div>
             )}
+
+            {/* Notas Rápidas & Pensamentos */}
+            <div className="space-y-4 border-t border-slate-100 dark:border-slate-800/80 pt-8">
+                <div className="flex items-center justify-between">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-4 w-4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+                        </svg>
+                        Notas Rápidas & Frases Marcantes
+                    </h3>
+                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full font-sans">
+                        {quickNotes.length} {quickNotes.length === 1 ? 'nota' : 'notas'}
+                    </span>
+                </div>
+
+                {/* Form para adicionar pensamentos céleres */}
+                <form 
+                    onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!newQuickNoteText.trim() || isUpdating) return;
+                        setIsUpdating(true);
+                        try {
+                            const newNoteObject = {
+                                id: crypto.randomUUID(),
+                                content: newQuickNoteText.trim(),
+                                createdAt: new Date().toISOString(),
+                                page: newQuickNotePage ? parseInt(newQuickNotePage, 10) : undefined
+                            };
+                            const updatedNotesStr = serializeNotesField(generalNotes, [newNoteObject, ...quickNotes]);
+                            await onUpdateBook({ ...book, notes: updatedNotesStr });
+                            setNewQuickNoteText('');
+                            setNewQuickNotePage('');
+                        } catch (err) {
+                            console.error(err);
+                        } finally {
+                            setIsUpdating(false);
+                        }
+                    }} 
+                    className="bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 p-5 rounded-[2rem] space-y-4"
+                >
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="flex-1">
+                            <input 
+                                type="text"
+                                value={newQuickNoteText}
+                                onChange={(e) => setNewQuickNoteText(e.target.value)}
+                                placeholder="Uma frase marcante, citação ou pensamento curto..."
+                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl px-4 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-slate-400"
+                                required
+                            />
+                        </div>
+                        <div className="w-full sm:w-32 flex gap-2">
+                            <input 
+                                type="number"
+                                value={newQuickNotePage}
+                                onChange={(e) => setNewQuickNotePage(e.target.value)}
+                                placeholder="Pág."
+                                min={0}
+                                max={book.pages || undefined}
+                                className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700/80 rounded-xl px-3 py-2.5 text-xs font-bold text-center text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-primary/20 placeholder:text-slate-400"
+                            />
+                            <button
+                                type="submit"
+                                disabled={!newQuickNoteText.trim() || isUpdating}
+                                className="bg-primary text-white p-2.5 px-4 rounded-xl flex items-center justify-center font-bold hover:bg-primary-hover active:scale-95 disabled:opacity-50 transition-all shadow-md shadow-primary/10"
+                                title="Adicionar nota"
+                            >
+                                <PlusIcon className="h-4 w-4" />
+                            </button>
+                        </div>
+                    </div>
+                </form>
+
+                {/* Listagem de notas com animação */}
+                <div className="space-y-3">
+                    <AnimatePresence initial={false}>
+                        {quickNotes.map((note) => (
+                            <motion.div
+                                key={note.id}
+                                initial={{ opacity: 0, y: -10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                exit={{ opacity: 0, scale: 0.95 }}
+                                className="p-4 bg-white dark:bg-slate-800/65 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-100 dark:border-slate-800/80 rounded-xl shadow-sm flex items-start justify-between gap-4 transition-colors group"
+                            >
+                                <div className="space-y-1.5 flex-1 min-w-0">
+                                    <p className="text-xs text-slate-700 dark:text-slate-300 font-medium italic break-words leading-relaxed">
+                                        "{note.content}"
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[9px] font-bold text-slate-400">
+                                            {new Date(note.createdAt).toLocaleDateString('pt-BR')}
+                                        </span>
+                                        {note.page && (
+                                            <span className="bg-primary/10 text-primary px-2 py-0.5 rounded text-[8px] font-black uppercase tracking-widest font-mono">
+                                                pág. {note.page}
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        if (isUpdating) return;
+                                        setIsUpdating(true);
+                                        try {
+                                            const updatedNotesList = quickNotes.filter(n => n.id !== note.id);
+                                            const updatedNotesStr = serializeNotesField(generalNotes, updatedNotesList);
+                                            await onUpdateBook({ ...book, notes: updatedNotesStr });
+                                        } catch (err) {
+                                            console.error(err);
+                                        } finally {
+                                            setIsUpdating(false);
+                                        }
+                                    }}
+                                    className="p-1 px-2 text-slate-400 hover:text-rose-500 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all sm:opacity-0 group-hover:opacity-100"
+                                    title="Excluir nota"
+                                >
+                                    <TrashIcon className="h-4 w-4" />
+                                </button>
+                            </motion.div>
+                        ))}
+                    </AnimatePresence>
+
+                    {quickNotes.length === 0 && (
+                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest italic ml-1 py-1">
+                            Nenhum pensamento ou frase marcante salvo ainda.
+                        </p>
+                    )}
+                </div>
+            </div>
 
             {/* Observação de Histórico */}
             {book.historyObservation && (

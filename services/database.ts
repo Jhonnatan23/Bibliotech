@@ -273,9 +273,10 @@ export class DatabaseService {
             fullName: data.full_name,
             avatarUrl: data.avatar_url,
             readingGoal: data.reading_goal,
-            customTags: data.custom_tags || []
+            customTags: data.custom_tags || [],
+            email: user.email
         };
-    } catch (err) { return { id: user.id, fullName: 'Leitor', readingGoal: 12, customTags: [] }; }
+    } catch (err) { return { id: user.id, fullName: 'Leitor', readingGoal: 12, customTags: [], email: user.email }; }
   }
 
   async updateReadingGoal(goal: number): Promise<void> {

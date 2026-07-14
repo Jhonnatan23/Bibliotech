@@ -17,12 +17,15 @@
     "esbuild": "^0.28.0",
     "express": "^5.2.1",
     "motion": "^12.38.0",
+    "nodemailer": "^9.0.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^3.5.1",
-    "tsx": "^4.22.2"
+    "tsx": "^4.22.2",
+    "undici": "^8.4.1"
   },
   "devDependencies": {
+    "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",

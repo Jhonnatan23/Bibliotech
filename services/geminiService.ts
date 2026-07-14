@@ -1,19 +1,67 @@
 
 import { Recommendation } from "../types";
 
+const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = 5, backoff = 1000): Promise<Response> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const response = await fetch(url, options);
+      const contentType = response.headers.get("content-type");
+      
+      if (!contentType || !contentType.includes("application/json")) {
+        const text = await response.text();
+        if (text.includes("wait while your application starts") || text.includes("Please wait while your application starts")) {
+          console.warn(`[GeminiService] Server warmup detected (attempt ${i + 1}/${retries}). Retrying in ${backoff}ms...`);
+          if (i === retries - 1) {
+            throw new Error('WARMUP');
+          }
+          await delay(backoff);
+          backoff *= 1.5;
+          continue;
+        }
+        // If it's a different non-JSON format, wait or throw
+        if (i === retries - 1) {
+          throw new Error('INVALID_FORMAT');
+        }
+        await delay(backoff);
+        backoff *= 1.5;
+        continue;
+      }
+      return response;
+    } catch (err: any) {
+      if (err.message === 'WARMUP' || err.message === 'INVALID_FORMAT') {
+        throw err;
+      }
+      if (i === retries - 1) throw err;
+      console.warn(`[GeminiService] Fetch error (attempt ${i + 1}/${retries}). Retrying in ${backoff}ms...`, err);
+      await delay(backoff);
+      backoff *= 1.5;
+    }
+  }
+  throw new Error('WARMUP');
+}
+
 export const generateBookSummary = async (title: string, author: string): Promise<string> => {
   try {
-    const response = await fetch('/api/generate-summary', {
+    const response = await fetchWithRetry('/api/generate-summary', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title, author })
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      throw new Error('Falha no servidor ao gerar resumo');
+      if (data.isQuotaExceeded) {
+        return "Resumo indisponível no momento devido ao limite de uso da IA. Tente mais tarde.";
+      }
+      if (data.isHighDemand) {
+        return "O modelo de IA está com muita demanda no momento. O resumo falhou, mas você pode tentar novamente em instantes.";
+      }
+      throw new Error(data.error || 'Falha no servidor ao gerar resumo');
     }
 
-    const data = await response.json();
     return data.text || "Não foi possível gerar um resumo.";
   } catch (error: any) {
     console.error("Erro ao gerar resumo:", error);
@@ -56,19 +104,35 @@ export const getAIRecommendations = async (readBooks: { title: string, genre: st
       }
     };
 
-    const response = await fetch('/api/get-recommendations', {
+    const response = await fetchWithRetry('/api/get-recommendations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ context, responseSchema })
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      throw new Error('Falha no servidor ao obter recomendações');
+      if (data.isQuotaExceeded) {
+        throw new Error('QUOTA_EXCEEDED');
+      }
+      if (response.status === 503 || data.isHighDemand || data.error?.includes('high demand')) {
+        throw new Error('HIGH_DEMAND');
+      }
+      throw new Error(data.error || 'Falha no servidor ao obter recomendações');
     }
 
-    const data = await response.json();
     return JSON.parse(data.text || '[]');
   } catch (error: any) {
+    if (error.message === 'QUOTA_EXCEEDED') {
+      throw error;
+    }
+    if (error.message === 'HIGH_DEMAND') {
+      throw error;
+    }
+    if (error.message === 'WARMUP') {
+      throw new Error('O servidor ainda está inicializando as ferramentas literárias. Por favor, aguarde alguns segundos e tente novamente.');
+    }
     console.error("Erro ao obter recomendações:", error);
     return [];
   }

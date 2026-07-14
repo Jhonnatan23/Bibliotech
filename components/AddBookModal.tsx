@@ -6,6 +6,7 @@ import { XMarkIcon, BookOpenIcon, StarIcon, StarIconFilled, PlusIcon, TagIcon, M
 import { generateBookSummary } from '../services/geminiService';
 import { fetchBookByIsbn } from '../services/googleBooksService';
 import { dbService } from '../services/database';
+import { parseNotesField, serializeNotesField } from './quickNotesUtils';
 
 interface AddBookModalProps {
   onClose: () => void;
@@ -23,6 +24,7 @@ interface FormErrors {
   title?: string;
   authors?: string;
   genre?: string;
+  volume?: string;
 }
 
 export const AddBookModal: React.FC<AddBookModalProps> = ({ 
@@ -54,7 +56,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
   const [status, setStatus] = useState<BookStatus>(bookToEdit?.status || defaultStatus || BookStatus.TBR);
   const [rating, setRating] = useState<number>(isDuplicating ? 0 : (bookToEdit?.rating || 0));
   const [summary, setSummary] = useState(bookToEdit?.summary || '');
-  const [notes, setNotes] = useState(isDuplicating ? '' : (bookToEdit?.notes || ''));
+  const [notes, setNotes] = useState(isDuplicating ? '' : parseNotesField(bookToEdit?.notes).generalNotes);
   const [estimatedPrice, setEstimatedPrice] = useState(bookToEdit?.estimatedPrice?.toString() || '');
   const [pricePaid, setPricePaid] = useState(isDuplicating ? '' : (bookToEdit?.pricePaid?.toString() || ''));
   const [buyLink, setBuyLink] = useState(bookToEdit?.buyLink || '');
@@ -238,16 +240,67 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
 
     if (finalAuthors.length === 0) newErrors.authors = "Adicione ao menos um autor";
     if (selectedGenres.length === 0) newErrors.genre = "Selecione ao menos um gênero";
+
+    // Validations for Collection & Editions
+    const trimmedSeries = series.trim();
+    const parsedVolume = volume ? parseInt(volume, 10) : undefined;
+    const hasCollection = trimmedSeries !== '' || seriesId !== '';
+
+    if (hasCollection) {
+      // RN04 - Vínculo de Item à Coleção:
+      if (!volume || volume.trim() === '' || isNaN(parseInt(volume, 10))) {
+        newErrors.volume = "O número da edição é obrigatório ao selecionar uma coleção.";
+      } else if (parsedVolume !== undefined && parsedVolume < 1) {
+        newErrors.volume = "O número da edição deve ser maior ou igual a 1.";
+      } else {
+        // RN05 - Limite do Número da Edição:
+        const matchedSeries = definedSeries.find(s => 
+          (seriesId && s.id === seriesId) || 
+          (!seriesId && s.name.toLowerCase() === trimmedSeries.toLowerCase())
+        );
+        if (matchedSeries && matchedSeries.total_volumes !== undefined && matchedSeries.total_volumes !== null) {
+          if (parsedVolume !== undefined && parsedVolume > matchedSeries.total_volumes) {
+            newErrors.volume = `O número da edição não pode ser maior do que o total de edições da coleção (Máx: ${matchedSeries.total_volumes}).`;
+          }
+        }
+
+        // RN06 - Unicidade de Volume:
+        if (!newErrors.volume) {
+          const duplicateVolumeBook = existingBooks.find(b => {
+            // Ignore current book in edit mode
+            if (isEditMode && b.id === bookToEdit?.id) return false;
+            
+            const bSeriesId = b.seriesId;
+            const bSeriesName = b.series?.trim();
+            
+            const matchesSeries = (seriesId && bSeriesId === seriesId) || 
+                                  (trimmedSeries && bSeriesName?.toLowerCase() === trimmedSeries.toLowerCase());
+                                  
+            return matchesSeries && b.volume === parsedVolume;
+          });
+          
+          if (duplicateVolumeBook) {
+            newErrors.volume = `Já existe um livro cadastrado com o número de edição ${parsedVolume} na coleção "${trimmedSeries || duplicateVolumeBook.series}".`;
+          }
+        }
+      }
+    }
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       setIsShaking(true);
       setTimeout(() => setIsShaking(false), 500);
+      if (newErrors.volume) {
+        alert(newErrors.volume);
+      }
       return;
     }
 
     setIsSubmitting(true);
     try {
+        const originalQuickNotes = (!isDuplicating && bookToEdit) ? parseNotesField(bookToEdit.notes).quickNotes : [];
+        const finalNotes = serializeNotesField(notes, originalQuickNotes);
+
         const bookData = { 
             title: trimmedTitle, 
             author: finalAuthors.join(', '), 
@@ -256,7 +309,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
             type, 
             status, 
             summary, 
-            notes,
+            notes: finalNotes,
             rating: (status === BookStatus.Read || rating > 0) ? (rating || undefined) : undefined,
             estimatedPrice: estimatedPrice ? parseFloat(estimatedPrice.replace(',', '.')) : undefined,
             pricePaid: pricePaid ? parseFloat(pricePaid.replace(',', '.')) : (isDuplicating ? undefined : bookToEdit?.pricePaid),
@@ -382,7 +435,12 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
             <div className={`grid grid-cols-1 md:grid-cols-2 gap-8 ${isSubmitting ? 'opacity-50 pointer-events-none' : ''}`}>
                 {!isEditMode && (
                     <div className="md:col-span-2">
-                        <label className={labelClass(false)}>Buscar por Código ISBN</label>
+                        <label className={labelClass(false)}>
+                            Buscar por Código ISBN
+                            <span className="ml-2 px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 font-black text-[8px] uppercase tracking-widest">
+                                Em breve
+                            </span>
+                        </label>
                         <div className="flex gap-2">
                             <div className="relative flex-1">
                                 <input 
@@ -485,7 +543,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
 
                 <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-slate-100 dark:border-slate-800 pt-6 mt-2">
                     <div className="md:col-span-2 relative" ref={seriesRef}>
-                        <label className={labelClass(false)}>Série ou Saga (Ex: Harry Potter, Berserk)</label>
+                        <label className={labelClass(false)}>Coleção (Opcional)</label>
                         <input 
                             type="text" 
                             value={series} 
@@ -519,8 +577,9 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                             onFocus={(e) => e.target.select()}
                             onChange={(e) => setVolume(e.target.value)} 
                             placeholder="Nº"
-                            className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300 text-center" 
+                            className={`w-full bg-slate-50 dark:bg-slate-800 border rounded-2xl px-5 py-3.5 outline-none transition-all focus:ring-4 focus:ring-primary/5 ${errors.volume ? 'border-red-400 bg-red-50/30 dark:bg-red-950/20' : 'border-slate-200 dark:border-slate-700 focus:border-primary font-bold text-slate-700 dark:text-slate-300 text-center'}`}
                         />
+                        {errors.volume && <p className="text-[10px] text-red-500 font-bold mt-2 uppercase tracking-wide ml-1 animate-in fade-in slide-in-from-top-1">{errors.volume}</p>}
                     </div>
                 </div>
 
