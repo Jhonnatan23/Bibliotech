@@ -13,7 +13,7 @@ import { Auth } from './components/Auth';
 import { PricePaidModal } from './components/PricePaidModal'; 
 import { BookDetailsModal } from './components/BookDetailsModal';
 import { NextReadModal } from './components/NextReadModal';
-import { AnimatePresence } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { supabase } from './services/supabase';
 import { dbService } from './services/database';
 import { NotificationModal } from './components/NotificationModal';
@@ -28,6 +28,9 @@ const LoansView = lazy(() => import('./components/LoansView').then(m => ({ defau
 const BookSearch = lazy(() => import('./components/BookSearch').then(m => ({ default: m.BookSearch })));
 const SeriesView = lazy(() => import('./components/SeriesView').then(m => ({ default: m.SeriesView })));
 const ReadingChallenges = lazy(() => import('./components/ReadingChallenges').then(m => ({ default: m.ReadingChallenges })));
+const CommunityView = lazy(() => import('./components/CommunityView').then(m => ({ default: m.CommunityView })));
+
+import { ShareToCommunityModal } from './components/ShareToCommunityModal';
 
 const ViewLoader = () => (
   <div className="flex flex-col items-center justify-center py-20 animate-pulse">
@@ -69,6 +72,28 @@ export default function App() {
           checkPlatformApiKey();
         }
       });
+
+      // Preload lazy views in the background during idle time for instant, buttery-smooth screen switching!
+      const preloadViews = () => {
+        const views = [
+          () => import('./components/Dashboard'),
+          () => import('./components/BookList'),
+          () => import('./components/Wishlist'),
+          () => import('./components/StatsView'),
+          () => import('./components/HistoryView'),
+          () => import('./components/LoansView'),
+          () => import('./components/BookSearch'),
+          () => import('./components/SeriesView'),
+          () => import('./components/ReadingChallenges')
+        ];
+        const scheduler = (window as any).requestIdleCallback || ((cb: any) => setTimeout(cb, 1000));
+        scheduler(() => {
+          views.forEach(v => {
+            try { v(); } catch (err) {}
+          });
+        });
+      };
+      preloadViews();
     }
   }, [session]);
 
@@ -120,7 +145,8 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
-  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community'>('dashboard');
+  const [sharingBook, setSharingBook] = useState<Book | null>(null);
 
   useEffect(() => {
     if (userProfile?.id) {
@@ -266,10 +292,14 @@ export default function App() {
 
         if (wasJustFinished) {
             triggerFinishBookNotification(updatedBook);
+            // Abrir modal de compartilhar na comunidade
+            setTimeout(() => {
+                setSharingBook(updatedBook);
+            }, 600);
             // Pequeno delay para permitir que o toast e a atualização da UI aconteçam antes do popup de recomendação
             setTimeout(() => {
                 findAndSetRecommendation(updatedBook);
-            }, 800);
+            }, 1400);
         }
     } catch (err: any) {
         showToast(`Erro ao atualizar: ${err.message}`);
@@ -422,60 +452,93 @@ export default function App() {
       )}
 
       <main className="p-4 md:p-8">
-        <Suspense fallback={<ViewLoader />}>
-          {view === 'dashboard' && (
-            <Dashboard 
-              stats={stats} 
-              currentlyReading={currentlyReading} 
-              updateBook={handleUpdateBook} 
-              dateFilter={dateFilter} 
-              setDateFilter={setDateFilter} 
-              selectedYear={selectedYear} 
-              setSelectedYear={setSelectedYear} 
-              availableYears={availableYears} 
-              books={books} 
-              customRange={customRange} 
-              setCustomRange={setCustomRange} 
-              readingGoal={readingGoal} 
-              onSetReadingGoal={handleSetReadingGoal} 
-              addBook={handleAddBook}
-              onRandomPick={handleRandomPick}
-              profile={userProfile}
-            />
-          )}
-          {view === 'list' && (
-            <BookList 
-              profile={userProfile} 
-              books={books.filter(b => b.status !== BookStatus.Wishlist)} 
-              allBooks={books}
-              stats={stats}
-              onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} 
-              onDelete={setDeletingBook} 
-              onDuplicate={handleDuplicateRequest} 
-              onViewDetails={setViewingBook} 
-              onUpdateBook={handleUpdateBook}
-              onRandomPick={handleRandomPick}
-            />
-          )}
-          {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onMoveToShelf={(b) => setConvertingBook(b)} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
-          {view === 'stats' && <StatsView books={books} availableYears={availableYears} readingGoal={readingGoal} />}
-          {view === 'history' && <HistoryView books={books} profile={userProfile} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} />}
-          {view === 'loans' && <LoansView books={books} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onViewDetails={setViewingBook} />}
-          {view === 'series' && (
-            <SeriesView 
-              books={books} 
-              profile={userProfile} 
-              onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} 
-              onUpdateBook={handleUpdateBook}
-              onDelete={setDeletingBook} 
-              onViewDetails={setViewingBook} 
-              onAddBook={() => openAddModal()} 
-              onRefresh={refresh} 
-            />
-          )}
-          {view === 'search' && <BookSearch onAddWishlist={handleAddBook} existingBooks={books} />}
-          {view === 'challenges' && <ReadingChallenges books={books} profile={userProfile} />}
-        </Suspense>
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={view}
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -12 }}
+            transition={{ duration: 0.2, ease: "easeInOut" }}
+          >
+            <Suspense fallback={<ViewLoader />}>
+              {view === 'dashboard' && (
+                <Dashboard 
+                  stats={stats} 
+                  currentlyReading={currentlyReading} 
+                  updateBook={handleUpdateBook} 
+                  dateFilter={dateFilter} 
+                  setDateFilter={setDateFilter} 
+                  selectedYear={selectedYear} 
+                  setSelectedYear={setSelectedYear} 
+                  availableYears={availableYears} 
+                  books={books} 
+                  customRange={customRange} 
+                  setCustomRange={setCustomRange} 
+                  readingGoal={readingGoal} 
+                  onSetReadingGoal={handleSetReadingGoal} 
+                  addBook={handleAddBook}
+                  onRandomPick={handleRandomPick}
+                  profile={userProfile}
+                />
+              )}
+              {view === 'list' && (
+                <BookList 
+                  profile={userProfile} 
+                  books={books.filter(b => b.status !== BookStatus.Wishlist)} 
+                  allBooks={books}
+                  stats={stats}
+                  onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} 
+                  onDelete={setDeletingBook} 
+                  onDuplicate={handleDuplicateRequest} 
+                  onViewDetails={setViewingBook} 
+                  onUpdateBook={handleUpdateBook}
+                  onRandomPick={handleRandomPick}
+                />
+              )}
+              {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onMoveToShelf={(b) => setConvertingBook(b)} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
+              {view === 'stats' && <StatsView books={books} availableYears={availableYears} readingGoal={readingGoal} />}
+              {view === 'history' && <HistoryView books={books} profile={userProfile} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onShareBook={(b) => setSharingBook(b)} />}
+              {view === 'loans' && <LoansView books={books} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onViewDetails={setViewingBook} />}
+              {view === 'series' && (
+                <SeriesView 
+                  books={books} 
+                  profile={userProfile} 
+                  onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} 
+                  onUpdateBook={handleUpdateBook}
+                  onDelete={setDeletingBook} 
+                  onViewDetails={setViewingBook} 
+                  onAddBook={() => openAddModal()} 
+                  onRefresh={refresh} 
+                />
+              )}
+              {view === 'search' && <BookSearch onAddWishlist={handleAddBook} existingBooks={books} />}
+              {view === 'challenges' && <ReadingChallenges books={books} profile={userProfile} />}
+              {view === 'community' && (
+                <CommunityView 
+                  profile={userProfile} 
+                  onAddToWishlist={async (bookData) => {
+                    try {
+                      await handleAddBook({
+                        title: bookData.title,
+                        author: bookData.author,
+                        pages: bookData.pages || 150,
+                        genre: bookData.genre || 'Ficção',
+                        type: bookData.type || 'Livro',
+                        status: BookStatus.Wishlist,
+                        dateAdded: new Date().toISOString().split('T')[0],
+                        currentPage: 0,
+                        timesRead: 0,
+                        wasWishlist: true,
+                      });
+                    } catch (err: any) {
+                      showToast(`Erro ao adicionar à Wishlist: ${err.message}`);
+                    }
+                  }} 
+                />
+              )}
+            </Suspense>
+          </motion.div>
+        </AnimatePresence>
       </main>
       
       <div className="fixed bottom-24 right-6 flex flex-col gap-3">
@@ -494,6 +557,20 @@ export default function App() {
       {isSettingsOpen && <ProfileModal books={books} onClose={() => setIsSettingsOpen(false)} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} profile={userProfile} onUpdateProfile={handleUpdateProfile} />}
       
       {isNotifOpen && <NotificationModal isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} books={books} profile={userProfile} />}
+      
+      <AnimatePresence>
+        {sharingBook && (
+          <ShareToCommunityModal 
+            book={sharingBook} 
+            onClose={() => setSharingBook(null)} 
+            onSuccess={() => { 
+              setSharingBook(null); 
+              showToast("Compartilhado na comunidade! 🎉"); 
+              setView('community'); 
+            }} 
+          />
+        )}
+      </AnimatePresence>
       
       {deletingBook && <ConfirmationModal isOpen={!!deletingBook} onClose={() => setDeletingBook(null)} onConfirm={async () => { await deleteBook(deletingBook.id); setDeletingBook(null); showToast(`Removido.`); }} title="Excluir" message={`Apagar "${deletingBook.title}"?`} />}
 

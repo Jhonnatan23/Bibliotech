@@ -12,6 +12,7 @@ import { ReadingGoal } from './ReadingGoal';
 import { YearlyGoalChart } from './YearlyGoalChart';
 import { Recommendations } from './Recommendations';
 import { LatestReadings } from './LatestReadings';
+import { AIInsightsPanel } from './AIInsightsPanel';
 import { ShelfProgress } from './ShelfProgress';
 import { CronogramaLeitura } from './CronogramaLeitura';
 import { Achievements } from './Achievements';
@@ -523,7 +524,12 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
           <CronogramaLeitura books={books} />
         </div>
 
-        {/* ROW 5: ACTIVITY */}
+        {/* ROW 5: AI INSIGHTS */}
+        <div className="lg:col-span-12">
+          <AIInsightsPanel books={books} />
+        </div>
+
+        {/* ROW 6: ACTIVITY */}
         <div className="lg:col-span-12">
           <LatestReadings books={latestReadBooks} />
         </div>

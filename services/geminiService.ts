@@ -137,3 +137,32 @@ export const getAIRecommendations = async (readBooks: { title: string, genre: st
     return [];
   }
 };
+
+export interface AIInsightReport {
+  readingProfile: string;
+  strengths: string[];
+  growthOpportunities: string[];
+  curatedQuote: string;
+  quoteAuthor: string;
+}
+
+export const getAIInsights = async (booksList: { title: string; author: string; genre: string; status: string; rating?: number; pages?: number }[]): Promise<AIInsightReport | null> => {
+  try {
+    const response = await fetchWithRetry('/api/ai-insights', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ booksList })
+    });
+
+    if (!response.ok) {
+      console.warn('Erro ao carregar insights literários:', response.status);
+      return null;
+    }
+
+    const data = await response.json();
+    return data;
+  } catch (error) {
+    console.warn('Erro ao conectar ao endpoint de insights:', error);
+    return null;
+  }
+};

@@ -1,10 +1,12 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { motion } from 'motion/react';
 import type { Book, Profile, ReadingStats } from '../types';
 import { BookStatus, GENRES } from '../types';
 import { BookListItem } from './BookListItem';
 import { ShelfProgress } from './ShelfProgress';
 import { XMarkIcon, TagIcon } from './Icons';
+import { ShelfView } from './ShelfView';
 
 interface BookListProps {
   books: Book[];
@@ -26,6 +28,14 @@ type SortOrder = 'title' | 'dateAdded' | 'isDigital' | 'isLoaned';
 
 export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, stats, onEdit, onDelete, onDuplicate, onViewDetails, onUpdateBook, profile, onRandomPick }) => {
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 120);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
   const [formatFilter, setFormatFilter] = useState<FormatFilter>('all');
   const [loanFilter, setLoanFilter] = useState<LoanFilter>('all');
@@ -33,6 +43,21 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [genreSearch, setGenreSearch] = useState('');
+
+  // View mode preference with LocalStorage persistence
+  const [viewMode, setViewMode] = useState<'list' | 'shelf'>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem('bibliotech_view_mode') as 'list' | 'shelf') || 'list';
+    }
+    return 'list';
+  });
+
+  const handleViewModeChange = (mode: 'list' | 'shelf') => {
+    setViewMode(mode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('bibliotech_view_mode', mode);
+    }
+  };
 
   // Advanced filters state
   const [minRating, setMinRating] = useState<string | number | 'all' | 'unrated'>('all');
@@ -105,8 +130,8 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
     }
 
     // Search Query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearchQuery) {
+      const query = debouncedSearchQuery.toLowerCase();
       result = result.filter(book =>
         book.title.toLowerCase().includes(query) ||
         book.author.toLowerCase().includes(query)
@@ -153,7 +178,7 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
     }
 
     return result;
-  }, [books, searchQuery, statusFilter, formatFilter, loanFilter, sortBy, selectedGenres, selectedTags, minRating, selectedYear]);
+  }, [books, debouncedSearchQuery, statusFilter, formatFilter, loanFilter, sortBy, selectedGenres, selectedTags, minRating, selectedYear]);
 
   const filteredGenresList = useMemo(() => {
     if (!genreSearch) return GENRES;
@@ -171,23 +196,60 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
   return (
     <div className="space-y-8">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
-        <div className="flex items-center gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-6">
           <div>
             <h2 className="text-3xl font-bold font-serif text-slate-900 dark:text-slate-50 tracking-tight">
               Minha Estante <span className="text-primary/50 text-xl ml-2">({filteredBooks.length})</span>
             </h2>
             <p className="text-slate-500 dark:text-slate-400 text-sm font-medium mt-1">Explore e organize sua jornada literária.</p>
           </div>
-          <button
-            onClick={onRandomPick}
-            className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest border border-emerald-500/20"
-            title="Sortear próximo livro"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" />
-            </svg>
-            Leitura Aleatória
-          </button>
+          
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={onRandomPick}
+              className="flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 bg-emerald-500/10 text-emerald-600 hover:bg-emerald-500 hover:text-white transition-all rounded-xl text-[9px] sm:text-[10px] font-black uppercase tracking-widest border border-emerald-500/20"
+              title="Sortear próximo livro"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" />
+              </svg>
+              Leitura Aleatória
+            </button>
+
+            {/* View Switcher (Lista vs Estante) */}
+            <div className="flex items-center p-1 bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50 rounded-xl shadow-inner">
+              <button
+                type="button"
+                onClick={() => handleViewModeChange('list')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer ${
+                  viewMode === 'list'
+                    ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 shadow-sm'
+                    : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+                }`}
+                title="Visualização em Lista"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-3.5 w-3.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                </svg>
+                Lista
+              </button>
+              <button
+                type="button"
+                onClick={() => handleViewModeChange('shelf')}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[9px] font-black uppercase tracking-widest transition-all cursor-pointer ${
+                  viewMode === 'shelf'
+                    ? 'bg-primary text-white shadow-sm'
+                    : 'text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300'
+                }`}
+                title="Visualização em Estante"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-3.5 w-3.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25" />
+                </svg>
+                Estante
+              </button>
+            </div>
+          </div>
         </div>
         
         <div className="relative w-full lg:w-96 group">
@@ -480,48 +542,74 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
         </div>
       </div>
 
-      <div className="space-y-6">
-        {filteredBooks.length > 0 ? (
-          filteredBooks.map(book => (
-            <BookListItem 
-              key={book.id} 
-              book={book} 
-              allBooks={books}
-              onEdit={onEdit} 
-              onDelete={onDelete} 
-              onDuplicate={onDuplicate}
-              onViewDetails={onViewDetails}
-              onUpdateStatus={handleUpdateStatus}
-            />
-          ))
-        ) : (
-          <div className="text-center py-24 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center">
-            <div className="bg-slate-50 dark:bg-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-6">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-200 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-                </svg>
-            </div>
-            <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50 font-serif">Nenhum livro corresponde à busca</h3>
-            <p className="text-slate-400 dark:text-slate-500 mt-2 max-w-xs mx-auto text-sm">Parece que seus filtros estão muito específicos.</p>
-            <button 
-                onClick={() => { 
-                    setStatusFilter('all'); 
-                    setSearchQuery(''); 
-                    setSelectedGenres([]); 
-                    setSelectedTags([]); 
-                    setGenreSearch(''); 
-                    setFormatFilter('all');
-                    setLoanFilter('all');
-                    setMinRating('all');
-                    setSelectedYear('all');
+      {viewMode === 'list' ? (
+        <motion.div 
+          className="space-y-6"
+          initial="hidden"
+          animate="visible"
+          variants={{
+            visible: {
+              transition: {
+                staggerChildren: 0.04
+              }
+            }
+          }}
+        >
+          {filteredBooks.length > 0 ? (
+            filteredBooks.map((book) => (
+              <motion.div
+                key={book.id}
+                variants={{
+                  hidden: { opacity: 0, y: 15 },
+                  visible: { 
+                    opacity: 1, 
+                    y: 0, 
+                    transition: { type: 'spring', stiffness: 280, damping: 25 } 
+                  }
                 }}
-                className="mt-8 px-6 py-2.5 rounded-xl bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg active:scale-95"
-            >
-                Redefinir Filtros
-            </button>
-          </div>
-        )}
-      </div>
+              >
+                <BookListItem 
+                  book={book} 
+                  allBooks={books}
+                  onEdit={onEdit} 
+                  onDelete={onDelete} 
+                  onDuplicate={onDuplicate}
+                  onViewDetails={onViewDetails}
+                  onUpdateStatus={handleUpdateStatus}
+                />
+              </motion.div>
+            ))
+          ) : (
+            <div className="text-center py-24 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center">
+              <div className="bg-slate-50 dark:bg-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-6">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-200 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                  </svg>
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50 font-serif">Nenhum livro corresponde à busca</h3>
+              <p className="text-slate-400 dark:text-slate-500 mt-2 max-w-xs mx-auto text-sm">Parece que seus filtros estão muito específicos.</p>
+              <button 
+                  onClick={() => { 
+                      setStatusFilter('all'); 
+                      setSearchQuery(''); 
+                      setSelectedGenres([]); 
+                      setSelectedTags([]); 
+                      setGenreSearch(''); 
+                      setFormatFilter('all');
+                      setLoanFilter('all');
+                      setMinRating('all');
+                      setSelectedYear('all');
+                  }}
+                  className="mt-8 px-6 py-2.5 rounded-xl bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg active:scale-95"
+              >
+                  Redefinir Filtros
+              </button>
+            </div>
+          )}
+        </motion.div>
+      ) : (
+        <ShelfView books={filteredBooks} onViewDetails={onViewDetails} />
+      )}
     </div>
   );
 });

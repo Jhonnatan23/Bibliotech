@@ -170,6 +170,47 @@ export interface AuthorStat {
 
 export type DateFilter = 'thisYear' | 'allTime' | 'custom' | 'specificYear';
 
+export interface CommunityPost {
+  id: string;
+  user_id: string;
+  book_id?: string;
+  book_title: string;
+  book_author: string;
+  book_genre?: string;
+  book_type?: string;
+  book_pages?: number;
+  rating: number;
+  review: string;
+  contem_spoiler: boolean;
+  created_at: string;
+  profiles?: {
+    full_name: string;
+    avatar_url?: string;
+  };
+  community_reactions?: CommunityReaction[];
+  community_comments?: CommunityComment[];
+}
+
+export interface CommunityReaction {
+  id: string;
+  post_id: string;
+  user_id: string;
+  reaction_type: string;
+  created_at: string;
+}
+
+export interface CommunityComment {
+  id: string;
+  post_id: string;
+  user_id: string;
+  comment_text: string;
+  created_at: string;
+  profiles?: {
+    full_name: string;
+    avatar_url?: string;
+  };
+}
+
 declare global {
   interface Window {
     aistudio?: {

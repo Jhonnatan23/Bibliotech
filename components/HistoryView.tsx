@@ -10,6 +10,7 @@ interface HistoryViewProps {
   onEdit: (book: Book) => void;
   onDelete: (book: Book) => void;
   profile: Profile | null;
+  onShareBook?: (book: Book) => void;
 }
 
 type FilterStatus = 'all' | BookStatus.Read | BookStatus.Dropped;
@@ -17,7 +18,7 @@ type FormatFilter = 'all' | 'physical' | 'digital';
 type LoanFilter = 'all' | 'loaned' | 'not_loaned';
 type SortOrder = 'dateFinished' | 'title' | 'isDigital' | 'pages' | 'rating' | 'isLoaned';
 
-export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUpdateBook, onEdit, onDelete, profile }) => {
+export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUpdateBook, onEdit, onDelete, profile, onShareBook }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
   const [formatFilter, setFormatFilter] = useState<FormatFilter>('all');
@@ -464,6 +465,15 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
 
                 {/* Ações Rápidas de Gestão */}
                 <div className="px-6 py-4 bg-slate-50/50 dark:bg-slate-800/20 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                   {isRead && onShareBook && (
+                     <button 
+                       onClick={() => onShareBook(book)}
+                       className="px-4 py-2 rounded-xl text-primary font-black uppercase tracking-widest text-[9px] hover:bg-white dark:hover:bg-slate-900 border border-primary/25 hover:border-primary transition-all active:scale-95 flex items-center gap-1.5 hover:shadow-md"
+                       title="Compartilhar com a Comunidade"
+                     >
+                       <span>👥</span> Compartilhar
+                     </button>
+                   )}
                    <button 
                      onClick={() => onEdit(book)}
                      className="p-2.5 rounded-xl text-slate-400 hover:bg-white dark:hover:bg-slate-900 hover:text-primary transition-all active:scale-95 border border-transparent hover:border-slate-100 shadow-none hover:shadow-md"

@@ -13,7 +13,7 @@ interface HeaderProps {
   toggleTheme: () => void;
   isConnected?: boolean;
   hasApiKey?: boolean;
-  setView: (view: 'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges') => void;
+  setView: (view: 'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community') => void;
   onNotifClick?: () => void;
   unreadCount?: number;
 }
