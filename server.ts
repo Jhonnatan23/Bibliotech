@@ -22,6 +22,23 @@ setGlobalDispatcher(globalAgent);
 // Override native fetch with the configured undici fetch
 globalThis.fetch = undiciFetch as any;
 
+function normalizeSchema(schema: any): any {
+  if (!schema || typeof schema !== "object") return schema;
+  
+  const normalized: any = Array.isArray(schema) ? [] : {};
+  
+  for (const key in schema) {
+    if (Object.prototype.hasOwnProperty.call(schema, key)) {
+      if (key === "type" && typeof schema[key] === "string") {
+        normalized[key] = schema[key].toUpperCase();
+      } else {
+        normalized[key] = normalizeSchema(schema[key]);
+      }
+    }
+  }
+  return normalized;
+}
+
 async function generateContentWithFallback(
   ai: any,
   params: {
@@ -30,12 +47,12 @@ async function generateContentWithFallback(
     model?: string;
   },
   fallbackModels: string[] = [
+    "gemini-3.5-flash",
+    "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "gemini-1.5-flash",
-    "gemini-3.5-flash",
-    "gemini-flash-latest",
-    "gemini-3.1-flash-lite"
+    "gemini-flash-latest"
   ]
 ): Promise<any> {
   let lastError: any = null;
@@ -44,28 +61,67 @@ async function generateContentWithFallback(
     modelsToTry.unshift(params.model);
   }
 
+  // Pre-normalize the responseSchema if it exists
+  const sanitizedParams = { ...params };
+  if (sanitizedParams.config?.responseSchema) {
+    sanitizedParams.config = {
+      ...sanitizedParams.config,
+      responseSchema: normalizeSchema(sanitizedParams.config.responseSchema)
+    };
+  }
+
   for (const model of modelsToTry) {
-    // Attempt up to 2 times per model with a slight delay if it is a 503/temporary error
     for (let attempt = 1; attempt <= 2; attempt++) {
       try {
-        console.log(`[Gemini API] Attempting generation with model: ${model} (attempt ${attempt}/2)`);
+        console.log(`[Gemini API] Requesting ${model} (attempt ${attempt}/2)`);
         const response = await ai.models.generateContent({
-          ...params,
+          ...sanitizedParams,
           model: model,
         });
-        console.log(`[Gemini API] Generation succeeded using model: ${model}`);
+        console.log(`[Gemini API] Success with ${model}`);
         return response;
       } catch (err: any) {
-        console.warn(`[Gemini API] Model ${model} attempt ${attempt} failed with message:`, err.message || err);
         lastError = err;
-        
-        // If it's a 503 (high demand) or rate limit, wait a brief moment before retrying or switching models
-        const isTemporary = err.message?.includes("503") || err.message?.includes("RESOURCE_EXHAUSTED") || err.message?.includes("UNAVAILABLE") || err.message?.includes("high demand");
-        if (isTemporary && attempt < 2) {
-          console.log("[Gemini API] Temporary error detected, waiting 1.5 seconds before retrying...");
-          await new Promise(resolve => setTimeout(resolve, 1500));
+        const errStr = String(err.message || err);
+
+        const isQuotaExceeded = errStr.includes("RESOURCE_EXHAUSTED") || errStr.includes("quota") || errStr.includes("429");
+        const isHighDemand = errStr.includes("503") || errStr.includes("UNAVAILABLE") || errStr.includes("high demand") || errStr.includes("experiencing high demand");
+        const isInvalidOrNotFound = errStr.includes("not found") || errStr.includes("404") || errStr.includes("INVALID_ARGUMENT") || errStr.includes("validation");
+
+        let statusMsg = "Unavailable";
+        if (isQuotaExceeded) {
+          statusMsg = "Quota exceeded";
+        } else if (isHighDemand) {
+          statusMsg = "High demand or model temporarily busy";
+        } else if (isInvalidOrNotFound) {
+          statusMsg = "Invalid argument or model not found";
         } else {
-          break; // Switch to the next model immediately for non-temporary or final attempt errors
+          statusMsg = errStr.length > 80 ? errStr.substring(0, 80).replace(/["'{}]/g, "") : errStr.replace(/["'{}]/g, "");
+        }
+
+        console.log(`[Gemini API] ${model} status: ${statusMsg}`);
+
+        if (isQuotaExceeded) {
+          console.log(`[Gemini API] ${model} quota limit. Moving to next model.`);
+          break; // Fallback immediately to the next model
+        }
+
+        if (isHighDemand) {
+          console.log(`[Gemini API] ${model} busy. Moving to next model.`);
+          break; // Fallback immediately to the next model
+        }
+
+        if (isInvalidOrNotFound) {
+          console.log(`[Gemini API] ${model} invalid or not found. Moving to next model.`);
+          break; // Fallback immediately to the next model
+        }
+
+        // For other generic transient/network errors, retry once after a short delay
+        if (attempt < 2) {
+          console.log(`[Gemini API] Retrying ${model} in 1 second...`);
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        } else {
+          break; // Switch to the next model immediately
         }
       }
     }

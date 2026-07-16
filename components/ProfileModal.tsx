@@ -17,6 +17,7 @@ interface ProfileModalProps {
   profile: Profile | null;
   onUpdateProfile: (updates: Partial<Profile>) => Promise<void>;
   books: Book[];
+  onImportBooks: (importedBooks: Book[]) => Promise<void>;
 }
 
 type Tab = 'profile' | 'preferences' | 'security' | 'backup';
@@ -27,7 +28,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   onSetReadingGoal,
   profile,
   onUpdateProfile,
-  books
+  books,
+  onImportBooks
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const [isSaving, setIsSaving] = useState(false);
@@ -59,6 +61,9 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
 
   // Backup & Export State & Statistics
   const [backupFeedback, setBackupFeedback] = useState<'csv' | 'json' | null>(null);
+  const [importStatus, setImportStatus] = useState<{ text: string, type: 'success' | 'error' } | null>(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const jsonImportInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (backupFeedback) {
@@ -207,6 +212,52 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
     } catch (err) {
       console.error('Error exporting CSV:', err);
     }
+  };
+
+  const handleImportJSON = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    setIsImporting(true);
+    setImportStatus(null);
+    
+    const reader = new FileReader();
+    reader.onload = async (event) => {
+      try {
+        const text = event.target?.result as string;
+        const imported = JSON.parse(text);
+        
+        if (!Array.isArray(imported)) {
+          throw new Error("O arquivo de backup deve ser uma lista (array) de livros.");
+        }
+        
+        const validCount = imported.filter(b => b && typeof b === 'object' && b.title).length;
+        if (validCount === 0) {
+          throw new Error("Nenhum livro válido encontrado no arquivo JSON.");
+        }
+        
+        await onImportBooks(imported);
+        setImportStatus({ 
+          text: `Sucesso! ${validCount} livro(s) importado(s) e mesclado(s) com sucesso.`, 
+          type: 'success' 
+        });
+      } catch (err: any) {
+        setImportStatus({ 
+          text: err.message || "Erro ao ler o arquivo de backup.", 
+          type: 'error' 
+        });
+      } finally {
+        setIsImporting(false);
+        if (jsonImportInputRef.current) {
+          jsonImportInputRef.current.value = '';
+        }
+      }
+    };
+    reader.onerror = () => {
+      setImportStatus({ text: "Erro ao ler o arquivo físico.", type: 'error' });
+      setIsImporting(false);
+    };
+    reader.readAsText(file);
   };
 
   useEffect(() => {
@@ -745,6 +796,49 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                                         </>
                                     )}
                                 </button>
+                            </div>
+                        </div>
+
+                        {/* IMPORT SECTION */}
+                        <div className="pt-6 border-t border-slate-100 dark:border-slate-800 space-y-4">
+                            <div>
+                                <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-wider">Restaurar / Importar Backup</h4>
+                                <p className="text-[9px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-tight leading-relaxed mt-1">
+                                    Selecione um arquivo de backup JSON previamente exportado para restaurar ou mesclar seus livros e progresso.
+                                </p>
+                            </div>
+
+                            <div className="flex flex-col gap-4">
+                                <div className="relative">
+                                    <input 
+                                        type="file" 
+                                        ref={jsonImportInputRef}
+                                        accept=".json,application/json"
+                                        onChange={handleImportJSON}
+                                        className="hidden"
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={() => jsonImportInputRef.current?.click()}
+                                        disabled={isImporting}
+                                        className="w-full md:w-auto py-3.5 px-6 rounded-2xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-40"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="h-4 w-4">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0 3 3m-3-3-3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
+                                        </svg>
+                                        {isImporting ? 'Importando...' : 'Selecionar Arquivo JSON'}
+                                    </button>
+                                </div>
+
+                                {importStatus && (
+                                    <div className={`p-4 rounded-2xl text-[10px] font-black uppercase tracking-widest border transition-all ${
+                                        importStatus.type === 'success' 
+                                            ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-100 dark:border-emerald-800 text-emerald-600 dark:text-emerald-400' 
+                                            : 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800 text-red-600 dark:text-red-400'
+                                    }`}>
+                                        {importStatus.text}
+                                    </div>
+                                )}
                             </div>
                         </div>
 

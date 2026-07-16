@@ -109,7 +109,7 @@ export default function App() {
   };
 
   const { 
-    books, stats, currentlyReading, addBook, updateBook, deleteBook, refresh,
+    books, stats, currentlyReading, addBook, updateBook, deleteBook, importBooks, refresh,
     dateFilter, setDateFilter, selectedYear, setSelectedYear, availableYears,
     customRange, setCustomRange, isLocalMode, schemaError, isLoading
   } = useBookData();
@@ -569,7 +569,7 @@ export default function App() {
       
       {convertingBook && <PricePaidModal book={convertingBook} onClose={() => setConvertingBook(null)} onConfirm={handleFinishConversion} />}
       
-      {isSettingsOpen && <ProfileModal books={books} onClose={() => setIsSettingsOpen(false)} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} profile={userProfile} onUpdateProfile={handleUpdateProfile} />}
+      {isSettingsOpen && <ProfileModal books={books} onClose={() => setIsSettingsOpen(false)} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} profile={userProfile} onUpdateProfile={handleUpdateProfile} onImportBooks={importBooks} />}
       
       {isNotifOpen && <NotificationModal isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} books={books} profile={userProfile} />}
       

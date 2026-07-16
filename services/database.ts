@@ -249,6 +249,62 @@ export class DatabaseService {
     }
   }
 
+  async importBooks(importedBooks: Book[]): Promise<Book[]> {
+    const user = await this.getSafeUser();
+    if (!user) throw new Error("Usuário não autenticado.");
+
+    // Filter out invalid records
+    const validBooks = importedBooks.filter(b => b && typeof b === 'object' && b.title);
+
+    // Get current local books to prevent duplicates or merge properly
+    const localBooks = await this.getLocalBooks();
+    const mergedBooks: Book[] = [...localBooks];
+    const dbPayloads: any[] = [];
+
+    for (const b of validBooks) {
+      const bookId = b.id || crypto.randomUUID();
+      const updatedBook = { 
+        ...b, 
+        id: bookId, 
+        user_id: user.id,
+        dateAdded: b.dateAdded || new Date().toISOString().split('T')[0]
+      };
+      
+      const dbPayload = mapBookToDb(updatedBook);
+      dbPayloads.push(dbPayload);
+
+      // Update in merged list
+      const index = mergedBooks.findIndex(item => item.id === bookId);
+      const mappedBook = mapDbToBook(dbPayload);
+      if (index >= 0) {
+        mergedBooks[index] = mappedBook;
+      } else {
+        mergedBooks.unshift(mappedBook);
+      }
+    }
+
+    // Save to local storage
+    await this.saveLocalBooks(mergedBooks);
+
+    // Save to Supabase in batch upsert
+    if (dbPayloads.length > 0) {
+      try {
+        const { error } = await supabase
+          .from(TABLE_NAME)
+          .upsert(dbPayloads, { onConflict: 'id' });
+          
+        if (error) {
+          console.error("[Database] Erro ao importar no Supabase:", error);
+          throw error;
+        }
+      } catch (err) {
+        console.error("[Database] Exceção na importação do Supabase:", err);
+      }
+    }
+
+    return mergedBooks;
+  }
+
   async deleteBook(id: string): Promise<void> {
     const user = await this.getSafeUser();
     if (!user) return;

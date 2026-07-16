@@ -96,6 +96,15 @@ export const useBookData = () => {
     await dbService.deleteBook(id);
   }, []);
 
+  const importBooks = useCallback(async (importedBooks: Book[]) => {
+    const updatedBooks = await dbService.importBooks(importedBooks);
+    setBooks(updatedBooks);
+    const statsResult = await dbService.getQuickStatsSummary();
+    if (statsResult) {
+      setQuickSummary(statsResult);
+    }
+  }, []);
+
   const availableYears = useMemo(() => {
     const years = new Set<number>();
     years.add(new Date().getFullYear());
@@ -270,7 +279,7 @@ export const useBookData = () => {
   const currentlyReading = useMemo(() => books.find(b => b.status === BookStatus.Reading) || null, [books]);
 
   return {
-    books, stats, currentlyReading, addBook, updateBook, deleteBook, refresh: syncWithCloud,
+    books, stats, currentlyReading, addBook, updateBook, deleteBook, importBooks, refresh: syncWithCloud,
     dateFilter, setDateFilter, selectedYear, setSelectedYear, availableYears,
     customRange, setCustomRange, isLocalMode, schemaError, isLoading
   };
