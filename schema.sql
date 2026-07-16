@@ -118,3 +118,36 @@ CREATE POLICY "Users can delete their own stories" ON public.stories
   FOR DELETE USING ((auth.uid())::uuid = (user_id)::uuid);
 
 CREATE INDEX IF NOT EXISTS idx_stories_user_id ON public.stories(user_id);
+
+-- Tabela LOANS para o Controle de Empréstimos
+CREATE TABLE IF NOT EXISTS public.loans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users ON DELETE CASCADE NOT NULL,
+  book_id UUID REFERENCES public.books(id) ON DELETE CASCADE NOT NULL,
+  borrower_name TEXT NOT NULL,
+  borrower_email TEXT,
+  loan_date TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+  due_date TIMESTAMP WITH TIME ZONE NOT NULL,
+  return_date TIMESTAMP WITH TIME ZONE,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'returned', 'overdue'))
+);
+
+ALTER TABLE public.loans ENABLE ROW LEVEL SECURITY;
+
+GRANT ALL ON public.loans TO authenticated;
+GRANT ALL ON public.loans TO service_role;
+
+-- Políticas para LOANS
+CREATE POLICY "Users can select their own loans" ON public.loans
+  FOR SELECT USING ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can insert their own loans" ON public.loans
+  FOR INSERT WITH CHECK ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can update their own loans" ON public.loans
+  FOR UPDATE USING ((auth.uid())::uuid = (user_id)::uuid) WITH CHECK ((auth.uid())::uuid = (user_id)::uuid);
+CREATE POLICY "Users can delete their own loans" ON public.loans
+  FOR DELETE USING ((auth.uid())::uuid = (user_id)::uuid);
+
+-- Índices de performance
+CREATE INDEX IF NOT EXISTS idx_loans_user_id ON public.loans(user_id);
+CREATE INDEX IF NOT EXISTS idx_loans_book_id ON public.loans(book_id);
+CREATE INDEX IF NOT EXISTS idx_loans_status ON public.loans(status);

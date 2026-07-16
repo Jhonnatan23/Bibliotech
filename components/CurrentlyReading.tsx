@@ -9,6 +9,7 @@ interface CurrentlyReadingProps {
   book: Book;
   updateBook: (book: Book) => Promise<void>;
   profile: Profile | null;
+  onOpenJournal?: (bookId: string) => void;
 }
 
 const StarRatingDisplay: React.FC<{ rating: number }> = ({ rating }) => {
@@ -48,7 +49,7 @@ const calculateDaysReading = (startDate?: string) => {
     return diffDays >= 0 ? diffDays : 0;
 }
 
-export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, updateBook, profile }) => {
+export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, updateBook, profile, onOpenJournal }) => {
     const [currentPage, setCurrentPage] = useState(book.currentPage || 0);
     const [dateStarted, setDateStarted] = useState(book.dateStarted || new Date().toISOString().split('T')[0]);
     const [isFinishing, setIsFinishing] = useState(false);
@@ -260,6 +261,18 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                     Abandonar
                 </button>
               </div>
+
+              {onOpenJournal && (
+                <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
+                  <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Pensamentos e anotações?</p>
+                  <button
+                    onClick={() => onOpenJournal(book.id)}
+                    className="flex items-center gap-2 text-primary hover:text-tertiary transition-colors text-[10px] font-black uppercase tracking-[0.15em] cursor-pointer group/btn"
+                  >
+                    <span>📝</span> Anotar no Diário
+                  </button>
+                </div>
+              )}
             </div>
           ) : (
             <div className="animate-in slide-in-from-right-8 duration-500">

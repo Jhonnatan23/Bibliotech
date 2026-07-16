@@ -37,6 +37,7 @@ interface DashboardProps {
   addBook: (book: NewBook) => Promise<void>;
   onRandomPick: () => void;
   profile: Profile | null;
+  onOpenJournal?: (bookId: string) => void;
 }
 
 export const Dashboard: React.FC<DashboardProps> = React.memo(({ 
@@ -55,7 +56,8 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
   onSetReadingGoal,
   addBook,
   onRandomPick,
-  profile
+  profile,
+  onOpenJournal
 }) => {
   const [aiRecs, setAiRecs] = useState<Recommendation[]>([]);
   const [isLoadingRecs, setIsLoadingRecs] = useState(false);
@@ -308,7 +310,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
         {/* ROW 1: DESTAQUE E META */}
         <div className="lg:col-span-8">
           {currentlyReading ? (
-            <CurrentlyReading book={currentlyReading} updateBook={updateBook} profile={profile} />
+            <CurrentlyReading book={currentlyReading} updateBook={updateBook} profile={profile} onOpenJournal={onOpenJournal} />
           ) : (
             <div className="bg-white dark:bg-slate-900 border-2 border-dashed border-slate-100 dark:border-slate-800 p-8 md:p-16 rounded-[2.5rem] flex flex-col items-center justify-center text-center h-full group transition-all hover:border-primary/20">
               <div className="bg-slate-50 dark:bg-slate-800 p-6 md:p-8 rounded-[2rem] md:rounded-[3rem] mb-6 group-hover:scale-110 transition-transform duration-700">

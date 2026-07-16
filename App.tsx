@@ -29,6 +29,7 @@ const BookSearch = lazy(() => import('./components/BookSearch').then(m => ({ def
 const SeriesView = lazy(() => import('./components/SeriesView').then(m => ({ default: m.SeriesView })));
 const ReadingChallenges = lazy(() => import('./components/ReadingChallenges').then(m => ({ default: m.ReadingChallenges })));
 const CommunityView = lazy(() => import('./components/CommunityView').then(m => ({ default: m.CommunityView })));
+const ReadingJournal = lazy(() => import('./components/ReadingJournal').then(m => ({ default: m.ReadingJournal })));
 
 import { ShareToCommunityModal } from './components/ShareToCommunityModal';
 
@@ -145,7 +146,8 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
-  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community' | 'journal'>('dashboard');
+  const [selectedJournalBookId, setSelectedJournalBookId] = useState<string | null>(null);
   const [sharingBook, setSharingBook] = useState<Book | null>(null);
 
   useEffect(() => {
@@ -479,6 +481,10 @@ export default function App() {
                   addBook={handleAddBook}
                   onRandomPick={handleRandomPick}
                   profile={userProfile}
+                  onOpenJournal={(bookId) => {
+                    setSelectedJournalBookId(bookId);
+                    setView('journal');
+                  }}
                 />
               )}
               {view === 'list' && (
@@ -498,7 +504,7 @@ export default function App() {
               {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onMoveToShelf={(b) => setConvertingBook(b)} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
               {view === 'stats' && <StatsView books={books} availableYears={availableYears} readingGoal={readingGoal} />}
               {view === 'history' && <HistoryView books={books} profile={userProfile} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onShareBook={(b) => setSharingBook(b)} />}
-              {view === 'loans' && <LoansView books={books} onUpdateBook={handleUpdateBook} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onViewDetails={setViewingBook} />}
+              {view === 'loans' && <LoansView books={books} profile={userProfile} onUpdateBook={handleUpdateBook} />}
               {view === 'series' && (
                 <SeriesView 
                   books={books} 
@@ -534,6 +540,15 @@ export default function App() {
                       showToast(`Erro ao adicionar à Wishlist: ${err.message}`);
                     }
                   }} 
+                />
+              )}
+              {view === 'journal' && (
+                <ReadingJournal 
+                  books={books} 
+                  profile={userProfile} 
+                  onUpdateBook={handleUpdateBook}
+                  preselectedBookId={selectedJournalBookId}
+                  onClosePreselect={() => setSelectedJournalBookId(null)}
                 />
               )}
             </Suspense>

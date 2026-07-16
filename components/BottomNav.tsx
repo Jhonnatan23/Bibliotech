@@ -3,8 +3,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { BookOpenIcon, ChartBarIcon, HeartIcon, MagnifyingGlassIcon, Bars3Icon } from './Icons';
 
 interface BottomNavProps {
-  view: 'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community';
-  setView: (view: 'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community') => void;
+  view: 'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community' | 'journal';
+  setView: (view: 'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community' | 'journal') => void;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = React.memo(({ view, setView }) => {
@@ -76,10 +76,22 @@ export const BottomNav: React.FC<BottomNavProps> = React.memo(({ view, setView }
             <div className="absolute bottom-full right-0 mb-4 w-48 bg-white dark:bg-slate-905 dark:bg-slate-900 border border-slate-205 dark:border-slate-800 rounded-2xl shadow-2xl z-50 py-2 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-200 origin-bottom-right">
               <button
                 onClick={() => {
-                  setView('community');
+                  setView('journal');
                   setIsMenuOpen(false);
                 }}
                 className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors text-left ${
+                  view === 'journal' ? 'bg-primary/10 text-primary' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <span>📝</span> Diário de Leitura
+              </button>
+
+              <button
+                onClick={() => {
+                  setView('community');
+                  setIsMenuOpen(false);
+                }}
+                className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors text-left border-t border-slate-100 dark:border-slate-800/60 ${
                   view === 'community' ? 'bg-primary/10 text-primary' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >

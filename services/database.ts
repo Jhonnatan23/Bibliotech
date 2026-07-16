@@ -1,5 +1,5 @@
 
-import type { Book, Profile } from '../types';
+import type { Book, Profile, Loan } from '../types';
 import { supabase } from './supabase';
 import { BookStatus } from '../types';
 
@@ -446,6 +446,63 @@ export class DatabaseService {
   async deleteStory(id: string): Promise<void> {
     const { error } = await supabase.from('stories').delete().eq('id', id);
     if (error) throw error;
+  }
+
+  // --- Empréstimos (Controle de Empréstimos) ---
+  async getAllLoans(): Promise<Loan[]> {
+    const user = await this.getSafeUser();
+    if (!user) return [];
+    try {
+      const { data, error } = await supabase
+        .from('loans')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('loan_date', { ascending: false });
+      
+      if (error) throw error;
+      return (data || []) as Loan[];
+    } catch (err) {
+      console.error("Erro ao buscar empréstimos do Supabase:", err);
+      return [];
+    }
+  }
+
+  async createLoan(bookId: string, borrowerName: string, borrowerEmail: string | undefined, dueDate: string): Promise<any> {
+    const user = await this.getSafeUser();
+    if (!user) throw new Error("Usuário não autenticado.");
+
+    const response = await fetch("/api/loans", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bookId,
+        borrowerName,
+        borrowerEmail,
+        dueDate,
+        userId: user.id
+      })
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || "Falha ao registrar empréstimo no servidor.");
+    }
+
+    return await response.json();
+  }
+
+  async returnLoan(loanId: string): Promise<any> {
+    const response = await fetch(`/api/loans/${loanId}/return`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" }
+    });
+
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}));
+      throw new Error(errData.error || "Falha ao finalizar empréstimo no servidor.");
+    }
+
+    return await response.json();
   }
 }
 

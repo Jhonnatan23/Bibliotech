@@ -5,6 +5,11 @@ import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, Type } from "@google/genai";
 import { fetch as undiciFetch, Agent, setGlobalDispatcher } from "undici";
 import nodemailer from "nodemailer";
+import { createClient } from "@supabase/supabase-js";
+
+const supabaseUrl = 'https://rqomssyihwvbwtoyjwws.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxb21zc3lpaHd2Ynd0b3lqd3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwOTY5OTksImV4cCI6MjA4MjY3Mjk5OX0.Fb1JORY5LXRhJdnnVen68_VNzhlGna5GO7xW996uaQU';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 // Configure custom timeouts on the global Node.js fetch dispatcher to avoid Headers Timeout Error
 const globalAgent = new Agent({
@@ -348,6 +353,181 @@ async function startServer() {
     } catch (error: any) {
       console.error("[Email Service] Falha ao enviar e-mail real:", error);
       res.status(500).json({ error: error.message || "Falha ao enviar e-mail." });
+    }
+  });
+
+  // POST /api/loans - Registrar um empréstimo
+  app.post("/api/loans", async (req: any, res: any) => {
+    try {
+      const { bookId, borrowerName, borrowerEmail, dueDate, userId } = req.body;
+
+      if (!bookId || !borrowerName || !dueDate || !userId) {
+        return res.status(400).json({ 
+          error: "Campos obrigatórios ausentes: bookId, borrowerName, dueDate, userId." 
+        });
+      }
+
+      // 1. Obter informações do livro para o e-mail e validação
+      const { data: book, error: bookError } = await supabase
+        .from("books")
+        .select("title, author")
+        .eq("id", bookId)
+        .single();
+
+      if (bookError || !book) {
+        return res.status(404).json({ error: "Livro não encontrado no banco de dados." });
+      }
+
+      // 2. Registrar o empréstimo na tabela 'loans'
+      const { data: loan, error: loanError } = await supabase
+        .from("loans")
+        .insert({
+          user_id: userId,
+          book_id: bookId,
+          borrower_name: borrowerName,
+          borrower_email: borrowerEmail || null,
+          due_date: dueDate,
+          status: "active"
+        })
+        .select()
+        .single();
+
+      if (loanError) {
+        console.error("[Loans Backend] Erro ao salvar empréstimo:", loanError);
+        return res.status(500).json({ error: "Erro ao registrar o empréstimo no banco de dados." });
+      }
+
+      // 3. Atualizar o livro na tabela 'books' marcando como emprestado
+      const { error: updateBookError } = await supabase
+        .from("books")
+        .update({
+          is_loaned: true,
+          borrower_name: borrowerName,
+          loan_date: new Date().toISOString().split("T")[0]
+        })
+        .eq("id", bookId);
+
+      if (updateBookError) {
+        console.error("[Loans Backend] Erro ao atualizar status do livro:", updateBookError);
+      }
+
+      // 4. Enviar e-mail de confirmação se o borrowerEmail estiver presente
+      if (borrowerEmail) {
+        try {
+          const emailUser = "asuabibliotecavirtualbibliotec@gmail.com";
+          const emailPass = process.env.EMAIL_PASS;
+
+          if (emailPass) {
+            const transporter = nodemailer.createTransport({
+              service: "gmail",
+              auth: {
+                user: emailUser,
+                pass: emailPass,
+              },
+            });
+
+            const formattedDueDate = new Date(dueDate).toLocaleDateString("pt-BR");
+            
+            const htmlContent = `
+              <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #f1f5f9; border-radius: 24px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); background-color: #ffffff;">
+                <div style="background-color: #4f46e5; color: white; padding: 24px; text-align: center; border-radius: 16px 16px 0 0;">
+                  <h1 style="margin: 0; font-size: 24px; font-weight: 900; letter-spacing: -0.025em;">BiblioTech</h1>
+                  <p style="margin: 4px 0 0 0; font-size: 12px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.1em; opacity: 0.85;">Confirmação de Empréstimo</p>
+                </div>
+                <div style="padding: 24px; color: #1e293b;">
+                  <p style="font-size: 16px; line-height: 1.5; margin-top: 0;">Olá, <strong>${borrowerName}</strong>!</p>
+                  <p style="font-size: 14px; line-height: 1.6; color: #475569;">
+                    Este é um e-mail automático para confirmar que você pegou a seguinte obra emprestada:
+                  </p>
+                  <div style="background-color: #f8fafc; padding: 20px; border-left: 4px solid #4f46e5; border-radius: 8px; margin: 20px 0;">
+                    <p style="margin: 0; font-size: 16px; font-weight: bold; color: #0f172a;">${book.title}</p>
+                    <p style="margin: 4px 0 0 0; font-size: 13px; color: #64748b; font-weight: 500;">por ${book.author}</p>
+                  </div>
+                  <p style="font-size: 14px; line-height: 1.6; color: #475569;">
+                    📅 <strong>Data limite de devolução:</strong> <span style="color: #4f46e5; font-weight: bold;">${formattedDueDate}</span>
+                  </p>
+                  <p style="font-size: 14px; line-height: 1.6; color: #475569; margin-bottom: 0;">
+                    Por favor, lembre-se de devolver dentro do prazo combinado. Boa leitura!
+                  </p>
+                </div>
+                <div style="background-color: #f8fafc; padding: 16px; text-align: center; border-radius: 0 0 16px 16px; border-top: 1px solid #f1f5f9; font-size: 11px; color: #94a3b8; font-weight: bold; text-transform: uppercase; letter-spacing: 0.05em;">
+                  BiblioTech &copy; ${new Date().getFullYear()} &bull; Organização inteligente de leituras
+                </div>
+              </div>
+            `;
+
+            await transporter.sendMail({
+              from: `"BiblioTech" <${emailUser}>`,
+              to: borrowerEmail,
+              subject: `Empréstimo Confirmado: "${book.title}"`,
+              html: htmlContent
+            });
+            console.log(`[Loans Backend] E-mail enviado com sucesso para ${borrowerEmail}`);
+          } else {
+            console.warn("[Loans Backend] EMAIL_PASS não configurada. E-mail simulado com sucesso.");
+          }
+        } catch (emailErr) {
+          console.error("[Loans Backend] Erro ao disparar e-mail de confirmação:", emailErr);
+        }
+      }
+
+      return res.status(201).json({ success: true, loan });
+    } catch (error: any) {
+      console.error("[Loans Backend] Erro fatal em POST /api/loans:", error);
+      return res.status(500).json({ error: error.message || "Erro interno do servidor." });
+    }
+  });
+
+  // PATCH /api/loans/:id/return - Finalizar um empréstimo
+  app.patch("/api/loans/:id/return", async (req: any, res: any) => {
+    try {
+      const { id } = req.params;
+
+      // 1. Obter informações do empréstimo existente
+      const { data: loan, error: fetchError } = await supabase
+        .from("loans")
+        .select("book_id, borrower_name")
+        .eq("id", id)
+        .single();
+
+      if (fetchError || !loan) {
+        return res.status(404).json({ error: "Empréstimo não encontrado." });
+      }
+
+      // 2. Atualizar o registro do empréstimo para 'returned' com a data real de retorno
+      const { data: updatedLoan, error: updateLoanError } = await supabase
+        .from("loans")
+        .update({
+          return_date: new Date().toISOString(),
+          status: "returned"
+        })
+        .eq("id", id)
+        .select()
+        .single();
+
+      if (updateLoanError) {
+        console.error("[Loans Backend] Erro ao finalizar empréstimo:", updateLoanError);
+        return res.status(500).json({ error: "Erro ao atualizar o empréstimo no banco de dados." });
+      }
+
+      // 3. Atualizar o livro correspondente para is_loaned = false
+      const { error: updateBookError } = await supabase
+        .from("books")
+        .update({
+          is_loaned: false,
+          borrower_name: null,
+          loan_date: null
+        })
+        .eq("id", loan.book_id);
+
+      if (updateBookError) {
+        console.error("[Loans Backend] Erro ao limpar informações de empréstimo do livro:", updateBookError);
+      }
+
+      return res.json({ success: true, loan: updatedLoan });
+    } catch (error: any) {
+      console.error("[Loans Backend] Erro fatal em PATCH /api/loans/:id/return:", error);
+      return res.status(500).json({ error: error.message || "Erro interno do servidor." });
     }
   });
 
