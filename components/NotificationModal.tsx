@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Book, Profile } from '../types';
 import { BookStatus } from '../types';
+import { supabase } from '../services/supabase';
 
 // Interface for Notification settings
 export interface NotificationSettings {
@@ -267,14 +268,20 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ isOpen, on
       });
 
       // Disparar o e-mail real via API
-      fetch("/api/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: recipientEmail, subject, html })
-      })
-      .then(res => res.json())
-      .then(data => console.log("[Email Service] Sucesso no disparo real:", data))
-      .catch(err => console.error("[Email Service] Erro no disparo real:", err));
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        const token = session?.access_token;
+        fetch("/api/send-email", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ to: recipientEmail, subject, html })
+        })
+        .then(res => res.json())
+        .then(data => console.log("[Email Service] Sucesso no disparo real:", data))
+        .catch(err => console.error("[Email Service] Erro no disparo real:", err));
+      });
     }
 
     // 6. Inactivity Email Invitation (Trigger simulation & real send)
@@ -294,14 +301,20 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ isOpen, on
       });
 
       // Disparar o e-mail real via API
-      fetch("/api/send-email", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: recipientEmail, subject, html })
-      })
-      .then(res => res.json())
-      .then(data => console.log("[Email Service] Sucesso no disparo real:", data))
-      .catch(err => console.error("[Email Service] Erro no disparo real:", err));
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        const token = session?.access_token;
+        fetch("/api/send-email", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            ...(token ? { "Authorization": `Bearer ${token}` } : {})
+          },
+          body: JSON.stringify({ to: recipientEmail, subject, html })
+        })
+        .then(res => res.json())
+        .then(data => console.log("[Email Service] Sucesso no disparo real:", data))
+        .catch(err => console.error("[Email Service] Erro no disparo real:", err));
+      });
     }
 
     // Update state and persistent store

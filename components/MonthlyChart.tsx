@@ -71,7 +71,7 @@ export const MonthlyChart: React.FC<MonthlyChartProps> = ({ data }) => {
   }
 
   return (
-    <div className="w-full h-[300px] sm:h-[380px]">
+    <div className="w-full h-full">
       <ResponsiveContainer width="100%" height="100%">
         <ComposedChart
           data={chartData}

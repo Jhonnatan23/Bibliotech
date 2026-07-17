@@ -71,7 +71,7 @@ export const TypePieChart: React.FC<TypePieChartProps> = ({ data }) => {
           <span className="text-[8px] sm:text-[9px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-[0.25em] mt-1">Acervo</span>
       </div>
 
-      <div className="w-full h-[280px] sm:h-[320px] md:h-[400px]">
+      <div className="w-full h-[300px] md:h-[400px]">
         <ResponsiveContainer width="100%" height="100%">
             <PieChart>
             <Pie
@@ -81,8 +81,8 @@ export const TypePieChart: React.FC<TypePieChartProps> = ({ data }) => {
                     data: chartData,
                     cx: "50%",
                     cy: "50%",
-                    innerRadius: 60,
-                    outerRadius: 80,
+                    innerRadius: "50%",
+                    outerRadius: "72%",
                     paddingAngle: 4,
                     dataKey: "value",
                     onMouseEnter: onPieEnter,

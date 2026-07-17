@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Book, Story, Profile } from '../types';
 import { dbService } from '../services/database';
+import { supabase } from '../services/supabase';
 import { SparklesIcon, PlusIcon, PencilIcon, TrashIcon, BookOpenIcon, XMarkIcon, CheckIcon } from './Icons';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConfirmationModal } from './ConfirmationModal';
@@ -134,9 +135,15 @@ Conteúdo: "${activeStory.content}"`;
     }
 
     try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+
       const response = await fetch('/api/generate', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+        },
         body: JSON.stringify({
           prompt,
           systemInstruction,

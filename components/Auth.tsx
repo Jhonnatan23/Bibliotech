@@ -16,9 +16,6 @@ export const Auth: React.FC = () => {
   const [showHelp, setShowHelp] = useState(false);
   const [highlightSignup, setHighlightSignup] = useState(false);
   
-  const currentKey = (supabase as any).supabaseKey || '';
-  const isStripeKey = currentKey.startsWith('sb_');
-
   useEffect(() => {
     setErrorMsg(null);
     setHighlightSignup(false);
@@ -29,12 +26,6 @@ export const Auth: React.FC = () => {
     setLoading(true);
     setErrorMsg(null);
     setHighlightSignup(false);
-
-    if (isStripeKey) {
-        setErrorMsg("Erro de Configuração: Chave do Stripe detectada. Use a chave 'anon public' do Supabase.");
-        setLoading(false);
-        return;
-    }
 
     try {
       if (mode === 'login') {

@@ -251,7 +251,7 @@ export const BookListItem: React.FC<BookListItemProps> = React.memo(({
         {(book.status === BookStatus.TBR || book.status === BookStatus.Dropped) && (
           <button 
             onClick={handleQuickRead}
-            className="w-full px-4 py-3 md:py-4 text-[9px] md:text-[10px] font-black rounded-xl md:rounded-2xl bg-primary text-white hover:bg-tertiary shadow-xl transition-all active:scale-95 uppercase tracking-widest flex items-center justify-center gap-2"
+            className="w-full h-12 px-4 text-[9px] md:text-[10px] font-black rounded-xl md:rounded-2xl bg-primary text-white hover:bg-tertiary shadow-xl transition-all active:scale-95 uppercase tracking-widest flex items-center justify-center gap-2 cursor-pointer md:h-auto md:py-4"
           >
             <BookOpenIcon className="h-4 w-4" />
             <span className="md:inline">Ler</span>
@@ -260,21 +260,21 @@ export const BookListItem: React.FC<BookListItemProps> = React.memo(({
         <div className="flex gap-2 w-full">
             <button 
               onClick={() => onEdit(book)} 
-              className="flex-1 px-3 py-2.5 md:py-3.5 text-[9px] md:text-[10px] font-black rounded-xl md:rounded-2xl bg-white dark:bg-slate-800 text-slate-600 border border-slate-200 hover:border-primary hover:text-primary transition-all active:scale-95 flex items-center justify-center gap-2 uppercase tracking-widest shadow-sm"
+              className="flex-1 h-12 px-3 text-[9px] md:text-[10px] font-black rounded-xl md:rounded-2xl bg-white dark:bg-slate-800 text-slate-600 border border-slate-200 hover:border-primary hover:text-primary transition-all active:scale-95 flex items-center justify-center gap-2 uppercase tracking-widest shadow-sm cursor-pointer md:h-auto md:py-3.5"
             >
               <PencilIcon className="h-4 w-4" />
               <span className="sm:inline">Editar</span>
             </button>
             <button 
               onClick={() => onDuplicate(book)} 
-              className="px-3 py-2.5 md:py-3.5 text-[9px] md:text-[10px] font-black rounded-xl md:rounded-2xl bg-slate-50 dark:bg-slate-900 text-slate-400 hover:text-primary border border-slate-200 transition-all flex items-center justify-center shadow-sm"
+              className="w-12 h-12 px-3 bg-slate-50 dark:bg-slate-900 text-slate-400 hover:text-primary border border-slate-200 transition-all flex items-center justify-center shadow-sm cursor-pointer rounded-xl md:w-auto md:h-auto md:py-3.5"
             >
               <Square2StackIcon className="h-4 w-4" />
             </button>
         </div>
         <button 
           onClick={() => onDelete(book)} 
-          className="w-full px-4 py-2.5 md:py-3.5 text-[9px] md:text-[10px] font-black rounded-xl md:rounded-2xl bg-red-50 dark:bg-red-950/20 text-red-500 hover:bg-red-500 hover:text-white border border-red-100 transition-all active:scale-95 flex items-center justify-center gap-2 uppercase tracking-widest"
+          className="w-full h-12 px-4 text-[9px] md:text-[10px] font-black rounded-xl md:rounded-2xl bg-red-50 dark:bg-red-950/20 text-red-500 hover:bg-red-500 hover:text-white border border-red-100 transition-all active:scale-95 flex items-center justify-center gap-2 uppercase tracking-widest cursor-pointer md:h-auto md:py-3.5"
         >
           <TrashIcon className="h-4 w-4" />
           <span className="sm:inline">Excluir</span>

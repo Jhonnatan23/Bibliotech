@@ -352,15 +352,15 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft">
-                    <h3 className="text-xl font-black font-serif italic mb-8 uppercase tracking-widest">Digital vs Físico</h3>
-                    <div className="h-[350px]">
+                <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft">
+                    <h3 className="text-lg sm:text-xl font-black font-serif italic mb-6 sm:mb-8 uppercase tracking-widest">Digital vs Físico</h3>
+                    <div className="h-[300px] md:h-[400px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie 
                                     data={digitalData} 
-                                    innerRadius={80} 
-                                    outerRadius={120} 
+                                    innerRadius="50%" 
+                                    outerRadius="72%" 
                                     paddingAngle={5} 
                                     dataKey="value"
                                 >
@@ -375,10 +375,10 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft flex flex-col justify-between">
-                    <h3 className="text-xl font-black font-serif italic mb-8 uppercase tracking-widest">Satisfação por Formato</h3>
+                <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft flex flex-col justify-between">
+                    <h3 className="text-lg sm:text-xl font-black font-serif italic mb-6 sm:mb-8 uppercase tracking-widest">Satisfação por Formato</h3>
                     <div className="space-y-6">
-                        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl">
+                        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-6 rounded-2xl">
                             <div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Média de Nota (Digital)</p>
                                 <div className="flex items-center gap-2">
@@ -388,7 +388,7 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
                             </div>
                         </div>
 
-                        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl">
+                        <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-6 rounded-2xl">
                             <div>
                                 <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Média de Nota (Físico)</p>
                                 <div className="flex items-center gap-2">
@@ -404,15 +404,15 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
             </div>
 
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft">
-                    <h3 className="text-xl font-black font-serif italic mb-8">Composição de Leitura</h3>
-                    <div className="h-[350px]">
+                <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft">
+                    <h3 className="text-lg sm:text-xl font-black font-serif italic mb-6 sm:mb-8">Composição de Leitura</h3>
+                    <div className="h-[300px] md:h-[400px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
                                 <Pie 
                                     data={typeData} 
-                                    innerRadius={80} 
-                                    outerRadius={120} 
+                                    innerRadius="50%" 
+                                    outerRadius="72%" 
                                     paddingAngle={5} 
                                     dataKey="value"
                                 >
@@ -427,8 +427,8 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft flex flex-col justify-between">
-                    <h3 className="text-xl font-black font-serif italic mb-8">Performance Média</h3>
+                <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft flex flex-col justify-between">
+                    <h3 className="text-lg sm:text-xl font-black font-serif italic mb-6 sm:mb-8">Performance Média</h3>
                     <div className="space-y-6">
                         <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 p-6 rounded-2xl">
                             <div>
@@ -489,17 +489,17 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
 
             {/* Gêneros Literários Distribuição */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-10">
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft">
-                    <h3 className="text-xl font-black font-serif italic mb-2 text-slate-800 dark:text-white">Gêneros & Estilos Favoritos</h3>
+                <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft">
+                    <h3 className="text-lg sm:text-xl font-black font-serif italic mb-2 text-slate-800 dark:text-white">Gêneros & Estilos Favoritos</h3>
                     <p className="text-slate-400 dark:text-slate-500 text-[9px] font-black uppercase tracking-widest mb-6">Distribuição por gêneros das obras lidas</p>
-                    <div className="h-[350px]">
+                    <div className="h-[300px] md:h-[400px] w-full">
                         {genreData.length > 0 ? (
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>
                                     <Pie 
                                         data={genreData} 
-                                        innerRadius={80} 
-                                        outerRadius={120} 
+                                        innerRadius="50%" 
+                                        outerRadius="72%" 
                                         paddingAngle={4} 
                                         dataKey="value"
                                     >
@@ -519,9 +519,9 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
                     </div>
                 </div>
 
-                <div className="bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft flex flex-col justify-between">
+                <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft flex flex-col justify-between">
                     <div>
-                        <h3 className="text-xl font-black font-serif italic mb-2 text-slate-800 dark:text-white">Análise de Estilo</h3>
+                        <h3 className="text-lg sm:text-xl font-black font-serif italic mb-2 text-slate-800 dark:text-white">Análise de Estilo</h3>
                         <p className="text-slate-400 dark:text-slate-500 text-[9px] font-black uppercase tracking-widest mb-6">Sua preferência literária predominante</p>
                     </div>
                     

@@ -270,7 +270,7 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
 
       <ShelfProgress books={allBooks} stats={stats} />
 
-      <div className="bg-white dark:bg-slate-900 p-7 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft space-y-8 transition-all hover:border-slate-200 dark:hover:border-slate-700">
+      <div className="bg-white dark:bg-slate-900 p-4 sm:p-7 rounded-[1.5rem] sm:rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft space-y-6 sm:space-y-8 transition-all hover:border-slate-200 dark:hover:border-slate-700">
         {/* Status and Sort */}
         <div className="flex flex-col space-y-6 pb-6 border-b border-slate-50 dark:border-slate-800">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">

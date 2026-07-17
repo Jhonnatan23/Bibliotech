@@ -94,7 +94,7 @@ export const YearlyGoalChart: React.FC<YearlyGoalChartProps> = ({ books, reading
   const isGoalMet = totalFinishedThisYear >= readingGoal && readingGoal > 0;
 
   return (
-    <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 transition-all hover:shadow-2xl">
+    <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 transition-all hover:shadow-2xl">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
         <div>
           <h2 className="text-2xl md:text-3xl font-black font-serif text-slate-900 dark:text-slate-50 italic flex items-center gap-2">
@@ -125,7 +125,7 @@ export const YearlyGoalChart: React.FC<YearlyGoalChartProps> = ({ books, reading
         </div>
       </div>
 
-      <div className="w-full h-[300px] md:h-[350px]">
+      <div className="w-full h-[300px] md:h-[400px]">
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={chartData}

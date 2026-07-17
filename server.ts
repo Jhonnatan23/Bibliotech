@@ -11,6 +11,66 @@ const supabaseUrl = 'https://rqomssyihwvbwtoyjwws.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxb21zc3lpaHd2Ynd0b3lqd3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwOTY5OTksImV4cCI6MjA4MjY3Mjk5OX0.Fb1JORY5LXRhJdnnVen68_VNzhlGna5GO7xW996uaQU';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
+// Auth middleware to secure endpoints
+async function authMiddleware(req: any, res: any, next: any) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Token de autorização não fornecido ou inválido." });
+    }
+    const token = authHeader.split(" ")[1];
+    const { data, error } = await supabase.auth.getUser(token);
+    if (error || !data || !data.user) {
+      return res.status(401).json({ error: "Não autorizado: Token inválido ou expirado." });
+    }
+    req.user = data.user;
+    next();
+  } catch (err: any) {
+    console.error("[Auth Middleware] Erro:", err);
+    return res.status(401).json({ error: "Erro de autenticação interno." });
+  }
+}
+
+// In-memory rate limiter per user for AI endpoints
+interface RateLimitRecord {
+  count: number;
+  resetTime: number;
+}
+const aiRateLimits = new Map<string, RateLimitRecord>();
+
+function aiRateLimiter(req: any, res: any, next: any) {
+  const userId = req.user?.id;
+  if (!userId) {
+    return res.status(401).json({ error: "Não autorizado: Usuário não identificado." });
+  }
+  const now = Date.now();
+  const limitWindowMs = 15 * 60 * 1000; // 15 minutes
+  const limitCount = 20;
+
+  let record = aiRateLimits.get(userId);
+  if (!record || now > record.resetTime) {
+    record = {
+      count: 0,
+      resetTime: now + limitWindowMs
+    };
+  }
+
+  if (record.count >= limitCount) {
+    const retryAfterSec = Math.ceil((record.resetTime - now) / 1000);
+    res.setHeader("Retry-After", retryAfterSec);
+    return res.status(429).json({
+      error: "Too Many Requests",
+      message: "Limite de requisições de IA excedido (máximo de 20 requisições a cada 15 minutos). Tente novamente mais tarde.",
+      isQuotaExceeded: true,
+      retryAfter: retryAfterSec
+    });
+  }
+
+  record.count++;
+  aiRateLimits.set(userId, record);
+  next();
+}
+
 // Configure custom timeouts on the global Node.js fetch dispatcher to avoid Headers Timeout Error
 const globalAgent = new Agent({
   headersTimeout: 180000, // 3 minutes
@@ -50,8 +110,6 @@ async function generateContentWithFallback(
     "gemini-3.5-flash",
     "gemini-3.1-flash-lite",
     "gemini-2.5-flash",
-    "gemini-2.0-flash",
-    "gemini-1.5-flash",
     "gemini-flash-latest"
   ]
 ): Promise<any> {
@@ -200,7 +258,7 @@ async function startServer() {
   });
 
   // AI Insights Endpoint
-  app.post("/api/ai-insights", async (req, res) => {
+  app.post("/api/ai-insights", authMiddleware, aiRateLimiter, async (req: any, res: any) => {
     try {
       const { booksList } = req.body;
       const apiKey = process.env.GEMINI_API_KEY;
@@ -265,7 +323,7 @@ async function startServer() {
   });
 
   // Gemini API Proxy
-  app.post("/api/generate", async (req, res) => {
+  app.post("/api/generate", authMiddleware, aiRateLimiter, async (req: any, res: any) => {
     try {
       const { prompt, systemInstruction, model: modelName } = req.body;
       const apiKey = process.env.GEMINI_API_KEY;
@@ -296,7 +354,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/generate-summary", async (req, res) => {
+  app.post("/api/generate-summary", authMiddleware, aiRateLimiter, async (req: any, res: any) => {
     try {
       const { title, author } = req.body;
       const apiKey = process.env.GEMINI_API_KEY;
@@ -326,7 +384,7 @@ async function startServer() {
     }
   });
 
-  app.post("/api/get-recommendations", async (req, res) => {
+  app.post("/api/get-recommendations", authMiddleware, aiRateLimiter, async (req: any, res: any) => {
     try {
       const { context, responseSchema } = req.body;
       const apiKey = process.env.GEMINI_API_KEY;
@@ -370,11 +428,17 @@ async function startServer() {
   });
 
   // Real Email Dispatcher Endpoint
-  app.post("/api/send-email", async (req: any, res: any) => {
+  app.post("/api/send-email", authMiddleware, async (req: any, res: any) => {
     try {
-      const { to, subject, html } = req.body;
-      if (!to || !subject || !html) {
-        return res.status(400).json({ error: "Parâmetros 'to', 'subject' e 'html' são obrigatórios." });
+      const { subject, html } = req.body;
+      if (!subject || !html) {
+        return res.status(400).json({ error: "Parâmetros 'subject' e 'html' são obrigatórios." });
+      }
+
+      const to = req.user?.email;
+      if (!to) {
+        console.warn("[Email Service] Envio cancelado: Usuário autenticado não possui e-mail cadastrado.");
+        return res.status(400).json({ error: "Usuário não possui um e-mail cadastrado." });
       }
 
       const emailUser = "asuabibliotecavirtualbibliotec@gmail.com";
@@ -413,32 +477,33 @@ async function startServer() {
   });
 
   // POST /api/loans - Registrar um empréstimo
-  app.post("/api/loans", async (req: any, res: any) => {
+  app.post("/api/loans", authMiddleware, async (req: any, res: any) => {
     try {
-      const { bookId, borrowerName, borrowerEmail, dueDate, userId } = req.body;
+      const { bookId, borrowerName, borrowerEmail, dueDate } = req.body;
 
-      if (!bookId || !borrowerName || !dueDate || !userId) {
+      if (!bookId || !borrowerName || !dueDate) {
         return res.status(400).json({ 
-          error: "Campos obrigatórios ausentes: bookId, borrowerName, dueDate, userId." 
+          error: "Campos obrigatórios ausentes: bookId, borrowerName, dueDate." 
         });
       }
 
-      // 1. Obter informações do livro para o e-mail e validação
+      // 1. Obter informações do livro para o e-mail e validação, garantindo que pertence ao usuário logado
       const { data: book, error: bookError } = await supabase
         .from("books")
         .select("title, author")
         .eq("id", bookId)
+        .eq("user_id", req.user.id)
         .single();
 
       if (bookError || !book) {
-        return res.status(404).json({ error: "Livro não encontrado no banco de dados." });
+        return res.status(404).json({ error: "Livro não encontrado ou não pertence a este usuário." });
       }
 
-      // 2. Registrar o empréstimo na tabela 'loans'
+      // 2. Registrar o empréstimo na tabela 'loans' usando req.user.id
       const { data: loan, error: loanError } = await supabase
         .from("loans")
         .insert({
-          user_id: userId,
+          user_id: req.user.id,
           book_id: bookId,
           borrower_name: borrowerName,
           borrower_email: borrowerEmail || null,
@@ -461,7 +526,8 @@ async function startServer() {
           borrower_name: borrowerName,
           loan_date: new Date().toISOString().split("T")[0]
         })
-        .eq("id", bookId);
+        .eq("id", bookId)
+        .eq("user_id", req.user.id);
 
       if (updateBookError) {
         console.error("[Loans Backend] Erro ao atualizar status do livro:", updateBookError);
@@ -535,19 +601,20 @@ async function startServer() {
   });
 
   // PATCH /api/loans/:id/return - Finalizar um empréstimo
-  app.patch("/api/loans/:id/return", async (req: any, res: any) => {
+  app.patch("/api/loans/:id/return", authMiddleware, async (req: any, res: any) => {
     try {
       const { id } = req.params;
 
-      // 1. Obter informações do empréstimo existente
+      // 1. Obter informações do empréstimo existente e validar se pertence ao usuário
       const { data: loan, error: fetchError } = await supabase
         .from("loans")
-        .select("book_id, borrower_name")
+        .select("book_id, borrower_name, user_id")
         .eq("id", id)
+        .eq("user_id", req.user.id)
         .single();
 
       if (fetchError || !loan) {
-        return res.status(404).json({ error: "Empréstimo não encontrado." });
+        return res.status(404).json({ error: "Empréstimo não encontrado ou não pertence a este usuário." });
       }
 
       // 2. Atualizar o registro do empréstimo para 'returned' com a data real de retorno
@@ -558,6 +625,7 @@ async function startServer() {
           status: "returned"
         })
         .eq("id", id)
+        .eq("user_id", req.user.id)
         .select()
         .single();
 
@@ -574,7 +642,8 @@ async function startServer() {
           borrower_name: null,
           loan_date: null
         })
-        .eq("id", loan.book_id);
+        .eq("id", loan.book_id)
+        .eq("user_id", req.user.id);
 
       if (updateBookError) {
         console.error("[Loans Backend] Erro ao limpar informações de empréstimo do livro:", updateBookError);

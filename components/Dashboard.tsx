@@ -418,7 +418,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
         </div>
 
         {/* ROW 3: ANALYTICS BENTO BOARD */}
-        <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 transition-all hover:shadow-2xl">
+        <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 transition-all hover:shadow-2xl">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 md:mb-10 gap-4">
                 <div>
                     <h2 className="text-2xl md:text-3xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Evolução de Leitura</h2>
@@ -435,7 +435,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
                     </div>
                 </div>
             </div>
-            <div className="h-[300px] md:h-[350px]">
+            <div className="h-[300px] md:h-[400px]">
               <MonthlyChart data={stats.monthly} />
             </div>
         </div>
@@ -496,22 +496,22 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
         </div>
 
         {/* ROW 4: MEDIA & GENRES */}
-        <div className="lg:col-span-4 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 hover:shadow-xl transition-all flex flex-col min-h-[350px]">
-          <h2 className="text-xl md:text-2xl font-black font-serif text-slate-900 dark:text-slate-50 mb-8 italic text-center">Tipos de Mídia</h2>
+        <div className="lg:col-span-4 bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 hover:shadow-xl transition-all flex flex-col min-h-[350px]">
+          <h2 className="text-xl md:text-2xl font-black font-serif text-slate-900 dark:text-slate-50 mb-6 italic text-center">Tipos de Mídia</h2>
           <div className="flex-1 flex items-center justify-center">
               <TypePieChart data={stats.byType} />
           </div>
           <p className="text-[8px] md:text-[9px] font-black text-slate-400 dark:text-slate-600 uppercase tracking-widest text-center mt-6">Proporção Livros vs HQs</p>
         </div>
 
-        <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 hover:shadow-xl transition-all">
+        <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 hover:shadow-xl transition-all">
           <div className="flex items-center justify-between mb-8">
               <div>
                   <h2 className="text-2xl md:text-3xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Gêneros Favoritos</h2>
                   <p className="text-slate-400 dark:text-slate-500 text-[9px] md:text-[10px] font-black uppercase tracking-[0.2em] mt-1">✦ Seus temas mais explorados</p>
               </div>
           </div>
-          <div className="h-[250px] md:h-[300px]">
+          <div className="h-[300px] md:h-[400px] w-full">
               <GenreBarChart data={stats.byGenre} />
           </div>
         </div>

@@ -527,9 +527,15 @@ export class DatabaseService {
     const user = await this.getSafeUser();
     if (!user) throw new Error("Usuário não autenticado.");
 
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
     const response = await fetch("/api/loans", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { 
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      },
       body: JSON.stringify({
         bookId,
         borrowerName,
@@ -548,9 +554,15 @@ export class DatabaseService {
   }
 
   async returnLoan(loanId: string): Promise<any> {
+    const { data: { session } } = await supabase.auth.getSession();
+    const token = session?.access_token;
+
     const response = await fetch(`/api/loans/${loanId}/return`, {
       method: "PATCH",
-      headers: { "Content-Type": "application/json" }
+      headers: { 
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": `Bearer ${token}` } : {})
+      }
     });
 
     if (!response.ok) {

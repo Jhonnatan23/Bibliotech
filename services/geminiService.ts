@@ -1,12 +1,22 @@
 
 import { Recommendation } from "../types";
+import { supabase } from "./supabase";
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
 async function fetchWithRetry(url: string, options: RequestInit, retries = 5, backoff = 1000): Promise<Response> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const token = session?.access_token;
+
+  const headers = {
+    ...(options.headers || {}),
+    ...(token ? { "Authorization": `Bearer ${token}` } : {})
+  };
+  const updatedOptions = { ...options, headers };
+
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch(url, options);
+      const response = await fetch(url, updatedOptions);
       const contentType = response.headers.get("content-type");
       
       if (!contentType || !contentType.includes("application/json")) {

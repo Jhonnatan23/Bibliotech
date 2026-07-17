@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { CommunityPost, Profile } from '../types';
 import { GENRES } from '../types';
 import { CommunityPostCard } from './CommunityPostCard';
-import { communityService, COMMUNITY_SQL_MIGRATION } from '../services/communityService';
+import { communityService } from '../services/communityService';
 import { CommunityBookDetailModal } from './CommunityBookDetailModal';
 
 interface CommunityViewProps {
@@ -44,7 +44,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ profile, onAddToWi
   }, [fetchPosts]);
 
   const handleCopySql = () => {
-    navigator.clipboard.writeText(COMMUNITY_SQL_MIGRATION);
+    navigator.clipboard.writeText("supabase db push");
     setCopiedSql(true);
     setTimeout(() => setCopiedSql(false), 2500);
   };
@@ -87,11 +87,19 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ profile, onAddToWi
           <div className="flex items-start justify-between gap-3">
             <div>
               <h3 className="text-xs font-black uppercase tracking-widest text-amber-700 dark:text-amber-400">
-                🛠️ Guia de Integração de Nuvem (Supabase)
+                🛠️ Guia de Integração de Nuvem (Supabase Migrations)
               </h3>
-              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
-                Este recurso suporta persistência em tempo real e compartilhamento global de leituras via Supabase. Para ativá-lo, copie e execute o script SQL abaixo no <strong>SQL Editor</strong> do seu painel do Supabase.
+              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 leading-relaxed font-semibold">
+                Este projeto agora utiliza migrations versionadas e numeradas do Supabase para gerenciar a estrutura do banco de dados (tabelas, políticas de RLS e índices) de forma segura e automatizada.
               </p>
+              <div className="text-xs text-slate-600 dark:text-slate-400 mt-2 space-y-1.5 leading-relaxed">
+                <p>
+                  Todas as tabelas necessárias (<code>profiles</code>, <code>books</code>, <code>series</code>, <code>stories</code>, <code>loans</code>, <code>community_posts</code>, <code>community_reactions</code> e <code>community_comments</code>) estão configuradas em arquivos individuais sob o diretório <code>supabase/migrations/</code> no repositório do projeto.
+                </p>
+                <p>
+                  Para aplicar as migrations em um novo projeto Supabase, basta rodar o comando abaixo usando a CLI oficial do Supabase:
+                </p>
+              </div>
             </div>
             <button 
               onClick={() => setShowSqlHelp(false)}
@@ -102,14 +110,14 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ profile, onAddToWi
           </div>
 
           <div className="relative">
-            <pre className="text-[10px] font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-950 p-4 rounded-xl max-h-40 overflow-y-auto border border-slate-200 dark:border-slate-800/60 select-all">
-              {COMMUNITY_SQL_MIGRATION}
+            <pre className="text-[10px] font-mono text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800/60 select-all">
+              supabase db push
             </pre>
             <button
               onClick={handleCopySql}
               className="absolute top-2 right-2 px-3 py-1.5 bg-primary text-white text-[9px] font-black uppercase tracking-widest rounded-lg shadow-md hover:bg-primary-hover active:scale-95 transition-all"
             >
-              {copiedSql ? 'Copiado!' : 'Copiar SQL'}
+              {copiedSql ? 'Copiado!' : 'Copiar Comando'}
             </button>
           </div>
         </motion.div>
