@@ -5,12 +5,102 @@ import { generateBookSummary } from '../services/geminiService';
 import { fetchBookByIsbn } from '../services/googleBooksService';
 import { dbService } from '../services/database';
 import { parseNotesField, serializeNotesField } from '../components/quickNotesUtils';
+import { logger } from '../services/monitoring';
 
 export interface FormErrors {
   title?: string;
   authors?: string;
   genre?: string;
   volume?: string;
+  isbn?: string;
+}
+
+export interface ValidateBookFormParams {
+  title: string;
+  authors: string[];
+  selectedGenres: string[];
+  series: string;
+  volume: string;
+  seriesId: string;
+  definedSeries: any[];
+  existingBooks: Book[];
+  isEditMode: boolean;
+  bookToEditId?: string;
+  isbn?: string;
+}
+
+export function validateBookForm(params: ValidateBookFormParams): FormErrors {
+  const newErrors: FormErrors = {};
+  const trimmedTitle = params.title.trim();
+
+  if (!trimmedTitle) {
+    newErrors.title = "O título é obrigatório";
+  }
+
+  if (params.authors.length === 0) {
+    newErrors.authors = "Adicione ao menos um autor";
+  }
+  
+  if (params.selectedGenres.length === 0) {
+    newErrors.genre = "Selecione ao menos um gênero";
+  }
+
+  // ISBN validation when present
+  if (params.isbn && params.isbn.trim() !== '') {
+    const cleanedIsbn = params.isbn.replace(/[- ]/g, "");
+    const isValidIsbn = (cleanedIsbn.length === 10 && /^\d{9}[\dX]$/i.test(cleanedIsbn)) || 
+                        (cleanedIsbn.length === 13 && /^\d{13}$/.test(cleanedIsbn));
+    if (!isValidIsbn) {
+      newErrors.isbn = "Formato de ISBN inválido (deve ter 10 ou 13 dígitos)";
+    }
+  }
+
+  // Validations for Collection & Editions
+  const trimmedSeries = params.series.trim();
+  const parsedVolume = params.volume ? parseInt(params.volume, 10) : undefined;
+  const hasCollection = trimmedSeries !== '' || params.seriesId !== '';
+
+  if (hasCollection) {
+    // RN04 - Vínculo de Item à Coleção:
+    if (!params.volume || params.volume.trim() === '' || isNaN(parseInt(params.volume, 10))) {
+      newErrors.volume = "O número da edição é obrigatório ao selecionar uma coleção.";
+    } else if (parsedVolume !== undefined && parsedVolume < 1) {
+      newErrors.volume = "O número da edição deve ser maior ou igual a 1.";
+    } else {
+      // RN05 - Limite do Número da Edição:
+      const matchedSeries = params.definedSeries.find(s => 
+        (params.seriesId && s.id === params.seriesId) || 
+        (!params.seriesId && s.name.toLowerCase() === trimmedSeries.toLowerCase())
+      );
+      if (matchedSeries && matchedSeries.total_volumes !== undefined && matchedSeries.total_volumes !== null) {
+        if (parsedVolume !== undefined && parsedVolume > matchedSeries.total_volumes) {
+          newErrors.volume = `O número da edição não pode ser maior do que o total de edições da coleção (Máx: ${matchedSeries.total_volumes}).`;
+        }
+      }
+
+      // RN06 - Unicidade de Volume:
+      if (!newErrors.volume) {
+        const duplicateVolumeBook = params.existingBooks.find(b => {
+          // Ignore current book in edit mode
+          if (params.isEditMode && b.id === params.bookToEditId) return false;
+          
+          const bSeriesId = b.seriesId;
+          const bSeriesName = b.series?.trim();
+          
+          const matchesSeries = (params.seriesId && bSeriesId === params.seriesId) || 
+                                (trimmedSeries && bSeriesName?.toLowerCase() === trimmedSeries.toLowerCase());
+                                
+          return matchesSeries && b.volume === parsedVolume;
+        });
+        
+        if (duplicateVolumeBook) {
+          newErrors.volume = `Já existe um livro cadastrado com o número de edição ${parsedVolume} na coleção "${trimmedSeries || duplicateVolumeBook.series}".`;
+        }
+      }
+    }
+  }
+
+  return newErrors;
 }
 
 interface UseBookFormProps {
@@ -37,7 +127,17 @@ export const useBookForm = ({
   const isEditMode = !!bookToEdit && !isDuplicating;
 
   const [title, setTitle] = useState(bookToEdit?.title || '');
-  const [isbn, setIsbn] = useState('');
+  const [isbn, setIsbn] = useState(bookToEdit?.isbn || '');
+  const [condition, setCondition] = useState(bookToEdit?.condition || '');
+  const [purchaseDate, setPurchaseDate] = useState(bookToEdit?.purchaseDate || '');
+  const [store, setStore] = useState(bookToEdit?.store || '');
+  const [physicalLocation, setPhysicalLocation] = useState(bookToEdit?.physicalLocation || '');
+  const [edition, setEdition] = useState(bookToEdit?.edition || '');
+  const [signed, setSigned] = useState<boolean>(bookToEdit?.signed || false);
+  const [sealed, setSealed] = useState<boolean>(bookToEdit?.sealed || false);
+  const [limitedEdition, setLimitedEdition] = useState<boolean>(bookToEdit?.limitedEdition || false);
+  const [firstEdition, setFirstEdition] = useState<boolean>(bookToEdit?.firstEdition || false);
+  const [variantCover, setVariantCover] = useState<boolean>(bookToEdit?.variantCover || false);
   const [isIsbnLoading, setIsIsbnLoading] = useState(false);
   const [authors, setAuthors] = useState<string[]>(
     bookToEdit?.author ? bookToEdit.author.split(',').map(a => a.trim()).filter(a => a !== '') : []
@@ -222,65 +322,25 @@ export const useBookForm = ({
     e.preventDefault();
     if (isSubmitting) return;
 
+    const trimmedTitle = title.trim();
     let finalAuthors = [...authors];
     if (authorInput.trim() && !finalAuthors.includes(authorInput.trim())) {
         finalAuthors.push(authorInput.trim());
     }
 
-    const newErrors: FormErrors = {};
-    const trimmedTitle = title.trim();
-
-    if (!trimmedTitle) {
-      newErrors.title = "O título é obrigatório";
-    }
-
-    if (finalAuthors.length === 0) newErrors.authors = "Adicione ao menos um autor";
-    if (selectedGenres.length === 0) newErrors.genre = "Selecione ao menos um gênero";
-
-    // Validations for Collection & Editions
-    const trimmedSeries = series.trim();
-    const parsedVolume = volume ? parseInt(volume, 10) : undefined;
-    const hasCollection = trimmedSeries !== '' || seriesId !== '';
-
-    if (hasCollection) {
-      // RN04 - Vínculo de Item à Coleção:
-      if (!volume || volume.trim() === '' || isNaN(parseInt(volume, 10))) {
-        newErrors.volume = "O número da edição é obrigatório ao selecionar uma coleção.";
-      } else if (parsedVolume !== undefined && parsedVolume < 1) {
-        newErrors.volume = "O número da edição deve ser maior ou igual a 1.";
-      } else {
-        // RN05 - Limite do Número da Edição:
-        const matchedSeries = definedSeries.find(s => 
-          (seriesId && s.id === seriesId) || 
-          (!seriesId && s.name.toLowerCase() === trimmedSeries.toLowerCase())
-        );
-        if (matchedSeries && matchedSeries.total_volumes !== undefined && matchedSeries.total_volumes !== null) {
-          if (parsedVolume !== undefined && parsedVolume > matchedSeries.total_volumes) {
-            newErrors.volume = `O número da edição não pode ser maior do que o total de edições da coleção (Máx: ${matchedSeries.total_volumes}).`;
-          }
-        }
-
-        // RN06 - Unicidade de Volume:
-        if (!newErrors.volume) {
-          const duplicateVolumeBook = existingBooks.find(b => {
-            // Ignore current book in edit mode
-            if (isEditMode && b.id === bookToEdit?.id) return false;
-            
-            const bSeriesId = b.seriesId;
-            const bSeriesName = b.series?.trim();
-            
-            const matchesSeries = (seriesId && bSeriesId === seriesId) || 
-                                  (trimmedSeries && bSeriesName?.toLowerCase() === trimmedSeries.toLowerCase());
-                                  
-            return matchesSeries && b.volume === parsedVolume;
-          });
-          
-          if (duplicateVolumeBook) {
-            newErrors.volume = `Já existe um livro cadastrado com o número de edição ${parsedVolume} na coleção "${trimmedSeries || duplicateVolumeBook.series}".`;
-          }
-        }
-      }
-    }
+    const newErrors = validateBookForm({
+      title: trimmedTitle,
+      authors: finalAuthors,
+      selectedGenres,
+      series,
+      volume,
+      seriesId,
+      definedSeries,
+      existingBooks,
+      isEditMode,
+      bookToEditId: bookToEdit?.id,
+      isbn
+    });
     
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -326,7 +386,18 @@ export const useBookForm = ({
             series: series.trim() || undefined,
             volume: volume ? parseInt(volume, 10) : undefined,
             seriesId: seriesId || undefined,
-            historyObservation: (status === BookStatus.Read || status === BookStatus.Dropped) ? historyObservation : undefined
+            historyObservation: (status === BookStatus.Read || status === BookStatus.Dropped) ? historyObservation : undefined,
+            condition: condition.trim() || undefined,
+            purchaseDate: purchaseDate || undefined,
+            store: store.trim() || undefined,
+            physicalLocation: physicalLocation.trim() || undefined,
+            edition: edition.trim() || undefined,
+            isbn: isbn.trim() || undefined,
+            signed,
+            sealed,
+            limitedEdition,
+            firstEdition,
+            variantCover
         };
         if (isEditMode) {
             await onUpdateBook({ ...bookToEdit, ...bookData });
@@ -340,7 +411,8 @@ export const useBookForm = ({
     authors, authorInput, title, selectedGenres, series, volume, seriesId, definedSeries, existingBooks,
     isEditMode, bookToEdit, isDuplicating, notes, pages, type, status, rating, estimatedPrice, pricePaid,
     buyLink, dateAdded, currentPage, dateFinished, daysToFinish, timesRead, linkedBookIds, selectedTags,
-    isLoaned, borrowerName, loanDate, isDigital, historyObservation, onUpdateBook, onAddBook, isSubmitting
+    isLoaned, borrowerName, loanDate, isDigital, historyObservation, onUpdateBook, onAddBook, isSubmitting,
+    condition, purchaseDate, store, physicalLocation, edition, isbn, signed, sealed, limitedEdition, firstEdition, variantCover
   ]);
 
   const handleGenerateSummary = useCallback(async () => {
@@ -349,8 +421,8 @@ export const useBookForm = ({
     try {
       const result = await generateBookSummary(title, authors.join(', '));
       if (result) setSummary(result);
-    } catch (err) {
-      console.error("Erro ao gerar resumo:", err);
+    } catch (err: any) {
+      logger.error("Erro ao gerar resumo:", { error: err.message || err });
     } finally {
       setIsGeneratingSummary(false);
     }
@@ -377,8 +449,8 @@ export const useBookForm = ({
             setErrors(prev => ({ ...prev, title: 'ISBN não encontrado. Verifique os números.' }));
             setTimeout(() => setErrors(prev => ({ ...prev, title: undefined })), 4000);
         }
-    } catch (err) {
-        console.error("Erro ao buscar ISBN:", err);
+    } catch (err: any) {
+        logger.error("Erro ao buscar ISBN:", { error: err.message || err });
     } finally {
         setIsIsbnLoading(false);
     }
@@ -411,6 +483,16 @@ export const useBookForm = ({
     series, setSeries,
     volume, setVolume,
     seriesId, setSeriesId,
+    condition, setCondition,
+    purchaseDate, setPurchaseDate,
+    store, setStore,
+    physicalLocation, setPhysicalLocation,
+    edition, setEdition,
+    signed, setSigned,
+    sealed, setSealed,
+    limitedEdition, setLimitedEdition,
+    firstEdition, setFirstEdition,
+    variantCover, setVariantCover,
     isGeneratingSummary,
     isSubmitting,
     dateAdded, setDateAdded,

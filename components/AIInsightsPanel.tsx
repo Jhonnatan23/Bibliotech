@@ -1,3 +1,4 @@
+import { logger } from '../services/monitoring';
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Sparkles, RefreshCw, Award, ArrowUpRight, Quote, BookOpen, BrainCircuit } from 'lucide-react';
@@ -38,7 +39,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ books }) => {
         setError('Não foi possível gerar os insights literários no momento. Tente novamente em instantes.');
       }
     } catch (err: any) {
-      console.error('Error fetching AI insights:', err);
+      logger.error('Error fetching AI insights:', err);
       setError('Erro de conexão ao servidor de inteligência. Por favor, recarregue e tente novamente.');
     } finally {
       setIsLoading(false);

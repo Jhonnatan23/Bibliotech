@@ -1,4 +1,5 @@
 
+import { logger } from '../services/monitoring';
 import React, { useMemo, useState, useEffect } from 'react';
 import type { ReadingStats, Book, DateFilter, Recommendation, NewBook, Profile } from '../types';
 import { BookStatus, BookType } from '../types';
@@ -91,7 +92,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
       setSelectedBookToStart(null);
       setSearchTerm('');
     } catch (err) {
-      console.error("Erro ao iniciar leitura do livro pesquisado:", err);
+      logger.error("Erro ao iniciar leitura do livro pesquisado:", err);
     } finally {
       setIsStartingReading(false);
     }
@@ -120,7 +121,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
         setDemandExceeded(true);
       } else {
         setAiError(err.message || "Erro inesperado ao carregar recomendações.");
-        console.error("Erro ao carregar recomendações:", err);
+        logger.error("Erro ao carregar recomendações:", err);
       }
     } finally {
       setIsLoadingRecs(false);

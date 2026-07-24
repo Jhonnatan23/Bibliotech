@@ -1,3 +1,4 @@
+import { logger } from '../services/monitoring';
 import React, { useState, useEffect, useMemo } from 'react';
 import type { Book, Profile, Loan } from '../types';
 import { BookStatus } from '../types';
@@ -53,7 +54,7 @@ export const LoansView: React.FC<LoansViewProps> = ({
       const data = await dbService.getAllLoans();
       setLoans(data);
     } catch (err) {
-      console.error('Erro ao carregar empréstimos:', err);
+      logger.error('Erro ao carregar empréstimos:', err);
     } finally {
       setIsLoading(false);
     }
@@ -131,7 +132,7 @@ export const LoansView: React.FC<LoansViewProps> = ({
         await fetchLoans();
       }
     } catch (err: any) {
-      console.error(err);
+      logger.error(err);
       setErrorMsg(err.message || 'Falha ao registrar empréstimo. Tente novamente.');
     } finally {
       setIsSubmitting(false);
@@ -161,7 +162,7 @@ export const LoansView: React.FC<LoansViewProps> = ({
         await fetchLoans();
       }
     } catch (err) {
-      console.error('Erro ao devolver obra:', err);
+      logger.error('Erro ao devolver obra:', err);
       alert('Não foi possível registrar a devolução no momento.');
       fetchLoans(); // Rollback to actual db state on error
     }

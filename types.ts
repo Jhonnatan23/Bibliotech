@@ -10,6 +10,7 @@ export enum BookStatus {
 export enum BookType {
   Book = 'Livro',
   HQ = 'HQ',
+  Manga = 'Mangá',
 }
 
 export const GENRES = [
@@ -84,6 +85,17 @@ export interface Book {
   series?: string;
   volume?: number;
   seriesId?: string;
+  condition?: string;
+  purchaseDate?: string;
+  store?: string;
+  physicalLocation?: string;
+  edition?: string;
+  isbn?: string;
+  signed?: boolean;
+  sealed?: boolean;
+  limitedEdition?: boolean;
+  firstEdition?: boolean;
+  variantCover?: boolean;
 }
 
 export interface Series {
@@ -221,6 +233,31 @@ export interface Loan {
   due_date: string;
   return_date?: string;
   status: 'active' | 'returned' | 'overdue';
+}
+
+export interface ChallengeType {
+  id: string;
+  title: string;
+  description: string;
+  badge: string; // Emoji representing the trophy/badge
+  category: string;
+  targetCount: number;
+  genreKeywords: string[]; // genres list
+  types?: BookType[];     // [Book, HQ]
+  minPages?: number;        // page requirement
+  minRating?: number;       // rating filter
+  requiresSeries?: boolean; // if true, must belong to a trilogy/series
+  isCustom?: boolean;       // whether it was created by the user
+}
+
+export interface BadgeType {
+  id: string;
+  title: string;
+  description: string;
+  icon: string;
+  rarity: 'Comum' | 'Raro' | 'Épico' | 'Lendário';
+  unlockedConditionText: string;
+  isUnlocked: boolean;
 }
 
 declare global {

@@ -4,6 +4,9 @@ import type { Book, ReadingStats, NewBook, DateFilter, GenreStat, StatusStat } f
 import { BookStatus, BookType } from '../types';
 import { dbService } from '../services/database';
 import { supabase } from '../services/supabase';
+import { config } from '../services/config';
+import { DEMO_BOOKS } from '../services/demoData';
+import { logger } from '../services/monitoring';
 
 const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
@@ -26,7 +29,11 @@ export const useBookData = () => {
     try {
       const cachedBooks = await dbService.getLocalBooks();
       const cachedStats = await dbService.getLocalStats();
-      if (cachedBooks.length > 0) setBooks(cachedBooks);
+      if (cachedBooks.length > 0) {
+        setBooks(cachedBooks);
+      } else if (config.enableDemoData) {
+        setBooks(DEMO_BOOKS);
+      }
       if (cachedStats) setQuickSummary(cachedStats);
     } finally {
       setIsLoading(false);
@@ -49,13 +56,20 @@ export const useBookData = () => {
       ]);
 
       if (booksResult.status === 'fulfilled') {
-        setBooks(booksResult.value);
+        const fetchedBooks = booksResult.value;
+        if (fetchedBooks.length > 0) {
+          setBooks(fetchedBooks);
+        } else if (config.enableDemoData) {
+          setBooks(DEMO_BOOKS);
+        } else {
+          setBooks([]);
+        }
       }
       if (statsResult.status === 'fulfilled' && statsResult.value) {
         setQuickSummary(statsResult.value);
       }
-    } catch (e) {
-      console.warn("Sincronização falhou.");
+    } catch (e: any) {
+      logger.warn("Sincronização falhou.", { error: e.message || e });
     } finally {
       setIsLoading(false);
       isSincronizing.current = false;
@@ -86,9 +100,9 @@ export const useBookData = () => {
     await dbService.saveBook(book);
   }, []);
 
-  const updateBook = useCallback(async (updatedBook: Book) => {
-    setBooks(prev => prev.map(b => b.id === updatedBook.id ? updatedBook : b));
-    await dbService.saveBook(updatedBook);
+  const updateBook = useCallback(async (id: string, changes: Partial<Book>) => {
+    const updated = await dbService.updateBook(id, changes);
+    setBooks(prev => prev.map(b => b.id === id ? updated : b));
   }, []);
 
   const deleteBook = useCallback(async (id: string) => {

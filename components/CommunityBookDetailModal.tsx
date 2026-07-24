@@ -1,3 +1,4 @@
+import { logger } from '../services/monitoring';
 import React, { useState, useEffect } from 'react';
 import { motion } from 'motion/react';
 import { CommunityPost } from '../types';
@@ -31,7 +32,7 @@ export const CommunityBookDetailModal: React.FC<CommunityBookDetailModalProps> =
           setGoogleBook(bestMatch);
         }
       } catch (err) {
-        console.error("Erro ao buscar detalhes no Google Books:", err);
+        logger.error("Erro ao buscar detalhes no Google Books:", err);
       } finally {
         if (active) setIsLoading(false);
       }

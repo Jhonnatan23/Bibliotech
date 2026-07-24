@@ -1,3 +1,4 @@
+import { logger } from '../services/monitoring';
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CommunityPost, CommunityComment } from '../types';
@@ -51,7 +52,7 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
       await communityService.toggleReaction(post.id, type);
       onRefresh();
     } catch (err) {
-      console.error("Erro ao registrar reação:", err);
+      logger.error("Erro ao registrar reação:", err);
     }
   };
 
@@ -66,7 +67,7 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
       setCommentText('');
       onRefresh(); // Sincroniza estado geral do card
     } catch (err) {
-      console.error("Erro ao enviar comentário:", err);
+      logger.error("Erro ao enviar comentário:", err);
     } finally {
       setIsSubmittingComment(false);
     }

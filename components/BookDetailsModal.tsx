@@ -1,4 +1,5 @@
 
+import { logger } from '../services/monitoring';
 import React, { useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Book, StatusConfigs, Profile } from '../types';
@@ -61,7 +62,7 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
         
         await onUpdateBook({ ...book, tags: newTags });
     } catch (err) {
-        console.error(err);
+        logger.error(err);
     } finally {
         setIsUpdating(false);
     }
@@ -337,7 +338,7 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
                             setNewQuickNoteText('');
                             setNewQuickNotePage('');
                         } catch (err) {
-                            console.error(err);
+                            logger.error(err);
                         } finally {
                             setIsUpdating(false);
                         }
@@ -413,7 +414,7 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
                                             const updatedNotesStr = serializeNotesField(generalNotes, updatedNotesList);
                                             await onUpdateBook({ ...book, notes: updatedNotesStr });
                                         } catch (err) {
-                                            console.error(err);
+                                            logger.error(err);
                                         } finally {
                                             setIsUpdating(false);
                                         }

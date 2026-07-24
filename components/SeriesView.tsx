@@ -1,4 +1,5 @@
 
+import { logger } from '../services/monitoring';
 import React, { useMemo, useState, useEffect } from 'react';
 import type { Book, Profile, Series } from '../types';
 import { BookStatus, STATUS_COLORS, STATUS_CONFIGS } from '../types';
@@ -74,7 +75,7 @@ export const SeriesView: React.FC<SeriesViewProps> = React.memo(({ books, onEdit
       const data = await dbService.getAllSeries();
       setDefinedSeries(data);
     } catch (err) {
-      console.error("Erro ao carregar séries no SeriesView:", err);
+      logger.error("Erro ao carregar séries no SeriesView:", err);
     }
   };
 
@@ -204,7 +205,7 @@ export const SeriesView: React.FC<SeriesViewProps> = React.memo(({ books, onEdit
 
     setIsSubmitting(true);
     try {
-      console.log("[SeriesView] Criando nova saga:", newSeriesName);
+      logger.info("[SeriesView] Criando nova saga:", newSeriesName);
       await dbService.saveSeries({
         name: newSeriesName.trim(),
         total_volumes: totalVolumes
@@ -222,7 +223,7 @@ export const SeriesView: React.FC<SeriesViewProps> = React.memo(({ books, onEdit
       
       alert('Coleção criada com sucesso!');
     } catch (e: any) {
-      console.error("[SeriesView] Falha ao criar saga:", e);
+      logger.error("[SeriesView] Falha ao criar saga:", e);
       const detail = e.message || JSON.stringify(e);
       alert(`Erro ao criar coleção: ${detail}\n\nNota: Verifique se você executou o script SQL no Supabase.`);
     } finally {
@@ -262,7 +263,7 @@ export const SeriesView: React.FC<SeriesViewProps> = React.memo(({ books, onEdit
       
       alert('Coleção excluída com sucesso!');
     } catch (e: any) {
-      console.error("[SeriesView] Falha ao excluir coleção:", e);
+      logger.error("[SeriesView] Falha ao excluir coleção:", e);
       alert(`Erro ao excluir coleção: ${e.message || JSON.stringify(e)}`);
     } finally {
       setIsSubmitting(false);
@@ -309,7 +310,7 @@ export const SeriesView: React.FC<SeriesViewProps> = React.memo(({ books, onEdit
       if (!seriesId) {
         // If it's an ad-hoc series, create a new series entry in the database.
         const newSeriesId = crypto.randomUUID();
-        console.log("[SeriesView] Criando série formal para grupo ad-hoc:", editingSeriesName, newSeriesId);
+        logger.info("[SeriesView] Criando série formal para grupo ad-hoc:", editingSeriesName, newSeriesId);
         await dbService.saveSeries({
           id: newSeriesId,
           name: editingSeriesName.trim(),
@@ -317,7 +318,7 @@ export const SeriesView: React.FC<SeriesViewProps> = React.memo(({ books, onEdit
         });
         seriesId = newSeriesId;
       } else {
-        console.log("[SeriesView] Atualizando saga:", seriesId, editingSeriesName);
+        logger.info("[SeriesView] Atualizando saga:", seriesId, editingSeriesName);
         await dbService.saveSeries({
           id: seriesId,
           name: editingSeriesName.trim(),
@@ -346,7 +347,7 @@ export const SeriesView: React.FC<SeriesViewProps> = React.memo(({ books, onEdit
       
       alert('Coleção atualizada com sucesso!');
     } catch (e: any) {
-      console.error("[SeriesView] Falha ao atualizar coleção:", e);
+      logger.error("[SeriesView] Falha ao atualizar coleção:", e);
       alert(`Erro ao atualizar coleção: ${e.message || JSON.stringify(e)}`);
     } finally {
       setIsSubmitting(false);
@@ -395,7 +396,7 @@ export const SeriesView: React.FC<SeriesViewProps> = React.memo(({ books, onEdit
             seriesId: isAddingBooks.id || undefined // Garante que seja de fato a ID se for uma coleção cadastrada
         };
 
-        console.log("[SeriesView] Chamando onUpdateBook para vincular:", { bookId: updatedBook.id, seriesId: updatedBook.seriesId });
+        logger.info("[SeriesView] Chamando onUpdateBook para vincular:", { bookId: updatedBook.id, seriesId: updatedBook.seriesId });
         await onUpdateBook(updatedBook);
         
         await loadSeries();
@@ -406,7 +407,7 @@ export const SeriesView: React.FC<SeriesViewProps> = React.memo(({ books, onEdit
         
         alert("Livro vinculado com sucesso!");
     } catch (e: any) {
-        console.error("[SeriesView] Erro fatal ao vincular livro:", e);
+        logger.error("[SeriesView] Erro fatal ao vincular livro:", e);
         setLinkError(`Erro ao vincular livro: ${e.message || JSON.stringify(e)}`);
     } finally {
         setIsSubmitting(false);

@@ -1,10 +1,11 @@
 
+import { logger } from '../services/monitoring';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Book, Story, Profile } from '../types';
 import { dbService } from '../services/database';
 import { supabase } from '../services/supabase';
 import { SparklesIcon, PlusIcon, PencilIcon, TrashIcon, BookOpenIcon, XMarkIcon, CheckIcon } from './Icons';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmationModal } from './ConfirmationModal';
 
 interface CreativeStudioProps {
@@ -175,7 +176,7 @@ Conteúdo: "${activeStory.content}"`;
       if (error.message === 'ALTA_DEMANDA') {
         setAiResponse('O Mentor está muito requisitado no momento! Por favor, aguarde alguns segundos e tente novamente.');
       } else {
-        console.error('AI Error:', error);
+        logger.error('AI Error:', error);
         setAiResponse(`Erro: ${error.message || 'Ocorreu um erro ao consultar o assistente.'}`);
       }
     } finally {

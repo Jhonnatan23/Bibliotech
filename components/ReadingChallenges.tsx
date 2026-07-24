@@ -1,22 +1,12 @@
+import { logger } from '../services/monitoring';
 import React, { useState, useMemo, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
-import type { Book, Profile } from '../types';
-import { BookStatus, BookType, GENRES } from '../types';
-
-export interface ChallengeType {
-  id: string;
-  title: string;
-  description: string;
-  badge: string; // Emoji representing the trophy/badge
-  category: string;
-  targetCount: number;
-  genreKeywords: string[]; // genres list
-  types?: BookType[];     // [Book, HQ]
-  minPages?: number;        // page requirement
-  minRating?: number;       // rating filter
-  requiresSeries?: boolean; // if true, must belong to a trilogy/series
-  isCustom?: boolean;       // whether it was created by the user
-}
+import { motion } from 'motion/react';
+import type { Book, Profile, ChallengeType } from '../types';
+import { BookStatus, BookType } from '../types';
+import { useChallengeProgress } from '../hooks/useChallengeProgress';
+import { useBadgeUnlocks } from '../hooks/useBadgeUnlocks';
+import { CustomChallengeForm } from './CustomChallengeForm';
+import { groupChallengesAndStats } from './reading-challenges/utils';
 
 const PREDEFINED_CHALLENGES: ChallengeType[] = [
   {
@@ -115,19 +105,8 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
   const [joinedIds, setJoinedIds] = useState<string[]>([]);
   const [customChallenges, setCustomChallenges] = useState<ChallengeType[]>([]);
   const [activeTab, setActiveTab] = useState<'joined' | 'available' | 'completed' | 'badges'>('joined');
-  const [unlockedDates, setUnlockedDates] = useState<Record<string, string>>({});
   const [badgeFilter, setBadgeFilter] = useState<'all' | 'unlocked' | 'locked'>('all');
-  
-  // Custom challenge form state
   const [isCreatingCustom, setIsCreatingCustom] = useState(false);
-  const [customTitle, setCustomTitle] = useState('');
-  const [customDescription, setCustomDescription] = useState('');
-  const [customBadge, setCustomBadge] = useState('🏆');
-  const [customTarget, setCustomTarget] = useState(3);
-  const [customGenre, setCustomGenre] = useState('');
-  const [customType, setCustomType] = useState<BookType | 'Ambos'>('Ambos');
-  const [customPagesMin, setCustomPagesMin] = useState(0);
-  const [customRatingMin, setCustomRatingMin] = useState(0);
 
   const userId = profile?.id || 'anonymous';
 
@@ -148,13 +127,8 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
       if (storedCustom) {
         setCustomChallenges(JSON.parse(storedCustom));
       }
-
-      const storedUnlocks = localStorage.getItem(`biblio_tech_badge_unlocks_${userId}`);
-      if (storedUnlocks) {
-        setUnlockedDates(JSON.parse(storedUnlocks));
-      }
     } catch (e) {
-      console.error('Error loading challenges state', e);
+      logger.error('Error loading challenges state', e);
     }
   }, [userId]);
 
@@ -163,47 +137,26 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
     return [...PREDEFINED_CHALLENGES, ...customChallenges];
   }, [customChallenges]);
 
-  // Function to calculate exact progress count on any challenge
-  const getChallengeProgress = (challenge: ChallengeType) => {
-    const readBooks = books.filter(b => b.status === BookStatus.Read);
-    let matchedBooks = readBooks;
+  // Hook 1: Progress calculations
+  const { challengesWithStats } = useChallengeProgress(allChallenges, books);
 
-    // 1. By type
-    if (challenge.types && challenge.types.length > 0) {
-      matchedBooks = matchedBooks.filter(b => challenge.types!.includes(b.type));
-    }
+  // Hook 2: Badge unlocks & persistence
+  const { badgesRecord, unlockedDates, unlockedBadgesCount } = useBadgeUnlocks(
+    userId,
+    joinedIds,
+    customChallenges,
+    challengesWithStats
+  );
 
-    // 2. By genre keywords
-    if (challenge.genreKeywords && challenge.genreKeywords.length > 0) {
-      matchedBooks = matchedBooks.filter(b => {
-        if (!b.genre) return false;
-        const g = b.genre.trim().toLowerCase();
-        return challenge.genreKeywords.some(kw => 
-          g === kw.toLowerCase() || g.includes(kw.toLowerCase())
-        );
-      });
-    }
-
-    // 3. By minimum page length
-    if (challenge.minPages && challenge.minPages > 0) {
-      matchedBooks = matchedBooks.filter(b => b.pages >= challenge.minPages!);
-    }
-
-    // 4. By star rating
-    if (challenge.minRating && challenge.minRating > 0) {
-      matchedBooks = matchedBooks.filter(b => b.rating && b.rating >= challenge.minRating!);
-    }
-
-    // 5. By series attachment
-    if (challenge.requiresSeries) {
-      matchedBooks = matchedBooks.filter(b => b.series && b.series.trim() !== '');
-    }
-
-    return {
-      current: matchedBooks.length,
-      matchedList: matchedBooks
-    };
-  };
+  // Utility: Grouping and stats summary
+  const {
+    joinedChallenges,
+    availableChallenges,
+    completedChallenges,
+    totalCompletedCount,
+    activeChallengesCount,
+    successRate
+  } = groupChallengesAndStats(challengesWithStats, joinedIds);
 
   // Join a challenge
   const handleJoinChallenge = (id: string) => {
@@ -220,25 +173,8 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
     localStorage.setItem(`biblio_tech_joined_challenges_${userId}`, JSON.stringify(updated));
   };
 
-  // Create custom thematic challenge description
-  const handleCreateCustomChallenge = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customTitle.trim()) return;
-
-    const newChallenge: ChallengeType = {
-      id: `custom_chal_${Date.now()}`,
-      title: customTitle,
-      description: customDescription || `Desafio de leitura customizado criado por ${profile?.fullName || 'você'}.`,
-      badge: customBadge,
-      category: 'Personalizado',
-      targetCount: customTarget,
-      genreKeywords: customGenre ? [customGenre] : [],
-      types: customType !== 'Ambos' ? [customType] : undefined,
-      minPages: customPagesMin > 0 ? customPagesMin : undefined,
-      minRating: customRatingMin > 0 ? customRatingMin : undefined,
-      isCustom: true
-    };
-
+  // Create custom thematic challenge
+  const handleCreateCustomChallenge = (newChallenge: ChallengeType) => {
     const updatedCustomList = [...customChallenges, newChallenge];
     setCustomChallenges(updatedCustomList);
     localStorage.setItem(`biblio_tech_custom_challenges_${userId}`, JSON.stringify(updatedCustomList));
@@ -248,18 +184,10 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
     setJoinedIds(updatedJoined);
     localStorage.setItem(`biblio_tech_joined_challenges_${userId}`, JSON.stringify(updatedJoined));
 
-    // Reset Form
-    setCustomTitle('');
-    setCustomDescription('');
-    setCustomBadge('🏆');
-    setCustomTarget(3);
-    setCustomGenre('');
-    setCustomType('Ambos');
-    setCustomPagesMin(0);
-    setCustomRatingMin(0);
     setIsCreatingCustom(false);
   };
 
+  // Delete custom challenge
   const handleDeleteCustomChallenge = (id: string) => {
     const updatedCustom = customChallenges.filter(c => c.id !== id);
     setCustomChallenges(updatedCustom);
@@ -270,172 +198,6 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
     localStorage.setItem(`biblio_tech_joined_challenges_${userId}`, JSON.stringify(updatedJoined));
   };
 
-  // Category statistics/challenges grouping
-  const challengesWithStats = useMemo(() => {
-    return allChallenges.map(chal => {
-      const stats = getChallengeProgress(chal);
-      const percentage = Math.min(100, Math.round((stats.current / chal.targetCount) * 100));
-      return {
-        ...chal,
-        currentCount: stats.current,
-        percentage,
-        isCompleted: stats.current >= chal.targetCount,
-        matchedBooks: stats.matchedList
-      };
-    });
-  }, [allChallenges, books]);
-
-  // Divided arrays maps
-  const joinedChallenges = challengesWithStats.filter(c => joinedIds.includes(c.id) && !c.isCompleted);
-  const availableChallenges = challengesWithStats.filter(c => !joinedIds.includes(c.id) && !c.isCompleted);
-  const completedChallenges = challengesWithStats.filter(c => joinedIds.includes(c.id) && c.isCompleted);
-
-  // General statistics summary
-  const totalCompletedCount = challengesWithStats.filter(c => joinedIds.includes(c.id) && c.isCompleted).length;
-  const activeChallengesCount = joinedChallenges.length;
-
-  // Memoized Badges list and unlock checkers
-  const badgesRecord = useMemo(() => {
-    return [
-      {
-        id: 'badge_first_joined',
-        title: 'Pioneiro Literário',
-        description: 'Você aceitou seu primeiro desafio e iniciou sua jornada em direção ao topo.',
-        icon: '🔰',
-        rarity: 'Comum' as const,
-        unlockedConditionText: 'Inscrever-se em pelo menos 1 desafio',
-        isUnlocked: joinedIds.length >= 1
-      },
-      {
-         id: 'badge_myst_thrill',
-         title: 'Cérebro de Titânio',
-         description: 'Sua lógica impecável desvendou os crimes mais sombrios e misteriosos.',
-         icon: '🧠',
-         rarity: 'Raro' as const,
-         unlockedConditionText: 'Completar o desafio "Mestre do Mistério & Crime"',
-         isUnlocked: challengesWithStats.some(c => c.id === 'myst_thrill_5' && c.isCompleted)
-      },
-      {
-         id: 'badge_hq_fanatic',
-         title: 'Senhor dos Quadrinhos',
-         description: 'Provou que a nona arte tem as narrativas e nuances mais épicas do mundo.',
-         icon: '💥',
-         rarity: 'Comum' as const,
-         unlockedConditionText: 'Completar o desafio "Maratona da Nona Arte"',
-         isUnlocked: challengesWithStats.some(c => c.id === 'hq_fanatic_5' && c.isCompleted)
-      },
-      {
-         id: 'badge_scifi_voyage',
-         title: 'Ficcionista Cósmico',
-         description: 'Atravessou de pontes para outras galáxias e explorou o futuro da tecnologia estelar.',
-         icon: '🪐',
-         rarity: 'Raro' as const,
-         unlockedConditionText: 'Completar o desafio "Desbravador Cósmico"',
-         isUnlocked: challengesWithStats.some(c => c.id === 'scifi_voyage_3' && c.isCompleted)
-      },
-      {
-         id: 'badge_mind_power',
-         title: 'Magnata do Conhecimento',
-         description: 'Desenvolveu as melhores estratégias reais de crescimento mental e profissional.',
-         icon: '💼',
-         rarity: 'Raro' as const,
-         unlockedConditionText: 'Completar o desafio "Impulso Próprio"',
-         isUnlocked: challengesWithStats.some(c => c.id === 'mind_power_3' && c.isCompleted)
-      },
-      {
-         id: 'badge_fantasy_legends',
-         title: 'Cavaleiro de Elrond',
-         description: 'Desbravou reinos desconhecidos e criaturas mágicas com maestria e precisão.',
-         icon: '⚔️',
-         rarity: 'Raro' as const,
-         unlockedConditionText: 'Completar o desafio "Explorador de lendas"',
-         isUnlocked: challengesWithStats.some(c => c.id === 'fantasy_legends_3' && c.isCompleted)
-      },
-      {
-         id: 'badge_heavy_books',
-         title: 'Estômago de Aço',
-         description: 'Nenhum calhamaço ou tomo gigantesco foi o suficiente para assustar seu intelecto.',
-         icon: '🏋️‍♂️',
-         rarity: 'Épico' as const,
-         unlockedConditionText: 'Completar o desafio "Devorador de Tijolo"',
-         isUnlocked: challengesWithStats.some(c => c.id === 'heavy_books_2' && c.isCompleted)
-      },
-      {
-         id: 'badge_classics_traveler',
-         title: 'Viajante do Tempo',
-         description: 'Fez turismo histórico através de obras atemporais de grandes mestres da humanidade.',
-         icon: '⏳',
-         rarity: 'Épico' as const,
-         unlockedConditionText: 'Completar o desafio "Turismo no Tempo"',
-         isUnlocked: challengesWithStats.some(c => c.id === 'classics_traveler_3' && c.isCompleted)
-      },
-      {
-         id: 'badge_high_rated',
-         title: 'Crítico Supremo',
-         description: 'Suas leituras alcançaram excelência máxima, colecionando resenhas do mais alto nível.',
-         icon: '🎖️',
-         rarity: 'Épico' as const,
-         unlockedConditionText: 'Completar o desafio "Crítico Exigente"',
-         isUnlocked: challengesWithStats.some(c => c.id === 'high_rated_3' && c.isCompleted)
-      },
-      {
-         id: 'badge_series_finisher',
-         title: 'Lenda das Sagas',
-         description: 'Acompanhou cada detalhe e concluiu os arcos mais profundos das séries literárias.',
-         icon: '⛓️',
-         rarity: 'Épico' as const,
-         unlockedConditionText: 'Completar o desafio "Maratona Sequencial"',
-         isUnlocked: challengesWithStats.some(c => c.id === 'series_finisher_3' && c.isCompleted)
-      },
-      {
-         id: 'badge_custom_creator',
-         title: 'Arquiteto de Alvos',
-         description: 'Estabeleceu seus próprios caminhos literários com regras personalizadas.',
-         icon: '🛠️',
-         rarity: 'Raro' as const,
-         unlockedConditionText: 'Criar pelo menos 1 desafio customizado',
-         isUnlocked: customChallenges.length >= 1
-      },
-      {
-         id: 'badge_triple_threat',
-         title: 'Colecionador de Elite',
-         description: 'Mais do que um leitor comum, você detém uma coleção rica em troféus conquistados.',
-         icon: '🔮',
-         rarity: 'Lendário' as const,
-         unlockedConditionText: 'Completar pelo menos 3 desafios quaisquer',
-         isUnlocked: completedChallenges.length >= 3
-      }
-    ];
-  }, [joinedIds, challengesWithStats, customChallenges, completedChallenges]);
-
-  // Handle automatic badge unlocks, updating localStorage and react state
-  useEffect(() => {
-    try {
-      const storedUnlocks = localStorage.getItem(`biblio_tech_badge_unlocks_${userId}`);
-      let loadedUnlocks: Record<string, string> = {};
-      if (storedUnlocks) {
-        loadedUnlocks = JSON.parse(storedUnlocks);
-      }
-
-      let changed = false;
-      badgesRecord.forEach(badge => {
-        if (badge.isUnlocked && !loadedUnlocks[badge.id]) {
-          loadedUnlocks[badge.id] = new Date().toLocaleDateString('pt-BR');
-          changed = true;
-        }
-      });
-
-      if (changed) {
-        localStorage.setItem(`biblio_tech_badge_unlocks_${userId}`, JSON.stringify(loadedUnlocks));
-        setUnlockedDates(loadedUnlocks);
-      } else if (Object.keys(unlockedDates).length === 0 && Object.keys(loadedUnlocks).length > 0) {
-        setUnlockedDates(loadedUnlocks);
-      }
-    } catch (e) {
-      console.error('Error verifying rewards unlocks', e);
-    }
-  }, [badgesRecord, userId, unlockedDates]);
-
   // Derived badges for visual filters
   const filteredBadges = useMemo(() => {
     return badgesRecord.filter(b => {
@@ -444,8 +206,6 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
       return true;
     });
   }, [badgesRecord, badgeFilter]);
-
-  const unlockedBadgesCount = badgesRecord.filter(b => b.isUnlocked).length;
 
   return (
     <div className="w-full max-w-5xl mx-auto px-4 py-8 pb-32">
@@ -501,7 +261,7 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sua Consistência</p>
             <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200">
               {allChallenges.length > 0 
-                ? `${Math.round((totalCompletedCount / Math.max(1, joinedIds.length)) * 100)}% de sucesso` 
+                ? `${successRate}% de sucesso` 
                 : 'Crie seu alvo'}
             </h3>
           </div>
@@ -630,14 +390,14 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
                       {/* Matching Books Trackers */}
                       {chal.matchedBooks.length > 0 && (
                         <div className="mt-3">
-                          <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1">Livros que contaram:</p>
-                          <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
-                            {chal.matchedBooks.map(b => (
-                              <span key={b.id} className="text-[8.5px] font-bold px-2 py-0.5 rounded bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[140px]" title={b.title}>
-                                ✓ {b.title}
-                              </span>
-                            ))}
-                          </div>
+                           <p className="text-[8px] font-black uppercase tracking-widest text-slate-400 mb-1">Livros que contaram:</p>
+                           <div className="flex flex-wrap gap-1.5 max-h-16 overflow-y-auto">
+                             {chal.matchedBooks.map(b => (
+                               <span key={b.id} className="text-[8.5px] font-bold px-2 py-0.5 rounded bg-slate-50 dark:bg-slate-850 text-slate-600 dark:text-slate-300 border border-slate-100 dark:border-slate-800 whitespace-nowrap overflow-hidden text-ellipsis max-w-[140px]" title={b.title}>
+                                 ✓ {b.title}
+                               </span>
+                             ))}
+                           </div>
                         </div>
                       )}
 
@@ -735,7 +495,7 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
                         {chal.isCustom && (
                           <button 
                             onClick={() => handleDeleteCustomChallenge(chal.id)}
-                            className="p-2.5 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-950/20"
+                            className="p-2.5 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-955/20"
                             title="Deletar este desafio permanente"
                           >
                             🗑️
@@ -881,7 +641,7 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
               <div className="flex flex-col items-center justify-center py-16 text-center bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-150 dark:border-slate-800 shadow-sm">
                 <div className="w-16 h-16 bg-slate-50 dark:bg-slate-850 rounded-full flex items-center justify-center text-3xl mb-4">🏆</div>
                 <h4 className="text-sm font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">Nenhum resultado correspondente</h4>
-                <p className="text-xs text-slate-500 mt-1 max-w-xs px-4">Tente selecionar outra categoria de filtro acima.</p>
+                <p className="text-xs text-slate-500 mt-1 max-w-sm px-4">Tente selecionar outra categoria de filtro acima.</p>
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -1017,177 +777,12 @@ export const ReadingChallenges: React.FC<ReadingChallengesProps> = ({ books, pro
       </div>
 
       {/* MODAL: CREATE CUSTOM THEMATIC CHALLENGE */}
-      <AnimatePresence>
-        {isCreatingCustom && (
-          <div className="fixed inset-0 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.95, y: 15 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 15 }}
-              className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2.5rem] shadow-2xl border border-slate-100 dark:border-slate-800 overflow-hidden flex flex-col"
-            >
-              {/* Modal Header */}
-              <div className="bg-slate-50 dark:bg-slate-800/50 p-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-black text-slate-800 dark:text-slate-100 uppercase tracking-wide">
-                    👑 Novo Desafio Customizado
-                  </h3>
-                  <p className="text-[11px] text-slate-400 mt-0.5">Defina suas próprias regras de leitura de forma livre e flexível.</p>
-                </div>
-                <button 
-                  onClick={() => setIsCreatingCustom(false)}
-                  className="p-2.5 bg-white dark:bg-slate-800 rounded-xl border border-slate-105 dark:border-slate-700 text-slate-400 hover:text-slate-600 transition"
-                >
-                  ✕
-                </button>
-              </div>
-
-              {/* Form Content */}
-              <form onSubmit={handleCreateCustomChallenge} className="p-6 md:p-8 space-y-4 overflow-y-auto max-h-[65Vh]">
-                {/* ID Title */}
-                <div>
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Título do Desafio *</label>
-                  <input 
-                    type="text"
-                    required
-                    placeholder="Ex: Fantasia Épica de Inverno"
-                    value={customTitle}
-                    onChange={(e) => setCustomTitle(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-850 rounded-xl px-3.5 py-2.5 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-bold"
-                  />
-                </div>
-
-                {/* Subtitle description */}
-                <div>
-                  <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Breve Descrição</label>
-                  <input 
-                    type="text"
-                    placeholder="Ex: Concluir as maiores trilogias de RPG e literatura fantásticas."
-                    value={customDescription}
-                    onChange={(e) => setCustomDescription(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-850 rounded-xl px-3.5 py-2.5 text-xs text-slate-850 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-medium"
-                  />
-                </div>
-
-                {/* Badge Emoji Selection */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Ícone / Medalha</label>
-                    <select 
-                      value={customBadge}
-                      onChange={(e) => setCustomBadge(e.target.value)}
-                      className="w-full bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-bold"
-                    >
-                      <option value="🏆">🏆 Troféu de Ouro</option>
-                      <option value="👑">👑 Coroa de Ferro</option>
-                      <option value="🕵️‍♂️">🕵️‍♂️ Detetive</option>
-                      <option value="🚀">🚀 Foguete Espacial</option>
-                      <option value="🪄">🪄 Varinha Mágica</option>
-                      <option value="🧠">🧠 Intelectual</option>
-                      <option value="🔥">🔥 Fogo/Foco</option>
-                      <option value="💀">💀 Terror Extremo</option>
-                      <option value="🍃">🍃 Filosofal</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Target (Livros) *</label>
-                    <input 
-                      type="number"
-                      required
-                      min={1}
-                      max={100}
-                      value={customTarget}
-                      onChange={(e) => setCustomTarget(parseInt(e.target.value) || 3)}
-                      className="w-full bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-bold"
-                    />
-                  </div>
-                </div>
-
-                {/* Criteria configurations */}
-                <div className="border-t border-slate-100 dark:border-slate-800/85 pt-4 space-y-4">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block">Especificar Filtros Automáticos</span>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Filtrar Gênero</label>
-                      <select 
-                        value={customGenre}
-                        onChange={(e) => setCustomGenre(e.target.value)}
-                        className="w-full bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-semibold"
-                      >
-                        <option value="">Qualquer gênero</option>
-                        {GENRES.map(g => (
-                          <option key={g} value={g}>{g}</option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Tipo de Obra</label>
-                      <select 
-                        value={customType}
-                        onChange={(e) => setCustomType(e.target.value as any)}
-                        className="w-full bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-semibold"
-                      >
-                        <option value="Ambos">Livro ou HQ</option>
-                        <option value={BookType.Book}>Somente Livros</option>
-                        <option value={BookType.HQ}>Somente HQs</option>
-                      </select>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Páginas Mínimas</label>
-                      <input 
-                        type="number"
-                        min={0}
-                        placeholder="Ex: 200 (0 para desativar)"
-                        value={customPagesMin || ''}
-                        onChange={(e) => setCustomPagesMin(parseInt(e.target.value) || 0)}
-                        className="w-full bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-850 rounded-xl px-3.5 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-[9px] font-black uppercase tracking-widest text-slate-400 mb-1">Estrelas Mínimas</label>
-                      <select 
-                        value={customRatingMin}
-                        onChange={(e) => setCustomRatingMin(parseFloat(e.target.value) || 0)}
-                        className="w-full bg-slate-50 dark:bg-slate-950/30 border border-slate-200 dark:border-slate-850 rounded-xl px-3 py-2 text-xs text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-primary font-semibold"
-                      >
-                        <option value={0}>Sem filtro de estrelas</option>
-                        <option value={3.0}>Mínimo 3★</option>
-                        <option value={4.0}>Mínimo 4★</option>
-                        <option value={4.5}>Mínimo 4.5★</option>
-                        <option value={5.0}>Apenas Perfeitos (5★)</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Submittal buttons */}
-                <div className="pt-4 flex gap-3">
-                  <button 
-                    type="button"
-                    onClick={() => setIsCreatingCustom(false)}
-                    className="flex-1 py-3 text-[10px] font-black uppercase tracking-widest text-slate-600 dark:text-slate-350 bg-slate-50 hover:bg-slate-100 dark:bg-slate-855 dark:hover:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-800 transition"
-                  >
-                    Voltar
-                  </button>
-                  <button 
-                    type="submit"
-                    className="flex-1 py-3 text-[10px] font-black uppercase tracking-widest text-white bg-primary hover:bg-violet-700 rounded-2xl transition shadow-md"
-                  >
-                    Salvar e Entrar
-                  </button>
-                </div>
-              </form>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <CustomChallengeForm
+        isOpen={isCreatingCustom}
+        onClose={() => setIsCreatingCustom(false)}
+        onSubmit={handleCreateCustomChallenge}
+        profile={profile}
+      />
     </div>
   );
 };

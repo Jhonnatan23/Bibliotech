@@ -61,6 +61,16 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
     series, setSeries,
     volume, setVolume,
     seriesId, setSeriesId,
+    condition, setCondition,
+    purchaseDate, setPurchaseDate,
+    store, setStore,
+    physicalLocation, setPhysicalLocation,
+    edition, setEdition,
+    signed, setSigned,
+    sealed, setSealed,
+    limitedEdition, setLimitedEdition,
+    firstEdition, setFirstEdition,
+    variantCover, setVariantCover,
     isGeneratingSummary,
     isSubmitting,
     dateAdded, setDateAdded,
@@ -291,20 +301,185 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
                     placeholder="0,00"
                     className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
                   />
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                    Valor estimado do item hoje para estatísticas gerais do acervo.
+                  </span>
                 </div>
-                {(bookToEdit?.wasWishlist || bookToEdit?.pricePaid) && (
-                  <div>
-                    <label className={getLabelClass(false)}>Valor Real Pago (R$)</label>
-                    <input 
-                      type="text" 
-                      value={pricePaid} 
-                      onFocus={(e) => e.target.select()}
-                      onChange={(e) => setPricePaid(e.target.value)} 
-                      placeholder="0,00"
-                      className="w-full bg-emerald-50/30 dark:bg-emerald-900/10 border border-emerald-100 dark:border-emerald-800 rounded-2xl px-5 py-3.5 outline-none focus:border-emerald-500 font-bold text-emerald-700 dark:text-emerald-400" 
-                    />
-                  </div>
-                )}
+                <div>
+                  <label className={getLabelClass(false)}>Valor Real Pago (R$)</label>
+                  <input 
+                    type="text" 
+                    value={pricePaid} 
+                    onFocus={(e) => e.target.select()}
+                    onChange={(e) => setPricePaid(e.target.value)} 
+                    placeholder="0,00"
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
+                  />
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                    Preço real investido na compra deste item específico.
+                  </span>
+                </div>
+                <div>
+                  <label className={getLabelClass(false)}>Data da Compra</label>
+                  <input 
+                    type="date" 
+                    value={purchaseDate} 
+                    onChange={(e) => setPurchaseDate(e.target.value)} 
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
+                  />
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                    O dia em que este item passou a fazer parte da sua estante.
+                  </span>
+                </div>
+                <div>
+                  <label className={getLabelClass(false)}>Loja / Local de Compra</label>
+                  <input 
+                    type="text" 
+                    value={store} 
+                    onChange={(e) => setStore(e.target.value)} 
+                    placeholder="Ex: Amazon, Panini, Sebo..."
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
+                  />
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                    Onde ou de quem você comprou (ex: Panini, Livraria, Sebo, Leilão).
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="md:col-span-2 border-t border-slate-100 dark:border-slate-800 pt-6 mt-2">
+              <div className="flex items-center gap-2 mb-6">
+                <div className="bg-purple-50 dark:bg-purple-900/20 p-2 rounded-lg text-purple-600">
+                  <StarIconFilled className="h-4 w-4" />
+                </div>
+                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Detalhes de Colecionador</h3>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 md:gap-8">
+                <div>
+                  <label className={getLabelClass(false)}>Condição do Item</label>
+                  <select 
+                    value={condition} 
+                    onChange={(e) => setCondition(e.target.value)} 
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300"
+                  >
+                    <option value="">Selecione...</option>
+                    <option value="Novo">Novo (Lacrado/Impecável)</option>
+                    <option value="Como Novo">Como Novo (Perfeito estado)</option>
+                    <option value="Muito Bom">Muito Bom (Mínimos detalhes)</option>
+                    <option value="Bom">Bom (Estado normal de uso)</option>
+                    <option value="Razoável">Razoável (Desgastes evidentes)</option>
+                    <option value="Danificado">Danificado / Incompleto</option>
+                  </select>
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                    Estado físico atual e integridade do exemplar.
+                  </span>
+                </div>
+                <div>
+                  <label className={getLabelClass(false)}>Localização Física na Estante</label>
+                  <input 
+                    type="text" 
+                    value={physicalLocation} 
+                    onChange={(e) => setPhysicalLocation(e.target.value)} 
+                    placeholder="Ex: Prateleira 2, Caixa HQ, Quarto..."
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
+                  />
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                    Onde o item está guardado (ex: Estante Principal, Caixa 4B).
+                  </span>
+                </div>
+                <div>
+                  <label className={getLabelClass(false)}>Edição / Versão</label>
+                  <input 
+                    type="text" 
+                    value={edition} 
+                    onChange={(e) => setEdition(e.target.value)} 
+                    placeholder="Ex: 1ª Edição, Edição de Luxo..."
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
+                  />
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                    Identificação da tiragem (ex: Edição Definitiva, Capa Dura, 3ª Reimpressão).
+                  </span>
+                </div>
+                <div>
+                  <label className={getLabelClass(false)}>ISBN / Código de Barras</label>
+                  <input 
+                    type="text" 
+                    value={isbn} 
+                    onChange={(e) => setIsbn(e.target.value)} 
+                    placeholder="Ex: 978..."
+                    className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300" 
+                  />
+                  <span className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 block">
+                    Código numérico internacional para identificação única do livro.
+                  </span>
+                </div>
+ 
+                <div className="md:col-span-2 grid grid-cols-2 sm:grid-cols-5 gap-3 md:gap-4 mt-2">
+                  <label className="flex flex-col justify-between cursor-pointer group p-3 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-xl transition-all hover:border-primary/40 min-h-[64px]">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        className="rounded text-primary focus:ring-primary h-4 w-4" 
+                        checked={signed} 
+                        onChange={(e) => setSigned(e.target.checked)} 
+                      />
+                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Autografado</span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-1.5">Assinado pelo autor/artista</span>
+                  </label>
+ 
+                  <label className="flex flex-col justify-between cursor-pointer group p-3 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-xl transition-all hover:border-primary/40 min-h-[64px]">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        className="rounded text-primary focus:ring-primary h-4 w-4" 
+                        checked={sealed} 
+                        onChange={(e) => setSealed(e.target.checked)} 
+                      />
+                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Lacrado</span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-1.5">No plástico original de fábrica</span>
+                  </label>
+ 
+                  <label className="flex flex-col justify-between cursor-pointer group p-3 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-xl transition-all hover:border-primary/40 min-h-[64px]">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        className="rounded text-primary focus:ring-primary h-4 w-4" 
+                        checked={limitedEdition} 
+                        onChange={(e) => setLimitedEdition(e.target.checked)} 
+                      />
+                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Ed. Limitada</span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-1.5">Tiragem exclusiva/numerada</span>
+                  </label>
+ 
+                  <label className="flex flex-col justify-between cursor-pointer group p-3 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-xl transition-all hover:border-primary/40 min-h-[64px]">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        className="rounded text-primary focus:ring-primary h-4 w-4" 
+                        checked={firstEdition} 
+                        onChange={(e) => setFirstEdition(e.target.checked)} 
+                      />
+                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">1ª Edição</span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-1.5">Primeira tiragem histórica</span>
+                  </label>
+ 
+                  <label className="flex flex-col justify-between cursor-pointer group p-3 bg-slate-50 dark:bg-slate-800/30 border border-slate-200 dark:border-slate-700 rounded-xl transition-all hover:border-primary/40 min-h-[64px]">
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="checkbox" 
+                        className="rounded text-primary focus:ring-primary h-4 w-4" 
+                        checked={variantCover} 
+                        onChange={(e) => setVariantCover(e.target.checked)} 
+                      />
+                      <span className="text-[10px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-wider">Capa Var.</span>
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-1.5">HQ/Mangá com arte de capa especial</span>
+                  </label>
+                </div>
               </div>
             </div>
 
@@ -377,6 +552,7 @@ export const AddBookModal: React.FC<AddBookModalProps> = ({
               <select value={type} onChange={(e) => setType(e.target.value as BookType)} className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-bold text-slate-700 dark:text-slate-300">
                 <option value={BookType.Book}>Livro</option>
                 <option value={BookType.HQ}>HQ</option>
+                <option value={BookType.Manga}>Mangá</option>
               </select>
             </div>
 

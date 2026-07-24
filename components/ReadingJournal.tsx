@@ -1,3 +1,4 @@
+import { logger } from '../services/monitoring';
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Book, Profile } from '../types';
 import { BookStatus } from '../types';
@@ -120,7 +121,7 @@ export const ReadingJournal: React.FC<ReadingJournalProps> = ({
     try {
       localStorage.setItem(localStorageKey, JSON.stringify(entries));
     } catch (e) {
-      console.error('Failed to save journal entries:', e);
+      logger.error('Failed to save journal entries:', e);
     }
   }, [entries, localStorageKey]);
 

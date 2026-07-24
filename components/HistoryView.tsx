@@ -1,4 +1,5 @@
 
+import { logger } from '../services/monitoring';
 import React, { useState, useMemo } from 'react';
 import type { Book, Profile } from '../types';
 import { BookStatus, STATUS_CONFIGS, STATUS_COLORS, GENRES } from '../types';
@@ -129,7 +130,7 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
       await onUpdateBook({ ...book, historyObservation: obsInput });
       setEditingObsId(null);
     } catch (err) {
-      console.error(err);
+      logger.error(err);
     } finally {
       setIsSaving(false);
     }

@@ -1,6 +1,7 @@
 
 import type { NewBook, BookType } from '../types';
 import { BookStatus } from '../types';
+import { logger } from './monitoring';
 
 export interface GoogleBookResult {
   id: string;
@@ -25,14 +26,14 @@ export const searchGoogleBooks = async (query: string): Promise<GoogleBookResult
     const response = await fetch(url);
 
     if (!response.ok) {
-      console.warn('Google Books Proxy retornou status não-ok:', response.status);
+      logger.warn('Google Books Proxy retornou status não-ok:', { status: response.status });
       return [];
     }
 
     const data = await response.json();
     return data;
-  } catch (error) {
-    console.warn('Não foi possível conectar ao Google Books Proxy para busca de livros:', error);
+  } catch (error: any) {
+    logger.warn('Não foi possível conectar ao Google Books Proxy para busca de livros:', { error: error.message || error });
     return [];
   }
 };
@@ -46,14 +47,14 @@ export const fetchBookByIsbn = async (isbn: string): Promise<GoogleBookResult | 
     const response = await fetch(url);
 
     if (!response.ok) {
-      console.warn('Google Books Proxy (ISBN) retornou status não-ok:', response.status);
+      logger.warn('Google Books Proxy (ISBN) retornou status não-ok:', { status: response.status });
       return null;
     }
 
     const data = await response.json();
     return data;
-  } catch (error) {
-    console.warn('Não foi possível conectar ao Google Books Proxy para busca por ISBN:', error);
+  } catch (error: any) {
+    logger.warn('Não foi possível conectar ao Google Books Proxy para busca por ISBN:', { error: error.message || error });
     return null;
   }
 };

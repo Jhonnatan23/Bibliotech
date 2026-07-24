@@ -1,4 +1,5 @@
 
+import { logger } from '../services/monitoring';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
     XMarkIcon, Cog6ToothIcon, PlusIcon, TagIcon, 
@@ -109,7 +110,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       URL.revokeObjectURL(url);
       setBackupFeedback('json');
     } catch (err) {
-      console.error('Error exporting JSON:', err);
+      logger.error('Error exporting JSON:', err);
     }
   };
 
@@ -210,7 +211,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
       URL.revokeObjectURL(url);
       setBackupFeedback('csv');
     } catch (err) {
-      console.error('Error exporting CSV:', err);
+      logger.error('Error exporting CSV:', err);
     }
   };
 
@@ -289,7 +290,7 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
         await onUpdateProfile(updates);
         onClose();
     } catch (err) {
-        console.error(err);
+        logger.error(err);
     } finally {
         setIsSaving(false);
     }

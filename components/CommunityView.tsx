@@ -1,3 +1,4 @@
+import { logger } from '../services/monitoring';
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CommunityPost, Profile } from '../types';
@@ -5,6 +6,7 @@ import { GENRES } from '../types';
 import { CommunityPostCard } from './CommunityPostCard';
 import { communityService } from '../services/communityService';
 import { CommunityBookDetailModal } from './CommunityBookDetailModal';
+import { config } from '../services/config';
 
 interface CommunityViewProps {
   profile: Profile | null;
@@ -14,6 +16,7 @@ interface CommunityViewProps {
 export const CommunityView: React.FC<CommunityViewProps> = ({ profile, onAddToWishlist }) => {
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [genreFilter, setGenreFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -24,6 +27,7 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ profile, onAddToWi
 
   const fetchPosts = useCallback(async () => {
     setIsLoading(true);
+    setError(null);
     try {
       const data = await communityService.getPosts({
         searchQuery,
@@ -32,8 +36,9 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ profile, onAddToWi
       });
       setPosts(data);
       setIsLocalMode(communityService.isLocalMode());
-    } catch (err) {
-      console.error("Erro ao carregar feed da comunidade:", err);
+    } catch (err: any) {
+      logger.error("Erro ao carregar feed da comunidade:", err);
+      setError(err?.message || "Ocorreu um erro ao carregar as publicações.");
     } finally {
       setIsLoading(false);
     }
@@ -67,13 +72,13 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ profile, onAddToWi
         <div 
           onClick={() => setShowSqlHelp(!showSqlHelp)}
           className={`px-3 py-1.5 rounded-full border text-[9px] font-black uppercase tracking-widest flex items-center gap-2 cursor-pointer select-none self-start ${
-            isLocalMode 
+            isLocalMode && config.env !== 'produção'
               ? 'bg-amber-50 border-amber-200 text-amber-600 dark:bg-amber-950/20 dark:border-amber-900/50' 
               : 'bg-emerald-50 border-emerald-200 text-emerald-600 dark:bg-emerald-950/20 dark:border-emerald-900/50'
           }`}
         >
-          <div className={`w-1.5 h-1.5 rounded-full ${isLocalMode ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-pulse'}`}></div>
-          <span>{isLocalMode ? 'Modo Local Ativo (Clique para configurar Nuvem)' : 'Conectado à Nuvem'}</span>
+          <div className={`w-1.5 h-1.5 rounded-full ${isLocalMode && config.env !== 'produção' ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500 animate-pulse'}`}></div>
+          <span>{isLocalMode && config.env !== 'produção' ? 'Modo Local Ativo (Clique para configurar Nuvem)' : 'Conectado à Nuvem'}</span>
         </div>
       </div>
 
@@ -182,6 +187,22 @@ export const CommunityView: React.FC<CommunityViewProps> = ({ profile, onAddToWi
           <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-600">
             Carregando publicações...
           </span>
+        </div>
+      ) : error ? (
+        <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/50 rounded-2xl p-10 text-center space-y-4 shadow-sm">
+          <span className="text-4xl">⚠️</span>
+          <h3 className="text-sm font-black uppercase tracking-widest text-red-600 dark:text-red-400">
+            Falha na conexão com a comunidade
+          </h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+            {error}. Por favor, verifique sua conexão ou tente novamente mais tarde.
+          </p>
+          <button 
+            onClick={fetchPosts}
+            className="px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-md active:scale-95 cursor-pointer"
+          >
+            Tentar Novamente
+          </button>
         </div>
       ) : posts.length === 0 ? (
         <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/80 rounded-2xl p-10 text-center space-y-3 shadow-sm">

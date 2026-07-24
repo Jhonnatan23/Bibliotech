@@ -2,6 +2,7 @@
 import type { Book, Profile, Loan } from '../types';
 import { supabase } from './supabase';
 import { BookStatus } from '../types';
+import { logger } from './monitoring';
 
 const TABLE_NAME = 'books';
 const BASE_LOCAL_STORAGE_KEY = 'biblio_tech_cache_';
@@ -42,7 +43,7 @@ const withRetry = async <T>(
 
       if (isRetryable && attempt < maxRetries) {
         const backoff = delay * (attempt + 1);
-        console.warn(`[Supabase] Tentativa ${attempt + 1} falhou: ${errorMsg}. Tentando novamente em ${backoff}ms...`);
+        logger.warn(`[Supabase] Tentativa ${attempt + 1} falhou. Tentando novamente em ${backoff}ms...`, { error: errorMsg });
         await new Promise(resolve => setTimeout(resolve, backoff));
         continue;
       }
@@ -52,29 +53,121 @@ const withRetry = async <T>(
   throw lastError;
 };
 
-const mapBookToDb = (book: any) => {
+export function parseNullableNumber(value: unknown): number | undefined {
+  if (value === null || value === undefined) {
+    return undefined;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed === '') {
+      return undefined;
+    }
+    const parsed = Number(trimmed);
+    if (Number.isNaN(parsed)) {
+      return undefined;
+    }
+    return parsed;
+  }
+  if (typeof value === 'number') {
+    if (Number.isNaN(value)) {
+      return undefined;
+    }
+    return value;
+  }
+  return undefined;
+}
+
+export const mapPartialBookToDb = (changes: Partial<Book>): any => {
+  const dbPayload: any = {};
+  
+  if (changes.title !== undefined) dbPayload.title = changes.title || 'Sem Título';
+  if (changes.author !== undefined) dbPayload.author = changes.author || 'Autor Desconhecido';
+  if (changes.pages !== undefined) dbPayload.pages = Math.floor(parseInt(String(changes.pages !== undefined ? parseNullableNumber(changes.pages) ?? 0 : 0), 10));
+  if (changes.genre !== undefined) dbPayload.genre = changes.genre || '';
+  if (changes.type !== undefined) dbPayload.type = changes.type;
+  if (changes.status !== undefined) dbPayload.status = changes.status;
+  
+  if (changes.rating !== undefined) {
+    dbPayload.rating = parseNullableNumber(changes.rating) ?? null;
+  }
+  if (changes.summary !== undefined) dbPayload.summary = changes.summary || null;
+  if (changes.notes !== undefined) dbPayload.notes = changes.notes || null;
+  
+  if (changes.estimatedPrice !== undefined) {
+    dbPayload.estimated_price = parseNullableNumber(changes.estimatedPrice) ?? null;
+  }
+  if (changes.pricePaid !== undefined) {
+    dbPayload.price_paid = parseNullableNumber(changes.pricePaid) ?? null;
+  }
+  if (changes.buyLink !== undefined) dbPayload.buy_link = changes.buyLink || null;
+  
+  if (changes.currentPage !== undefined) {
+    dbPayload.current_page = Math.floor(parseInt(String(changes.currentPage !== undefined ? parseNullableNumber(changes.currentPage) ?? 0 : 0), 10));
+  }
+  if (changes.dateAdded !== undefined) dbPayload.date_added = changes.dateAdded;
+  if (changes.dateStarted !== undefined) dbPayload.date_started = changes.dateStarted || null;
+  if (changes.dateFinished !== undefined) dbPayload.date_finished = changes.dateFinished || null;
+  
+  if (changes.daysToFinish !== undefined) {
+    dbPayload.days_to_finish = parseNullableNumber(changes.daysToFinish) ?? null;
+  }
+  if (changes.timesRead !== undefined) {
+    dbPayload.times_read = parseNullableNumber(changes.timesRead) ?? 0;
+  }
+  if (changes.wasWishlist !== undefined) dbPayload.was_wishlist = changes.wasWishlist === true;
+  if (changes.linkedBookIds !== undefined) dbPayload.linked_book_ids = changes.linkedBookIds || [];
+  if (changes.tags !== undefined) dbPayload.tags = changes.tags || [];
+  if (changes.historyObservation !== undefined) dbPayload.history_observation = changes.historyObservation || null;
+  
+  if (changes.isLoaned !== undefined) dbPayload.is_loaned = changes.isLoaned === true;
+  if (changes.borrowerName !== undefined) dbPayload.borrower_name = changes.borrowerName || null;
+  if (changes.loanDate !== undefined) dbPayload.loan_date = changes.loanDate || null;
+  if (changes.isDigital !== undefined) dbPayload.is_digital = changes.isDigital === true;
+  if (changes.series !== undefined) dbPayload.series = changes.series || null;
+  
+  if (changes.volume !== undefined) {
+    dbPayload.volume = parseNullableNumber(changes.volume) ?? null;
+  }
+  if (changes.seriesId !== undefined) dbPayload.series_id = changes.seriesId || null;
+  if (changes.condition !== undefined) dbPayload.condition = changes.condition || null;
+  if (changes.purchaseDate !== undefined) dbPayload.purchase_date = changes.purchaseDate || null;
+  if (changes.store !== undefined) dbPayload.store = changes.store || null;
+  if (changes.physicalLocation !== undefined) dbPayload.physical_location = changes.physicalLocation || null;
+  if (changes.edition !== undefined) dbPayload.edition = changes.edition || null;
+  if (changes.isbn !== undefined) dbPayload.isbn = changes.isbn || null;
+  
+  if (changes.signed !== undefined) dbPayload.signed = changes.signed === true;
+  if (changes.sealed !== undefined) dbPayload.sealed = changes.sealed === true;
+  if (changes.limitedEdition !== undefined) dbPayload.limited_edition = changes.limitedEdition === true;
+  if (changes.firstEdition !== undefined) dbPayload.first_edition = changes.firstEdition === true;
+  if (changes.variantCover !== undefined) dbPayload.variant_cover = changes.variantCover === true;
+  
+  return dbPayload;
+};
+
+export const mapBookToDb = (book: any) => {
     const dateAddedValue = book.dateAdded || new Date().toISOString().split('T')[0];
     return {
         id: book.id,
         user_id: book.user_id,
         title: book.title || 'Sem Título',
         author: book.author || 'Autor Desconhecido',
-        pages: Math.floor(parseInt(String(book.pages || 0), 10)),
+        pages: Math.floor(parseInt(String(book.pages !== undefined ? parseNullableNumber(book.pages) ?? 0 : 0), 10)),
         genre: book.genre || '',
         type: book.type || 'Livro',
         status: book.status || 'Não lido',
-        rating: (book.rating !== undefined && book.rating !== null && book.rating !== 0) ? parseFloat(String(book.rating)) : null,
+        rating: parseNullableNumber(book.rating) ?? null,
         summary: book.summary || null,
         notes: book.notes || null,
-        estimated_price: (book.estimatedPrice !== undefined && book.estimatedPrice !== null) ? parseFloat(String(book.estimatedPrice)) : null,
-        price_paid: (book.pricePaid !== undefined && book.pricePaid !== null) ? parseFloat(String(book.pricePaid)) : null,
+        estimated_price: parseNullableNumber(book.estimatedPrice) ?? null,
+        price_paid: parseNullableNumber(book.pricePaid) ?? null,
         buy_link: book.buyLink || null,
-        current_page: Math.floor(parseInt(String(book.currentPage || 0), 10)),
+        current_page: Math.floor(parseInt(String(book.currentPage !== undefined ? parseNullableNumber(book.currentPage) ?? 0 : 0), 10)),
         date_added: dateAddedValue,
         date_started: book.dateStarted || null,
         date_finished: book.dateFinished || null,
-        days_to_finish: (book.daysToFinish !== undefined && book.daysToFinish !== null) ? Math.floor(parseInt(String(book.daysToFinish), 10)) : null,
-        times_read: (book.timesRead !== undefined && book.timesRead !== null) ? Math.floor(parseInt(String(book.timesRead), 10)) : 0,
+        days_to_finish: parseNullableNumber(book.daysToFinish) ?? null,
+        times_read: parseNullableNumber(book.timesRead) ?? 0,
         was_wishlist: book.wasWishlist === true,
         linked_book_ids: book.linkedBookIds || [],
         tags: book.tags || [],
@@ -84,8 +177,19 @@ const mapBookToDb = (book: any) => {
         loan_date: book.loanDate || null,
         is_digital: book.isDigital === true,
         series: book.series || null,
-        volume: book.volume !== undefined ? Math.floor(parseInt(String(book.volume), 10)) : null,
-        series_id: book.seriesId || null
+        volume: parseNullableNumber(book.volume) ?? null,
+        series_id: book.seriesId || null,
+        condition: book.condition || null,
+        purchase_date: book.purchaseDate || null,
+        store: book.store || null,
+        physical_location: book.physicalLocation || null,
+        edition: book.edition || null,
+        isbn: book.isbn || null,
+        signed: book.signed === true,
+        sealed: book.sealed === true,
+        limited_edition: book.limitedEdition === true,
+        first_edition: book.firstEdition === true,
+        variant_cover: book.variantCover === true
     };
 };
 
@@ -104,27 +208,27 @@ const mapDbToSeries = (db: any): any => ({
     created_at: db.created_at
 });
 
-const mapDbToBook = (db: any): Book => ({
+export const mapDbToBook = (db: any): Book => ({
     id: db.id,
     user_id: db.user_id,
     title: db.title,
     author: db.author,
-    pages: db.pages || 0,
+    pages: parseNullableNumber(db.pages) ?? 0,
     genre: db.genre || '',
     type: db.type,
     status: db.status as BookStatus,
-    rating: db.rating ? parseFloat(String(db.rating)) : undefined,
+    rating: parseNullableNumber(db.rating),
     summary: db.summary,
     notes: db.notes,
-    estimatedPrice: db.estimated_price ? parseFloat(String(db.estimated_price)) : undefined,
-    pricePaid: db.price_paid ? parseFloat(String(db.price_paid)) : undefined,
+    estimatedPrice: parseNullableNumber(db.estimated_price),
+    pricePaid: parseNullableNumber(db.price_paid),
     buyLink: db.buy_link,
-    currentPage: db.current_page || 0,
+    currentPage: parseNullableNumber(db.current_page) ?? 0,
     dateAdded: db.date_added,
     dateStarted: db.date_started,
     dateFinished: db.date_finished,
-    daysToFinish: db.days_to_finish,
-    timesRead: db.times_read || 0,
+    daysToFinish: (db.days_to_finish !== null && db.days_to_finish !== undefined ? parseNullableNumber(db.days_to_finish) : null) as any,
+    timesRead: parseNullableNumber(db.times_read) ?? 0,
     wasWishlist: db.was_wishlist === true,
     linkedBookIds: db.linked_book_ids || [],
     tags: db.tags || [],
@@ -134,8 +238,19 @@ const mapDbToBook = (db: any): Book => ({
     loanDate: db.loan_date,
     isDigital: db.is_digital === true,
     series: db.series,
-    volume: db.volume ? parseInt(String(db.volume), 10) : undefined,
-    seriesId: db.series_id
+    volume: parseNullableNumber(db.volume),
+    seriesId: db.series_id,
+    condition: db.condition,
+    purchaseDate: db.purchase_date,
+    store: db.store,
+    physicalLocation: db.physical_location,
+    edition: db.edition,
+    isbn: db.isbn,
+    signed: db.signed === true,
+    sealed: db.sealed === true,
+    limitedEdition: db.limited_edition === true,
+    firstEdition: db.first_edition === true,
+    variantCover: db.variant_cover === true
 });
 
 export class DatabaseService {
@@ -174,7 +289,10 @@ export class DatabaseService {
           summary, notes, estimated_price, price_paid, buy_link, user_id,
           linked_book_ids, tags, history_observation,
           is_loaned, borrower_name, loan_date, is_digital,
-          series, volume, series_id
+          series, volume, series_id,
+          condition, purchase_date, store, physical_location,
+          edition, isbn, signed, sealed, limited_edition,
+          first_edition, variant_cover
         `)
         .eq('user_id', user.id)
         .order('date_added', { ascending: false })
@@ -187,7 +305,7 @@ export class DatabaseService {
       if (err.code === '42703' || (err.message && (err.message.includes('linked_book_ids') || err.message.includes('history_observation') || err.message.includes('is_loaned') || err.message.includes('is_digital')))) {
         this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada (módulos de empréstimo, digital ou histórico).');
       }
-      console.error("Erro na nuvem, carregando local:", err.message || err);
+      logger.error("Erro na nuvem, carregando local", { error: err.message || err });
       return await this.getLocalBooks();
     }
   }
@@ -214,13 +332,15 @@ export class DatabaseService {
     if (!user) throw new Error("Usuário não autenticado");
 
     const bookId = book.id || crypto.randomUUID();
-    const updatedBookForDb = { ...book, id: bookId, user_id: user.id };
-    const dbPayload = mapBookToDb(updatedBookForDb);
-
-    console.log(`[Database] Preparando para salvar livro: "${dbPayload.title}"`, { bookId, seriesId: dbPayload.series_id });
-
     const books = await this.getLocalBooks();
     const index = books.findIndex(b => b.id === bookId);
+    const existingBook = index >= 0 ? books[index] : {};
+
+    const updatedBookForDb = { ...existingBook, ...book, id: bookId, user_id: user.id };
+    const dbPayload = mapBookToDb(updatedBookForDb);
+
+    logger.info(`[Database] Preparando para salvar livro: "${dbPayload.title}"`, { bookId, seriesId: dbPayload.series_id });
+
     const updatedBookState = mapDbToBook(dbPayload);
     
     if (index >= 0) books[index] = updatedBookState;
@@ -235,15 +355,74 @@ export class DatabaseService {
         .single();
 
       if (error) {
-        console.error(`[Supabase] Erro no upsert de livro (Status: ${status}):`, error);
+        logger.error(`[Supabase] Erro no upsert de livro`, { status, error: error.message || error });
         throw error;
       }
       
-      console.log("[Database] Livro salvo com sucesso no Supabase:", data.title);
+      logger.info("[Database] Livro saved no Supabase", { title: data?.title });
     } catch (err: any) {
-      console.error("[Database] Exceção ao salvar livro:", err);
+      logger.error("[Database] Exceção ao salvar livro", { error: err.message || err });
       if (err.code === '42703' || (err.message && (err.message.includes('history_observation') || err.message.includes('is_loaned') || err.message.includes('is_digital')))) {
         this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada (módulos de empréstimo, digital ou histórico).');
+      }
+      throw err;
+    }
+  }
+
+  async updateBook(id: string, changes: Partial<Book>): Promise<Book> {
+    const user = await this.getSafeUser();
+    if (!user) {
+      // Se não houver usuário autenticado, atualizamos apenas localmente
+      const books = await this.getLocalBooks();
+      const index = books.findIndex(b => b.id === id);
+      if (index === -1) {
+        throw new Error("Livro não encontrado localmente.");
+      }
+      const updatedBook = { ...books[index], ...changes, id };
+      books[index] = updatedBook;
+      await this.saveLocalBooks(books);
+      return updatedBook;
+    }
+
+    const dbPayload = mapPartialBookToDb(changes);
+    logger.info(`[Database] Preparando atualização parcial para o livro: ${id}`, { fields: Object.keys(dbPayload) });
+
+    try {
+      const { data, error } = await supabase
+        .from(TABLE_NAME)
+        .update(dbPayload)
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .select()
+        .single();
+
+      if (error) {
+        logger.error(`[Supabase] Erro na atualização parcial do livro ${id}`, { error: error.message || error });
+        throw error;
+      }
+
+      if (!data) {
+        throw new Error("Livro não encontrado ou você não tem permissão para editá-lo.");
+      }
+
+      const updatedBookState = mapDbToBook(data);
+
+      // Atualiza o cache local somente após confirmação de sucesso na nuvem
+      const books = await this.getLocalBooks();
+      const index = books.findIndex(b => b.id === id);
+      if (index >= 0) {
+        books[index] = updatedBookState;
+      } else {
+        books.unshift(updatedBookState);
+      }
+      await this.saveLocalBooks(books);
+
+      logger.info("[Database] Livro atualizado com sucesso via atualização parcial", { id });
+      return updatedBookState;
+    } catch (err: any) {
+      logger.error("[Database] Exceção na atualização parcial do livro", { error: err.message || err });
+      if (err.code === '42703' || (err.message && (err.message.includes('history_observation') || err.message.includes('is_loaned') || err.message.includes('is_digital')))) {
+        this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada.');
       }
       throw err;
     }
@@ -294,11 +473,11 @@ export class DatabaseService {
           .upsert(dbPayloads, { onConflict: 'id' });
           
         if (error) {
-          console.error("[Database] Erro ao importar no Supabase:", error);
+          logger.error("[Database] Erro ao importar no Supabase", { error: error.message || error });
           throw error;
         }
-      } catch (err) {
-        console.error("[Database] Exceção na importação do Supabase:", err);
+      } catch (err: any) {
+        logger.error("[Database] Exceção na importação do Supabase", { error: err.message || err });
       }
     }
 
@@ -313,7 +492,7 @@ export class DatabaseService {
     await this.saveLocalBooks(books);
     
     withRetry(() => supabase.from(TABLE_NAME).delete().eq('id', id)).catch((err) => {
-        console.error("Erro ao deletar livro na nuvem:", err);
+        logger.error("Erro ao deletar livro na nuvem", { error: err.message || err });
     });
   }
 
@@ -396,8 +575,8 @@ export class DatabaseService {
       
       if (error) throw error;
       return (data || []).map(mapDbToSeries);
-    } catch (err) {
-      console.error("Erro ao buscar séries:", err);
+    } catch (err: any) {
+      logger.error("Erro ao buscar séries", { error: err.message || err });
       return [];
     }
   }
@@ -422,7 +601,7 @@ export class DatabaseService {
     }
 
     try {
-      console.log(`[Database] Salvando série. User: ${user.id}`, dbPayload);
+      logger.info(`[Database] Salvando série. User: ${user.id}`, { seriesId: dbPayload.id });
       
       // Usando upsert para simplificar e garantir que RLS com ID manual funcione melhor
       const { error, data, status } = await supabase
@@ -432,13 +611,13 @@ export class DatabaseService {
         .single();
           
       if (error) {
-        console.error(`[Supabase Error] Upsert em 'series' falhou (Status: ${status}):`, error);
+        logger.error(`[Supabase Error] Upsert em 'series' falhou`, { status, error: error.message || error });
         throw error;
       }
       
-      console.log("[Database] Série salva com sucesso:", data);
+      logger.info("[Database] Série salva com sucesso", { seriesId: data?.id });
     } catch (error: any) {
-      console.error("Supabase error in saveSeries:", error);
+      logger.error("Supabase error in saveSeries", { error: error.message || error });
       if (error.code === '42501' || error.message?.includes('row-level security policy')) {
         throw new Error("Erro de permissão: Certifique-se de que as políticas (RLS) foram aplicadas na tabela 'series'.");
       }
@@ -464,8 +643,8 @@ export class DatabaseService {
       
       if (error) throw error;
       return data || [];
-    } catch (err) {
-      console.error("Erro ao buscar histórias:", err);
+    } catch (err: any) {
+      logger.error("Erro ao buscar histórias", { error: err.message || err });
       return [];
     }
   }
@@ -494,7 +673,7 @@ export class DatabaseService {
       if (error) throw error;
       return data;
     } catch (error: any) {
-      console.error("Supabase error in saveStory:", error);
+      logger.error("Supabase error in saveStory", { error: error.message || error });
       throw new Error(error.message || "Erro ao salvar história");
     }
   }
@@ -517,8 +696,8 @@ export class DatabaseService {
       
       if (error) throw error;
       return (data || []) as Loan[];
-    } catch (err) {
-      console.error("Erro ao buscar empréstimos do Supabase:", err);
+    } catch (err: any) {
+      logger.error("Erro ao buscar empréstimos do Supabase", { error: err.message || err });
       return [];
     }
   }

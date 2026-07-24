@@ -1,3 +1,4 @@
+import { logger } from '../services/monitoring';
 export interface QuickNote {
   id: string;
   content: string;
@@ -27,7 +28,7 @@ export function parseNotesField(notesField: string | null | undefined): {
       return { generalNotes, quickNotes };
     }
   } catch (e) {
-    console.error("Error parsing quick notes:", e);
+    logger.error("Error parsing quick notes:", e);
   }
 
   return { generalNotes, quickNotes: [] };

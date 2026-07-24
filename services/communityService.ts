@@ -1,5 +1,7 @@
 import { supabase } from './supabase';
 import { CommunityPost, CommunityComment, CommunityReaction } from '../types';
+import { config } from './config';
+import { logger } from './monitoring';
 
 const POSTS_LOCAL_KEY = 'biblio_tech_community_posts';
 const REACTIONS_LOCAL_KEY = 'biblio_tech_community_reactions';
@@ -28,8 +30,51 @@ export class CommunityService {
     genre?: string;
     bookType?: string;
   }): Promise<CommunityPost[]> {
+    // Em produção, NUNCA usa modo local fallback silenciando erros.
+    if (config.env === 'produção') {
+      const { data, error } = await supabase
+        .from('community_posts')
+        .select(`
+          *,
+          profiles:user_id (full_name, avatar_url),
+          community_reactions (id, post_id, user_id, reaction_type, created_at),
+          community_comments (
+            id, post_id, user_id, comment_text, created_at,
+            profiles:user_id (full_name, avatar_url)
+          )
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        logger.error("[CommunityService] Erro ao buscar posts na nuvem em produção:", { error: error.message || error });
+        throw new Error(error.message || "Erro de banco de dados");
+      }
+
+      let posts = (data || []) as CommunityPost[];
+
+      if (filters?.genre && filters.genre !== 'all') {
+        posts = posts.filter(post => post.book_genre?.toLowerCase().includes(filters.genre!.toLowerCase()));
+      }
+
+      if (filters?.bookType && filters.bookType !== 'all') {
+        posts = posts.filter(post => post.book_type === filters.bookType);
+      }
+
+      if (filters?.searchQuery) {
+        const queryText = filters.searchQuery.toLowerCase();
+        posts = posts.filter(post => 
+          post.book_title.toLowerCase().includes(queryText) || 
+          post.book_author.toLowerCase().includes(queryText) ||
+          post.review.toLowerCase().includes(queryText)
+        );
+      }
+
+      return posts;
+    }
+
+    // Comportamento para ambientes não-produção (Desenvolvimento/Teste/Homologação)
     if (this.useLocalMode) {
-      return this.getLocalPosts(filters);
+      return await this.getLocalPosts(filters);
     }
 
     try {
@@ -60,9 +105,9 @@ export class CommunityService {
       if (error) {
         // Código 42P01 ou PGRST205 indicam que a tabela não existe ou não está em cache no Supabase. Habilita modo local.
         if (error.code === '42P01' || error.code === 'PGRST205') {
-          console.warn("[CommunityService] Tabelas de comunidade não configuradas no Supabase. Utilizando modo offline local por padrão.");
+          logger.warn("[CommunityService] Tabelas de comunidade não configuradas no Supabase. Utilizando modo offline local por padrão.");
           this.useLocalMode = true;
-          return this.getLocalPosts(filters);
+          return await this.getLocalPosts(filters);
         }
         throw error;
       }
@@ -84,12 +129,12 @@ export class CommunityService {
       // Se for erro de tabela inexistente ou relação inexistente, avisa de forma simples sem erro fatal
       const errMsg = err?.message || '';
       if (err?.code === 'PGRST205' || err?.code === '42P01' || errMsg.includes('relationship') || errMsg.includes('relation') || errMsg.includes('schema cache')) {
-        console.warn("[CommunityService] Ativando modo local pois as tabelas na nuvem não foram encontradas:", errMsg);
+        logger.warn("[CommunityService] Ativando modo local pois as tabelas na nuvem não foram encontradas:", { error: errMsg });
       } else {
-        console.warn("[CommunityService] Aviso ao obter posts na nuvem (sincronizando offline):", err);
+        logger.warn("[CommunityService] Aviso ao obter posts na nuvem (sincronizando offline):", { error: err.message || err });
       }
       this.useLocalMode = true;
-      return this.getLocalPosts(filters);
+      return await this.getLocalPosts(filters);
     }
   }
 
@@ -132,7 +177,7 @@ export class CommunityService {
       const { error } = await supabase.from('community_posts').insert(dbPost);
       if (error) {
         if (error.code === '42703') {
-          console.warn("[CommunityService] Coluna book_pages não existe no Supabase. Inserindo sem ela.");
+          logger.warn("[CommunityService] Coluna book_pages não existe no Supabase. Inserindo sem ela.");
           const { book_pages, ...cleanPost } = dbPost;
           const { error: retryError } = await supabase.from('community_posts').insert(cleanPost);
           if (retryError) throw retryError;
@@ -141,7 +186,7 @@ export class CommunityService {
         }
       }
     } catch (err: any) {
-      console.error("[CommunityService] Erro ao salvar post na nuvem:", err);
+      logger.error("[CommunityService] Erro ao salvar post na nuvem:", { error: err.message || err });
       if (err.code === '42P01') {
         this.useLocalMode = true;
         this.saveLocalPost(dbPost);
@@ -185,7 +230,7 @@ export class CommunityService {
         });
       }
     } catch (err: any) {
-      console.error("[CommunityService] Erro ao gerenciar reação:", err);
+      logger.error("[CommunityService] Erro ao gerenciar reação:", { error: err.message || err });
       if (err.code === '42P01') {
         this.useLocalMode = true;
         this.toggleLocalReaction(postId, userId, reactionType);
@@ -209,7 +254,7 @@ export class CommunityService {
     };
 
     if (this.useLocalMode) {
-      return this.addLocalComment(newComment);
+      return await this.addLocalComment(newComment);
     }
 
     try {
@@ -225,10 +270,10 @@ export class CommunityService {
       if (error) throw error;
       return data as CommunityComment;
     } catch (err: any) {
-      console.error("[CommunityService] Erro ao salvar comentário:", err);
+      logger.error("[CommunityService] Erro ao salvar comentário:", { error: err.message || err });
       if (err.code === '42P01') {
         this.useLocalMode = true;
-        return this.addLocalComment(newComment);
+        return await this.addLocalComment(newComment);
       }
       throw err;
     }
@@ -238,13 +283,14 @@ export class CommunityService {
   // --- MÉTODOS DE FALLBACK LOCAL STORAGE ---
   // ==========================================
 
-  private getLocalPosts(filters?: {
+  private async getLocalPosts(filters?: {
     searchQuery?: string;
     genre?: string;
     bookType?: string;
-  }): CommunityPost[] {
+  }): Promise<CommunityPost[]> {
     const postsRaw = localStorage.getItem(POSTS_LOCAL_KEY);
-    let posts: any[] = postsRaw ? JSON.parse(postsRaw) : getMockPosts();
+    const allowDemo = config.enableDemoData && config.env !== 'produção';
+    let posts: any[] = postsRaw ? JSON.parse(postsRaw) : (allowDemo ? getMockPosts() : []);
 
     // Carregar reações e comentários locais
     const reactionsRaw = localStorage.getItem(REACTIONS_LOCAL_KEY);
@@ -254,7 +300,7 @@ export class CommunityService {
     const comments: any[] = commentsRaw ? JSON.parse(commentsRaw) : [];
 
     // Mapeia perfis
-    const localProfile = this.getLocalUserProfile();
+    const localProfile = await this.getLocalUserProfile();
 
     // Processa os posts acoplando as relações
     let processed: CommunityPost[] = posts.map(post => {
@@ -312,7 +358,8 @@ export class CommunityService {
 
   private saveLocalPost(post: any) {
     const postsRaw = localStorage.getItem(POSTS_LOCAL_KEY);
-    const posts = postsRaw ? JSON.parse(postsRaw) : getMockPosts();
+    const allowDemo = config.enableDemoData && config.env !== 'produção';
+    const posts = postsRaw ? JSON.parse(postsRaw) : (allowDemo ? getMockPosts() : []);
     posts.unshift(post);
     localStorage.setItem(POSTS_LOCAL_KEY, JSON.stringify(posts));
   }
@@ -340,13 +387,13 @@ export class CommunityService {
     localStorage.setItem(REACTIONS_LOCAL_KEY, JSON.stringify(reactions));
   }
 
-  private addLocalComment(comment: any): CommunityComment {
+  private async addLocalComment(comment: any): Promise<CommunityComment> {
     const commentsRaw = localStorage.getItem(COMMENTS_LOCAL_KEY);
     const comments = commentsRaw ? JSON.parse(commentsRaw) : [];
     comments.push(comment);
     localStorage.setItem(COMMENTS_LOCAL_KEY, JSON.stringify(comments));
 
-    const localProfile = this.getLocalUserProfile();
+    const localProfile = await this.getLocalUserProfile();
     return {
       ...comment,
       profiles: {
@@ -356,21 +403,21 @@ export class CommunityService {
     };
   }
 
-  private getLocalUserProfile() {
-    // Tenta ler perfil autenticado ou devolve padrão
+  private async getLocalUserProfile(): Promise<{ id: string; full_name: string; avatar_url: string | undefined }> {
+    // Tenta ler perfil autenticado utilizando as APIs oficiais do Supabase Auth
     try {
-      const saved = localStorage.getItem('sb-rqomssyihwvbwtoyjwws-auth-token');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (parsed?.user) {
-          return {
-            id: parsed.user.id,
-            full_name: parsed.user.user_metadata?.full_name || 'Seu Perfil',
-            avatar_url: parsed.user.user_metadata?.avatar_url
-          };
-        }
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) throw error;
+      if (session?.user) {
+        return {
+          id: session.user.id,
+          full_name: session.user.user_metadata?.full_name || 'Seu Perfil',
+          avatar_url: session.user.user_metadata?.avatar_url
+        };
       }
-    } catch (e) {}
+    } catch (e: any) {
+      logger.warn("[CommunityService] Erro ao recuperar sessão oficial do Supabase:", { error: e.message || e });
+    }
 
     return {
       id: 'local-user-id',

@@ -1,3 +1,4 @@
+import { logger } from '../services/monitoring';
 import React, { useState, useEffect, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import type { Book, Profile } from '../types';
@@ -67,7 +68,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ isOpen, on
   const [emails, setEmails] = useState<SentEmail[]>([]);
   const [selectedEmail, setSelectedEmail] = useState<SentEmail | null>(null);
   
-  const recipientEmail = profile?.email || 'jhonnatan.fernandes23@gmail.com';
+  const recipientEmail = profile?.email || '';
 
   // Load configuration and data from localStorage
   useEffect(() => {
@@ -89,7 +90,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ isOpen, on
           }));
         }
       } catch (e) {
-        console.error("Error parsing settings", e);
+        logger.error("Error parsing settings", e);
       }
 
       // Alerts
@@ -113,7 +114,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ isOpen, on
           localStorage.setItem(userAlertsKey, JSON.stringify(initialAlerts));
         }
       } catch (e) {
-        console.error("Error parsing alerts", e);
+        logger.error("Error parsing alerts", e);
       }
 
       // Emails
@@ -136,7 +137,7 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ isOpen, on
           localStorage.setItem(userEmailsKey, JSON.stringify(initialEmails));
         }
       } catch (e) {
-        console.error("Error parsing emails", e);
+        logger.error("Error parsing emails", e);
       }
     }
   }, [profile, recipientEmail]);
@@ -279,8 +280,8 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ isOpen, on
           body: JSON.stringify({ to: recipientEmail, subject, html })
         })
         .then(res => res.json())
-        .then(data => console.log("[Email Service] Sucesso no disparo real:", data))
-        .catch(err => console.error("[Email Service] Erro no disparo real:", err));
+        .then(data => logger.info("[Email Service] Sucesso no disparo real:", data))
+        .catch(err => logger.error("[Email Service] Erro no disparo real:", err));
       });
     }
 
@@ -312,8 +313,8 @@ export const NotificationModal: React.FC<NotificationModalProps> = ({ isOpen, on
           body: JSON.stringify({ to: recipientEmail, subject, html })
         })
         .then(res => res.json())
-        .then(data => console.log("[Email Service] Sucesso no disparo real:", data))
-        .catch(err => console.error("[Email Service] Erro no disparo real:", err));
+        .then(data => logger.info("[Email Service] Sucesso no disparo real:", data))
+        .catch(err => logger.error("[Email Service] Erro no disparo real:", err));
       });
     }
 

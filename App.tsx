@@ -1,4 +1,5 @@
 
+import { logger } from './services/monitoring';
 import React, { useState, useMemo, useEffect, lazy, Suspense } from 'react';
 import { useBookData } from './hooks/useBookData';
 import { Header } from './components/Header';
@@ -13,10 +14,11 @@ import { Auth } from './components/Auth';
 import { PricePaidModal } from './components/PricePaidModal'; 
 import { BookDetailsModal } from './components/BookDetailsModal';
 import { NextReadModal } from './components/NextReadModal';
-import { AnimatePresence, motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'motion/react';
 import { supabase } from './services/supabase';
 import { dbService } from './services/database';
 import { NotificationModal } from './components/NotificationModal';
+import { config } from './services/config';
 
 // Lazy loaded views
 const Dashboard = lazy(() => import('./components/Dashboard').then(m => ({ default: m.Dashboard })));
@@ -52,7 +54,7 @@ export default function App() {
         setSession(session);
       })
       .catch((err) => {
-        console.warn("⚠️ Não foi possível sincronizar sessão inicial (Offline/Fetch Error).");
+        logger.warn("⚠️ Não foi possível sincronizar sessão inicial (Offline/Fetch Error).");
       })
       .finally(() => {
         setIsAuthLoading(false);
@@ -182,7 +184,7 @@ export default function App() {
         emailBookFinishedEnabled: true,
       };
       
-      const recipientEmail = userProfile.email || 'jhonnatan.fernandes23@gmail.com';
+      const recipientEmail = userProfile.email || '';
 
       // 1. Alerta
       const currentAlerts = JSON.parse(localStorage.getItem(userAlertsKey) || '[]');
@@ -244,12 +246,12 @@ export default function App() {
             body: JSON.stringify({ to: recipientEmail, subject, html })
           })
           .then(res => res.json())
-          .then(data => console.log("[Email Service] Sucesso no disparo real:", data))
-          .catch(err => console.error("[Email Service] Erro no disparo real:", err));
+          .then(data => logger.info("[Email Service] Sucesso no disparo real:", data))
+          .catch(err => logger.error("[Email Service] Erro no disparo real:", err));
         });
       }
     } catch (e) {
-      console.error("Error triggering auto-finish notification:", e);
+      logger.error("Error triggering auto-finish notification:", e);
     }
   };
   const [editingBook, setEditingBook] = useState<Book | null>(null);
@@ -291,7 +293,7 @@ export default function App() {
     const wasJustFinished = oldBook && oldBook.status !== BookStatus.Read && updatedBook.status === BookStatus.Read;
 
     try {
-        await updateBook(updatedBook);
+        await updateBook(updatedBook.id, updatedBook);
         if (viewingBook?.id === updatedBook.id) {
             setViewingBook(updatedBook);
         }
@@ -443,6 +445,12 @@ export default function App() {
         onNotifClick={() => setIsNotifOpen(true)}
         unreadCount={unreadNotifCount}
       />
+
+      {config.enableDemoData && (
+        <div className="bg-amber-500 text-white px-6 py-2.5 text-center text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-2 shadow-inner select-none">
+          <span>✨</span> MODO DE DEMONSTRAÇÃO ATIVO: Dados fictícios de demonstração habilitados ({config.env.toUpperCase()}) <span>✨</span>
+        </div>
+      )}
       
       {schemaError && (
         <div className="bg-red-600 text-white px-6 py-3 text-center text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-4 animate-in slide-in-from-top duration-500">

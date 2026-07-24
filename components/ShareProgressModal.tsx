@@ -1,3 +1,4 @@
+import { logger } from '../services/monitoring';
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import type { Book, Profile } from '../types';
 import { motion, AnimatePresence } from 'motion/react';
@@ -657,7 +658,7 @@ Acompanhem seus hábitos literários também com a Bibliotech! 💫 #leituras #b
         link.click();
 
       } catch (err) {
-        console.error('Canvas Generation Error:', err);
+        logger.error('Canvas Generation Error:', err);
       } finally {
         setIsDownloading(false);
       }
