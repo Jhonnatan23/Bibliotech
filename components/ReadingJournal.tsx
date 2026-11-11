@@ -2,6 +2,7 @@ import { logger } from '../services/monitoring';
 import React, { useState, useMemo, useEffect } from 'react';
 import type { Book, Profile } from '../types';
 import { BookStatus } from '../types';
+import { ConfirmationModal } from './ConfirmationModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   BookOpen, 
@@ -153,10 +154,14 @@ export const ReadingJournal: React.FC<ReadingJournalProps> = ({
     return books.filter(b => ids.has(b.id));
   }, [entries, books]);
 
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+
   const handleOpenNewForm = () => {
     setEditingEntryId(null);
     setThoughtsText('');
     setSelectedMood(MOODS[2].label);
+    setFormError(null);
     
     if (activeBooks.length > 0) {
       setSelectedBookId(activeBooks[0].id);
@@ -178,25 +183,32 @@ export const ReadingJournal: React.FC<ReadingJournalProps> = ({
     setCurrentPageInput(entry.currentPage);
     setThoughtsText(entry.thoughts);
     setSelectedMood(entry.mood);
+    setFormError(null);
     setIsFormOpen(true);
   };
 
   const handleDeleteEntry = (entryId: string) => {
-    if (window.confirm('Deseja realmente excluir esta anotação do seu diário?')) {
-      setEntries(prev => prev.filter(e => e.id !== entryId));
+    setDeletingEntryId(entryId);
+  };
+
+  const confirmDeleteEntry = () => {
+    if (deletingEntryId) {
+      setEntries(prev => prev.filter(e => e.id !== deletingEntryId));
+      setDeletingEntryId(null);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError(null);
 
     if (!selectedBookId) {
-      alert('Por favor, selecione um livro.');
+      setFormError('Por favor, selecione um livro.');
       return;
     }
 
     if (!thoughtsText.trim()) {
-      alert('Por favor, escreva seus pensamentos.');
+      setFormError('Por favor, escreva seus pensamentos.');
       return;
     }
 
@@ -497,6 +509,11 @@ export const ReadingJournal: React.FC<ReadingJournalProps> = ({
 
               {/* Form Body */}
               <form onSubmit={handleSubmit} className="p-6 space-y-6">
+                {formError && (
+                  <div className="p-3.5 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-900/40 text-red-600 dark:text-red-400 text-xs font-bold rounded-2xl flex items-center gap-2">
+                    <span>⚠️</span> {formError}
+                  </div>
+                )}
                 
                 {/* Select Book */}
                 <div className="space-y-2">
@@ -612,6 +629,15 @@ export const ReadingJournal: React.FC<ReadingJournalProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmationModal
+        isOpen={!!deletingEntryId}
+        onClose={() => setDeletingEntryId(null)}
+        onConfirm={confirmDeleteEntry}
+        title="Excluir Anotação"
+        message="Deseja realmente excluir esta anotação do seu diário de leitura? Esta ação não pode ser desfeita."
+        confirmLabel="Excluir"
+      />
     </div>
   );
 };

@@ -319,6 +319,73 @@ export class DatabaseService {
     } catch (e) { return []; }
   }
 
+  private async getPendingQueue(): Promise<Array<{ type: 'save' | 'update' | 'delete', id: string, payload?: any }>> {
+    const user = await this.getSafeUser();
+    const storageKey = user ? `biblio_tech_pending_queue_${user.id}` : `biblio_tech_pending_queue_guest`;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  private async savePendingQueue(queue: any[]): Promise<void> {
+    const user = await this.getSafeUser();
+    const storageKey = user ? `biblio_tech_pending_queue_${user.id}` : `biblio_tech_pending_queue_guest`;
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(queue));
+    } catch (e) {}
+  }
+
+  async addPendingSync(item: { type: 'save' | 'update' | 'delete', id: string, payload?: any }): Promise<void> {
+    const queue = await this.getPendingQueue();
+    const idx = queue.findIndex(q => q.id === item.id);
+    if (idx >= 0) {
+      queue[idx] = item;
+    } else {
+      queue.push(item);
+    }
+    await this.savePendingQueue(queue);
+  }
+
+  async removePendingSync(id: string): Promise<void> {
+    const queue = await this.getPendingQueue();
+    const updated = queue.filter(q => q.id !== id);
+    await this.savePendingQueue(updated);
+  }
+
+  async getPendingCount(): Promise<number> {
+    const queue = await this.getPendingQueue();
+    return queue.length;
+  }
+
+  async syncPendingQueue(): Promise<number> {
+    const user = await this.getSafeUser();
+    if (!user || !navigator.onLine) return await this.getPendingCount();
+
+    const queue = await this.getPendingQueue();
+    if (queue.length === 0) return 0;
+
+    const remainingQueue: any[] = [];
+    for (const item of queue) {
+      try {
+        if (item.type === 'save' || item.type === 'update') {
+          const { error } = await supabase.from(TABLE_NAME).upsert(item.payload, { onConflict: 'id' });
+          if (error) throw error;
+        } else if (item.type === 'delete') {
+          const { error } = await supabase.from(TABLE_NAME).delete().eq('id', item.id);
+          if (error) throw error;
+        }
+      } catch (e) {
+        remainingQueue.push(item);
+      }
+    }
+
+    await this.savePendingQueue(remainingQueue);
+    return remainingQueue.length;
+  }
+
   private async saveLocalBooks(books: Book[]): Promise<void> {
     const user = await this.getSafeUser();
     if (!user) return;
@@ -329,23 +396,26 @@ export class DatabaseService {
 
   async saveBook(book: Partial<Book>): Promise<void> {
     const user = await this.getSafeUser();
-    if (!user) throw new Error("Usuário não autenticado");
-
     const bookId = book.id || crypto.randomUUID();
     const books = await this.getLocalBooks();
     const index = books.findIndex(b => b.id === bookId);
     const existingBook = index >= 0 ? books[index] : {};
 
-    const updatedBookForDb = { ...existingBook, ...book, id: bookId, user_id: user.id };
+    const userId = user?.id || 'local_user';
+    const updatedBookForDb = { ...existingBook, ...book, id: bookId, user_id: userId };
     const dbPayload = mapBookToDb(updatedBookForDb);
 
     logger.info(`[Database] Preparando para salvar livro: "${dbPayload.title}"`, { bookId, seriesId: dbPayload.series_id });
 
     const updatedBookState = mapDbToBook(dbPayload);
-    
-    if (index >= 0) books[index] = updatedBookState;
-    else books.unshift(updatedBookState);
-    await this.saveLocalBooks(books);
+
+    if (!user) {
+      if (index >= 0) books[index] = updatedBookState;
+      else books.unshift(updatedBookState);
+      await this.saveLocalBooks(books);
+      await this.addPendingSync({ type: 'save', id: bookId, payload: dbPayload });
+      return;
+    }
 
     try {
       const { data, error, status } = await supabase
@@ -356,12 +426,18 @@ export class DatabaseService {
 
       if (error) {
         logger.error(`[Supabase] Erro no upsert de livro`, { status, error: error.message || error });
+        await this.addPendingSync({ type: 'save', id: bookId, payload: dbPayload });
         throw error;
       }
-      
+
+      if (index >= 0) books[index] = updatedBookState;
+      else books.unshift(updatedBookState);
+      await this.saveLocalBooks(books);
+      await this.removePendingSync(bookId);
       logger.info("[Database] Livro saved no Supabase", { title: data?.title });
     } catch (err: any) {
       logger.error("[Database] Exceção ao salvar livro", { error: err.message || err });
+      await this.addPendingSync({ type: 'save', id: bookId, payload: dbPayload });
       if (err.code === '42703' || (err.message && (err.message.includes('history_observation') || err.message.includes('is_loaned') || err.message.includes('is_digital')))) {
         this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada (módulos de empréstimo, digital ou histórico).');
       }
@@ -371,20 +447,21 @@ export class DatabaseService {
 
   async updateBook(id: string, changes: Partial<Book>): Promise<Book> {
     const user = await this.getSafeUser();
+    const dbPayload = mapPartialBookToDb(changes);
+
     if (!user) {
-      // Se não houver usuário autenticado, atualizamos apenas localmente
       const books = await this.getLocalBooks();
       const index = books.findIndex(b => b.id === id);
       if (index === -1) {
         throw new Error("Livro não encontrado localmente.");
       }
-      const updatedBook = { ...books[index], ...changes, id };
-      books[index] = updatedBook;
+      const updatedBookState = { ...books[index], ...changes, id } as Book;
+      books[index] = updatedBookState;
       await this.saveLocalBooks(books);
-      return updatedBook;
+      await this.addPendingSync({ type: 'update', id, payload: dbPayload });
+      return updatedBookState;
     }
 
-    const dbPayload = mapPartialBookToDb(changes);
     logger.info(`[Database] Preparando atualização parcial para o livro: ${id}`, { fields: Object.keys(dbPayload) });
 
     try {
@@ -398,6 +475,7 @@ export class DatabaseService {
 
       if (error) {
         logger.error(`[Supabase] Erro na atualização parcial do livro ${id}`, { error: error.message || error });
+        await this.addPendingSync({ type: 'update', id, payload: dbPayload });
         throw error;
       }
 
@@ -407,7 +485,6 @@ export class DatabaseService {
 
       const updatedBookState = mapDbToBook(data);
 
-      // Atualiza o cache local somente após confirmação de sucesso na nuvem
       const books = await this.getLocalBooks();
       const index = books.findIndex(b => b.id === id);
       if (index >= 0) {
@@ -416,11 +493,13 @@ export class DatabaseService {
         books.unshift(updatedBookState);
       }
       await this.saveLocalBooks(books);
+      await this.removePendingSync(id);
 
       logger.info("[Database] Livro atualizado com sucesso via atualização parcial", { id });
       return updatedBookState;
     } catch (err: any) {
       logger.error("[Database] Exceção na atualização parcial do livro", { error: err.message || err });
+      await this.addPendingSync({ type: 'update', id, payload: dbPayload });
       if (err.code === '42703' || (err.message && (err.message.includes('history_observation') || err.message.includes('is_loaned') || err.message.includes('is_digital')))) {
         this.onSchemaErrorCallback?.('column', 'Estrutura de dados desatualizada.');
       }

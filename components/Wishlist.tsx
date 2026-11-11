@@ -3,6 +3,7 @@ import React, { useState, useMemo } from 'react';
 import type { Book } from '../types';
 import { WishlistItem } from './WishlistItem';
 import { PlusIcon, TagIcon } from './Icons';
+import { EmptyState } from './EmptyState';
 
 interface WishlistProps {
   books: Book[];
@@ -93,24 +94,32 @@ export const Wishlist: React.FC<WishlistProps> = React.memo(({ books, onEdit, on
             />
           ))
         ) : (
-          <div className="text-center py-32 bg-white dark:bg-slate-900 rounded-[3rem] border-2 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center group">
-            <div className="bg-slate-50 dark:bg-slate-800 p-8 rounded-full mb-6 group-hover:scale-110 transition-transform duration-500">
-                <HeartIcon className="h-12 w-12 text-slate-200 dark:text-slate-700" />
-            </div>
-            <h3 className="text-2xl font-black text-slate-900 dark:text-slate-50 font-serif italic mb-2">Sua lista está vazia</h3>
-            <p className="text-slate-400 dark:text-slate-50 max-w-sm mx-auto text-sm font-medium">Que tal adicionar aquele livro que você está namorando há tempos?</p>
-            <button 
-                onClick={onAddWishlistItem}
-                className="mt-10 px-10 py-4 bg-primary text-white rounded-full font-black text-[11px] uppercase tracking-widest shadow-xl hover:bg-slate-900 transition-all active:scale-95"
-            >
-                Adicionar Primeiro Desejo
-            </button>
-          </div>
+          <EmptyState
+            illustration="wishlist"
+            title={searchQuery ? 'Nenhum desejo encontrado para sua busca' : 'Sua lista de desejos está vazia'}
+            description={
+              searchQuery
+                ? `Não encontramos nenhum item correspondente a "${searchQuery}". Tente outro termo ou limpe a pesquisa.`
+                : 'Que tal adicionar aquele livro especial que você está namorando há tempos ou planeja adquirir em breve?'
+            }
+            primaryAction={{
+              label: searchQuery ? 'Limpar Busca' : 'Adicionar Primeiro Desejo',
+              onClick: searchQuery ? () => setSearchQuery('') : onAddWishlistItem,
+              icon: (
+                <PlusIcon className="h-4 w-4" />
+              ),
+              'data-testid': 'wishlist-empty-cta',
+            }}
+            secondaryAction={
+              searchQuery ? {
+                label: 'Adicionar Novo Desejo',
+                onClick: onAddWishlistItem,
+                icon: <PlusIcon className="h-4 w-4" />,
+              } : undefined
+            }
+          />
         )}
       </div>
     </div>
   );
 });
-
-// Import necessário para o ícone de coração no estado vazio
-import { HeartIcon } from './Icons';

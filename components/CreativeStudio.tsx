@@ -148,7 +148,7 @@ Conteúdo: "${activeStory.content}"`;
         body: JSON.stringify({
           prompt,
           systemInstruction,
-          model: 'gemini-1.5-flash'
+          model: 'gemini-3.8-flash'
         })
       });
 
@@ -163,10 +163,22 @@ Conteúdo: "${activeStory.content}"`;
 
       if (!response.ok) {
         const errData = await response.json();
-        if (response.status === 503 || errData.isHighDemand || errData.error?.includes('high demand')) {
+        const errMessage = typeof errData.error === 'string'
+          ? errData.error
+          : (errData.error?.message || errData.message || '');
+        const lowerMsg = errMessage.toLowerCase();
+        const isHighDemand = response.status === 503 ||
+          response.status === 504 ||
+          errData.isHighDemand ||
+          errData.error?.code === 'SERVICE_UNAVAILABLE' ||
+          lowerMsg.includes('high demand') ||
+          lowerMsg.includes('demanda') ||
+          lowerMsg.includes('deadline');
+
+        if (isHighDemand) {
           throw new Error('ALTA_DEMANDA');
         }
-        throw new Error(errData.error || 'Falha na comunicação com a IA');
+        throw new Error(errMessage || 'Falha na comunicação com a IA');
       }
 
       const data = await response.json();

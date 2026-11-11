@@ -43,7 +43,7 @@ const CustomTooltip = ({ active, payload, label }: any) => {
                     <div className="w-2.5 h-2.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.4)]"></div>
                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Avaliação</span>
                 </div>
-                <span className="font-bold text-amber-600 dark:text-amber-400 text-sm">{(payload.find((p: any) => p.dataKey === 'Avaliação')?.value || 0).toFixed(1)}</span>
+                <span className="font-black text-amber-500 text-sm">{(payload.find((p: any) => p.dataKey === 'Avaliação')?.value || 0).toFixed(1)} / 5.0</span>
             </div>
         </div>
       </div>
@@ -109,7 +109,7 @@ export const MonthlyChart: React.FC<MonthlyChartProps> = ({ data }) => {
           />
           
           <YAxis yAxisId="right" orientation="right" hide={true} />
-          <YAxis yAxisId="rating" orientation="right" domain={[0, 10]} hide={true} />
+          <YAxis yAxisId="rating" orientation="right" domain={[0, 5]} hide={true} />
           
           <Tooltip 
             content={<CustomTooltip />} 

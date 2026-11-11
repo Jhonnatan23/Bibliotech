@@ -1,11 +1,13 @@
 
 import { logger } from '../services/monitoring';
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { Book, StatusConfigs, Profile } from '../types';
 import { BookStatus, STATUS_COLORS, STATUS_CONFIGS } from '../types';
-import { XMarkIcon, StarIconFilled, ExternalLinkIcon, BookOpenIcon, TagIcon, PlusIcon, TrashIcon } from './Icons';
+import { XMarkIcon, StarIconFilled, ExternalLinkIcon, BookOpenIcon, TagIcon, PlusIcon, TrashIcon, PencilIcon } from './Icons';
 import { parseNotesField, serializeNotesField } from './quickNotesUtils';
+import { generateBookSummary } from '../services/geminiService';
+import { RatingStars } from './RatingStars';
 
 interface BookDetailsModalProps {
   book: Book;
@@ -15,6 +17,7 @@ interface BookDetailsModalProps {
   statusConfigs?: StatusConfigs;
   profile: Profile | null;
   onUpdateBook: (book: Book) => Promise<void>;
+  onEdit?: (book: Book) => void;
 }
 
 export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({ 
@@ -24,7 +27,8 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
   onNavigateToBook,
   statusConfigs = STATUS_CONFIGS,
   profile,
-  onUpdateBook
+  onUpdateBook,
+  onEdit
 }) => {
   const config = statusConfigs[book.status];
   const colorStyles = STATUS_COLORS[config.color as keyof typeof STATUS_COLORS];
@@ -32,6 +36,39 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
   const [isUpdating, setIsUpdating] = useState(false);
   const [newQuickNoteText, setNewQuickNoteText] = useState('');
   const [newQuickNotePage, setNewQuickNotePage] = useState('');
+  const [isEditingSummary, setIsEditingSummary] = useState(false);
+  const [summaryInput, setSummaryInput] = useState(book.summary || '');
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+
+  useEffect(() => {
+    setSummaryInput(book.summary || '');
+  }, [book.summary, book.id]);
+
+  const handleSaveSummary = async () => {
+    setIsUpdating(true);
+    try {
+      const trimmed = summaryInput.trim();
+      await onUpdateBook({ ...book, summary: trimmed || undefined });
+      setIsEditingSummary(false);
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleGenerateAiSummary = async () => {
+    if (!book.title) return;
+    setIsGeneratingSummary(true);
+    try {
+      const result = await generateBookSummary(book.title, book.author);
+      if (result) {
+        setSummaryInput(result);
+      }
+    } catch (err: any) {
+      logger.error("Erro ao gerar sinopse no modal de detalhes:", { error: err.message || err });
+    } finally {
+      setIsGeneratingSummary(false);
+    }
+  };
 
   const { generalNotes, quickNotes } = useMemo(() => {
     return parseNotesField(book.notes);
@@ -73,11 +110,11 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
   const currentBookTags = book.tags || [];
 
   return (
-    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md flex items-center justify-center z-[100] p-4 animate-in fade-in duration-300">
-      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl w-full max-w-2xl border border-white/20 dark:border-slate-800 max-h-[90vh] overflow-hidden flex flex-col animate-in zoom-in-95 duration-500">
+    <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-md flex items-end sm:items-center justify-center z-[100] p-0 sm:p-4 animate-in fade-in duration-300">
+      <div className="bg-white dark:bg-slate-900 rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl w-full max-w-2xl border border-white/20 dark:border-slate-800 max-h-[92vh] sm:max-h-[90vh] overflow-hidden flex flex-col animate-in slide-in-from-bottom-6 sm:zoom-in-95 duration-500">
         
-        <div className="p-7 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start bg-slate-50/50 dark:bg-slate-800/30">
-            <div className="flex-1">
+        <div className="p-5 sm:p-7 border-b border-slate-100 dark:border-slate-800 flex justify-between items-start bg-slate-50/50 dark:bg-slate-800/30 gap-4">
+            <div className="flex-1 min-w-0">
                 <div className="flex flex-wrap gap-2 mb-2">
                     <span className={`px-3 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${colorStyles.bg} ${colorStyles.text} ${colorStyles.border}`}>
                         {config.label}
@@ -101,16 +138,33 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
                         {book.isDigital ? 'Digital' : 'Físico'}
                     </button>
                 </div>
-                <h2 className="text-3xl font-black font-serif italic text-slate-900 dark:text-white leading-tight">
+                <h2 className="text-2xl sm:text-3xl font-black font-serif italic text-slate-900 dark:text-white leading-tight truncate">
                     {book.title}
                 </h2>
-                <p className="text-lg font-bold text-slate-400 dark:text-slate-500 mt-1">
+                <p className="text-base sm:text-lg font-bold text-slate-400 dark:text-slate-500 mt-1 truncate">
                     de {authorsList.join(', ')}
                 </p>
             </div>
-            <button onClick={onClose} className="p-2.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 transition-all hover:rotate-90">
-                <XMarkIcon className="h-6 w-6" />
-            </button>
+            <div className="flex items-center gap-1.5 flex-shrink-0">
+                {onEdit && (
+                    <button 
+                        onClick={() => onEdit(book)}
+                        className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-100 dark:bg-slate-800 hover:bg-primary hover:text-white text-slate-600 dark:text-slate-300 font-black text-[10px] uppercase tracking-wider transition-all flex items-center gap-1.5 cursor-pointer active:scale-95"
+                        title="Editar metadados deste livro"
+                        aria-label="Editar livro"
+                    >
+                        <PencilIcon className="h-4 w-4" />
+                        <span className="hidden sm:inline">Editar</span>
+                    </button>
+                )}
+                <button 
+                    onClick={onClose} 
+                    aria-label="Fechar modal"
+                    className="p-2.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-400 transition-all hover:rotate-90 cursor-pointer"
+                >
+                    <XMarkIcon className="h-6 w-6" />
+                </button>
+            </div>
         </div>
 
         <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-10">
@@ -122,14 +176,64 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Avaliação</p>
-                    <div className="flex items-center gap-1.5">
-                        <p className="text-xl font-black text-amber-500">{book.rating || '--'}</p>
-                        <StarIconFilled className="h-4 w-4 text-amber-500" />
-                    </div>
+                    {book.rating !== undefined && book.rating > 0 ? (
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-xl font-black text-amber-500 font-mono">
+                            {Number(book.rating).toFixed(1)}
+                          </p>
+                          <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 font-mono">/ 5.0</span>
+                        </div>
+                        <RatingStars rating={book.rating} readOnly size="xs" showLabel={false} />
+                      </div>
+                    ) : (
+                      <p className="text-xl font-black text-slate-400 dark:text-slate-600">--</p>
+                    )}
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Status</p>
-                    <p className="text-sm font-bold text-slate-700 dark:text-slate-300 truncate">{config.label}</p>
+                    <select
+                        aria-label="Status do livro"
+                        value={book.status}
+                        onChange={async (e) => {
+                            if (isUpdating) return;
+                            const newStatus = e.target.value as BookStatus;
+                            if (newStatus === book.status) return;
+                            setIsUpdating(true);
+                            try {
+                                const today = new Date().toISOString().split('T')[0];
+                                let updatedBook: Book = { ...book, status: newStatus };
+                                
+                                if (newStatus === BookStatus.Reading) {
+                                    if (!updatedBook.dateStarted) {
+                                        updatedBook.dateStarted = today;
+                                    }
+                                } else if (newStatus === BookStatus.Read) {
+                                    updatedBook.dateFinished = today;
+                                    if (updatedBook.pages) {
+                                        updatedBook.currentPage = updatedBook.pages;
+                                    }
+                                    const startDateStr = updatedBook.dateStarted || today;
+                                    const startDate = new Date(startDateStr);
+                                    const finishDate = new Date(today);
+                                    const diffTime = Math.abs(finishDate.getTime() - startDate.getTime());
+                                    const calculatedDays = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+                                    updatedBook.daysToFinish = calculatedDays;
+                                }
+                                await onUpdateBook(updatedBook);
+                            } finally {
+                                setIsUpdating(false);
+                            }
+                        }}
+                        disabled={isUpdating}
+                        className="text-sm font-bold text-slate-700 dark:text-slate-300 bg-transparent outline-none cursor-pointer border-b border-dashed border-slate-300 dark:border-slate-600 focus:border-primary w-full truncate"
+                    >
+                        <option value={BookStatus.TBR}>{statusConfigs[BookStatus.TBR]?.label || STATUS_CONFIGS[BookStatus.TBR].label}</option>
+                        <option value={BookStatus.Reading}>{statusConfigs[BookStatus.Reading]?.label || STATUS_CONFIGS[BookStatus.Reading].label}</option>
+                        <option value={BookStatus.Read}>{statusConfigs[BookStatus.Read]?.label || STATUS_CONFIGS[BookStatus.Read].label}</option>
+                        <option value={BookStatus.Wishlist}>{statusConfigs[BookStatus.Wishlist]?.label || STATUS_CONFIGS[BookStatus.Wishlist].label}</option>
+                        <option value={BookStatus.Dropped}>{statusConfigs[BookStatus.Dropped]?.label || STATUS_CONFIGS[BookStatus.Dropped].label}</option>
+                    </select>
                 </div>
                 <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl border border-slate-100 dark:border-slate-800">
                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Volume</p>
@@ -288,12 +392,71 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
 
             {/* Resumo */}
             <div className="space-y-4">
-                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
-                    <BookOpenIcon className="h-4 w-4" /> Resumo & Sinopse
-                </h3>
-                <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed italic font-medium">
-                    {book.summary || "Nenhuma sinopse cadastrada para esta obra."}
-                </p>
+                <div className="flex items-center justify-between">
+                    <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] flex items-center gap-3">
+                        <BookOpenIcon className="h-4 w-4" /> Resumo & Sinopse
+                    </h3>
+                    {!isEditingSummary && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setSummaryInput(book.summary || '');
+                                setIsEditingSummary(true);
+                            }}
+                            className="text-[10px] font-black uppercase tracking-wider text-primary hover:underline flex items-center gap-1.5 transition-all"
+                        >
+                            <PencilIcon className="h-3 w-3" />
+                            {book.summary ? 'Editar Sinopse' : '+ Adicionar Sinopse'}
+                        </button>
+                    )}
+                </div>
+
+                {isEditingSummary ? (
+                    <div className="space-y-3 bg-slate-50 dark:bg-slate-800/60 p-4 rounded-2xl border border-slate-200 dark:border-slate-700">
+                        <textarea
+                            value={summaryInput}
+                            onChange={(e) => setSummaryInput(e.target.value)}
+                            placeholder="Escreva a sinopse ou resumo da obra..."
+                            rows={4}
+                            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl p-3 text-sm text-slate-800 dark:text-slate-100 outline-none focus:border-primary font-normal leading-relaxed"
+                        />
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                            <button
+                                type="button"
+                                onClick={handleGenerateAiSummary}
+                                disabled={isGeneratingSummary || !book.title}
+                                className="text-[10px] font-black uppercase tracking-wider px-3 py-1.5 bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors disabled:opacity-50"
+                            >
+                                {isGeneratingSummary ? 'Gerando com IA...' : '✦ Gerar com IA'}
+                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSummaryInput(book.summary || '');
+                                        setIsEditingSummary(false);
+                                    }}
+                                    disabled={isUpdating}
+                                    className="px-3 py-1.5 text-[10px] font-black uppercase tracking-wider text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSaveSummary}
+                                    disabled={isUpdating}
+                                    className="px-4 py-1.5 text-[10px] font-black uppercase tracking-wider bg-primary text-white rounded-lg hover:bg-slate-900 transition-colors disabled:opacity-50"
+                                >
+                                    {isUpdating ? 'Salvando...' : 'Salvar Sinopse'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed italic font-medium whitespace-pre-wrap">
+                        {book.summary || "Nenhuma sinopse cadastrada para esta obra."}
+                    </p>
+                )}
             </div>
 
             {/* Notas Pessoais */}
@@ -506,23 +669,36 @@ export const BookDetailsModal: React.FC<BookDetailsModalProps> = ({
             )}
         </div>
 
-        <div className="p-7 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
-            {book.buyLink && (
-                <a 
-                    href={book.buyLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="px-6 py-3.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-primary dark:hover:bg-primary dark:hover:text-white transition-all shadow-lg"
+        <div className="p-5 sm:p-7 bg-slate-50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              {onEdit && (
+                <button 
+                    onClick={() => onEdit(book)}
+                    className="px-5 py-3 sm:py-3.5 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 transition-all active:scale-95 cursor-pointer"
                 >
-                    Link de Compra <ExternalLinkIcon className="h-4 w-4" />
-                </a>
-            )}
-            <button 
-                onClick={onClose}
-                className="px-8 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary transition-all"
-            >
-                Fechar
-            </button>
+                    <PencilIcon className="h-4 w-4 text-primary" />
+                    <span>Editar Registro Completo</span>
+                </button>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+                {book.buyLink && (
+                    <a 
+                        href={book.buyLink}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="px-6 py-3.5 bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 rounded-2xl text-[10px] font-black uppercase tracking-widest flex items-center gap-2 hover:bg-primary dark:hover:bg-primary dark:hover:text-white transition-all shadow-lg"
+                    >
+                        Link de Compra <ExternalLinkIcon className="h-4 w-4" />
+                    </a>
+                )}
+                <button 
+                    onClick={onClose}
+                    className="px-8 py-3.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-400 hover:text-primary transition-all cursor-pointer"
+                >
+                    Fechar
+                </button>
+            </div>
         </div>
       </div>
     </div>

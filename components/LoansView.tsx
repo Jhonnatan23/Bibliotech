@@ -3,6 +3,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import type { Book, Profile, Loan } from '../types';
 import { BookStatus } from '../types';
 import { dbService } from '../services/database';
+import { ConfirmationModal } from './ConfirmationModal';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
   Plus, 
@@ -139,12 +140,28 @@ export const LoansView: React.FC<LoansViewProps> = ({
     }
   };
 
+  const [returningLoan, setReturningLoan] = useState<{ loanId: string; bookId: string; title: string } | null>(null);
+
+  // Helper safe date format
+  const formatDueDate = (dateStr?: string) => {
+    if (!dateStr) return '--';
+    const clean = dateStr.split('T')[0];
+    const parts = clean.split('-');
+    if (parts.length === 3) {
+      return `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+    const d = new Date(dateStr);
+    return isNaN(d.getTime()) ? '--' : d.toLocaleDateString('pt-BR');
+  };
+
   // Handle marking a loan as returned
-  const handleReturnLoan = async (loanId: string, bookId: string) => {
-    if (!window.confirm('Confirmar a devolução deste livro/HQ?')) return;
+  const executeReturnLoan = async () => {
+    if (!returningLoan) return;
+    const { loanId, bookId } = returningLoan;
+    setReturningLoan(null);
 
     try {
-      // Optmistic state updates to feel snappy
+      // Optimistic state updates to feel snappy
       setLoans(prev => prev.map(l => l.id === loanId ? { ...l, return_date: new Date().toISOString(), status: 'returned' } : l));
 
       const result = await dbService.returnLoan(loanId);
@@ -161,9 +178,9 @@ export const LoansView: React.FC<LoansViewProps> = ({
         }
         await fetchLoans();
       }
-    } catch (err) {
+    } catch (err: any) {
       logger.error('Erro ao devolver obra:', err);
-      alert('Não foi possível registrar a devolução no momento.');
+      setErrorMsg(err.message || 'Não foi possível registrar a devolução no momento.');
       fetchLoans(); // Rollback to actual db state on error
     }
   };
@@ -317,7 +334,7 @@ export const LoansView: React.FC<LoansViewProps> = ({
                           <Calendar className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                           <span>Devolução limite:</span>
                           <span className="font-bold text-slate-700 dark:text-slate-300">
-                            {new Date(loan.due_date).toLocaleDateString('pt-BR')}
+                            {formatDueDate(loan.due_date)}
                           </span>
                         </div>
                       </div>
@@ -325,7 +342,7 @@ export const LoansView: React.FC<LoansViewProps> = ({
 
                     <div className="pt-2">
                       <button
-                        onClick={() => handleReturnLoan(loan.id, loan.book_id)}
+                        onClick={() => setReturningLoan({ loanId: loan.id, bookId: loan.book_id, title: book?.title || 'esta obra' })}
                         className="w-full flex items-center justify-center gap-2 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200 dark:bg-slate-800/50 dark:hover:bg-emerald-950/20 dark:hover:text-emerald-400 dark:hover:border-emerald-900/30 text-slate-600 dark:text-slate-300 border border-slate-150 dark:border-slate-700/60 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all cursor-pointer"
                       >
                         <CheckCircle className="h-4 w-4" /> Marcar como Devolvido
@@ -522,6 +539,16 @@ export const LoansView: React.FC<LoansViewProps> = ({
           </div>
         )}
       </AnimatePresence>
+
+      <ConfirmationModal
+        isOpen={!!returningLoan}
+        onClose={() => setReturningLoan(null)}
+        onConfirm={executeReturnLoan}
+        title="Confirmar Devolução"
+        message={`Deseja confirmar que "${returningLoan?.title || 'a obra'}" foi devolvida e atualizar a estante?`}
+        confirmLabel="Confirmar Devolução"
+        confirmButtonClass="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-600/20"
+      />
     </div>
   );
 };

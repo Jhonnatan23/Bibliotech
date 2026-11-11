@@ -12,6 +12,8 @@
     "start": "cross-env NODE_ENV=production node dist/server.cjs",
     "check:secrets": "tsx scripts/check-secrets.ts",
     "lint": "tsc --noEmit",
+    "cap:sync": "npx cap sync",
+    "cap:android": "npx cap open android",
     "test": "vitest run",
     "preview": "vite preview"
   },
@@ -33,13 +35,19 @@
     "undici": "^8.4.1"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
+    "@capacitor/core": "^8.4.2",
     "@tailwindcss/postcss": "^4.3.3",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
     "@types/nodemailer": "^8.0.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/supertest": "^7.2.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.5.4",
+    "jsdom": "^29.1.1",
     "postcss": "^8.5.19",
     "supertest": "^7.2.2",
     "tailwindcss": "^4.3.3",

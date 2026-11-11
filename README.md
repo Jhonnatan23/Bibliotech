@@ -102,3 +102,41 @@ O projeto implementa uma arquitetura **fail-fast** robusta e segura para o geren
    ```bash
    npm run start
    ```
+
+---
+
+## 📱 Build Mobile (Android)
+
+O **BiblioTech** utiliza **Capacitor** para empacotar a aplicação web como aplicativo nativo Android (APK / Bundle), permitindo o uso completo da câmera do celular no fluxo de scan de capas por IA.
+
+### Passo a Passo de Build:
+
+1. **Gere os arquivos estáticos de produção**:
+   ```bash
+   npm run build
+   ```
+
+2. **Adicione a plataforma Android** (se for a primeira vez):
+   ```bash
+   npx cap add android
+   ```
+
+3. **Sincronize o código web compilado com a pasta nativa do Android**:
+   ```bash
+   npm run cap:sync
+   ```
+
+4. **Abra o projeto no Android Studio**:
+   ```bash
+   npm run cap:android
+   ```
+
+### 📷 Configuração da Permissão de Câmera
+
+Para que a captura de fotos via câmera (`<input capture="environment">`) funcione perfeitamente dentro da WebView do Android, certifique-se de adicionar a permissão de câmera no arquivo `android/app/src/main/AndroidManifest.xml` do projeto Android gerado:
+
+```xml
+<uses-permission android:name="android.permission.CAMERA" />
+<uses-feature android:name="android.hardware.camera" android:required="false" />
+```
+

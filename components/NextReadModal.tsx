@@ -3,7 +3,7 @@ import React from 'react';
 import type { Book } from '../types';
 import { BookStatus, STATUS_CONFIGS, STATUS_COLORS } from '../types';
 import { XMarkIcon, BookOpenIcon, PlayIcon, SparklesIcon, TagIcon, HeartIcon } from './Icons';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface NextReadModalProps {
   finishedBook?: Book;
@@ -20,19 +20,20 @@ export const NextReadModal: React.FC<NextReadModalProps> = ({
   onStartReading,
   ruleUsed
 }) => {
-  const authorsList = recommendedBook.author.split(',').map(a => a.trim());
-  const genresList = recommendedBook.genre.split(',').map(g => g.trim());
+  const authorsList = (recommendedBook.author || '').split(',').map(a => a.trim()).filter(Boolean);
+  const genresList = (recommendedBook.genre || '').split(',').map(g => g.trim()).filter(Boolean);
+  const finishedGenreFirst = finishedBook?.genre ? finishedBook.genre.split(',')[0].trim() : '';
   
   const ruleMessages = {
     linked: 'Este livro está vinculado à sua última leitura!',
     tag: `Ambos compartilham a tag "${recommendedBook.tags?.find(t => finishedBook?.tags?.includes(t)) || 'relacionada'}"`,
-    genre: finishedBook ? `Como você gostou de ${finishedBook.genre.split(',')[0]}, talvez goste deste também!` : 'Um gênero que você costuma ler!',
+    genre: finishedGenreFirst ? `Como você gostou de ${finishedGenreFirst}, talvez goste deste também!` : 'Um gênero que você costuma ler!',
     random: 'Que tal uma nova aventura aleatória para sua estante?',
-    random_pick: 'Sorteamo este livro da sua pilha para você!'
+    random_pick: 'Sorteamos este livro da sua pilha para você!'
   };
 
-  const statusConfig = STATUS_CONFIGS[recommendedBook.status];
-  const statusColor = STATUS_COLORS[statusConfig.color];
+  const statusConfig = (recommendedBook.status && STATUS_CONFIGS[recommendedBook.status as BookStatus]) || STATUS_CONFIGS[BookStatus.TBR];
+  const statusColor = STATUS_COLORS[statusConfig?.color || 'blue'];
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">

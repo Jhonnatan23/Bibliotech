@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'motion/react';
 import { Book } from '../types';
 import { StarIcon, StarIconFilled, XMarkIcon } from './Icons';
+import { RatingStars } from './RatingStars';
 import { communityService } from '../services/communityService';
 
 interface ShareToCommunityModalProps {
@@ -99,24 +100,15 @@ export const ShareToCommunityModal: React.FC<ShareToCommunityModalProps> = ({ bo
             <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500">
               Sua Nota para o Livro
             </label>
-            <div className="flex items-center gap-2">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  type="button"
-                  key={star}
-                  onClick={() => setRating(star)}
-                  className="p-1 text-amber-400 hover:scale-115 active:scale-95 transition-all"
-                >
-                  {star <= rating ? (
-                    <StarIconFilled className="w-8 h-8 fill-amber-400" />
-                  ) : (
-                    <StarIcon className="w-8 h-8 stroke-amber-400 dark:stroke-slate-600" />
-                  )}
-                </button>
-              ))}
-              <span className="text-xs font-black text-slate-500 dark:text-slate-400 ml-2">
-                ({rating}/5 estrelas)
-              </span>
+            <div className="flex items-center gap-2 p-2 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800">
+              <RatingStars
+                rating={rating}
+                onChange={(val) => setRating(val)}
+                size="lg"
+                precision={0.5}
+                showLabel={true}
+                formatLabel={(r) => `${r.toFixed(1)} / 5.0`}
+              />
             </div>
           </div>
 

@@ -23,7 +23,19 @@ export const useBookData = () => {
   });
   
   const [quickSummary, setQuickSummary] = useState<{readCount: number, tbrCount: number, wishlistCount: number} | null>(null);
+  const [isOnline, setIsOnline] = useState<boolean>(() => typeof navigator !== 'undefined' ? navigator.onLine : true);
+  const [pendingCount, setPendingCount] = useState<number>(0);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const isSincronizing = useRef(false);
+
+  const checkPendingCount = useCallback(async () => {
+    try {
+      const count = await dbService.getPendingCount();
+      setPendingCount(count);
+    } catch (e) {
+      setPendingCount(0);
+    }
+  }, []);
 
   const loadCache = useCallback(async () => {
     try {
@@ -35,14 +47,16 @@ export const useBookData = () => {
         setBooks(DEMO_BOOKS);
       }
       if (cachedStats) setQuickSummary(cachedStats);
+      await checkPendingCount();
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [checkPendingCount]);
 
   const syncWithCloud = useCallback(async () => {
     if (isSincronizing.current) return;
     isSincronizing.current = true;
+    setIsSyncing(true);
 
     dbService.setSchemaErrorCallback((type, detail) => {
         setSchemaError({ type, detail });
@@ -50,6 +64,12 @@ export const useBookData = () => {
     });
 
     try {
+      // Tenta sincronizar a fila de alterações pendentes primeiro
+      if (navigator.onLine) {
+        await dbService.syncPendingQueue();
+        await checkPendingCount();
+      }
+
       const [booksResult, statsResult] = await Promise.allSettled([
         dbService.getAllBooks(),
         dbService.getQuickStatsSummary()
@@ -72,9 +92,41 @@ export const useBookData = () => {
       logger.warn("Sincronização falhou.", { error: e.message || e });
     } finally {
       setIsLoading(false);
+      setIsSyncing(false);
       isSincronizing.current = false;
+      await checkPendingCount();
     }
-  }, []);
+  }, [checkPendingCount]);
+
+  const syncPendingNow = useCallback(async () => {
+    if (!navigator.onLine) return;
+    setIsSyncing(true);
+    try {
+      await dbService.syncPendingQueue();
+      await checkPendingCount();
+      await syncWithCloud();
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [checkPendingCount, syncWithCloud]);
+
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      syncPendingNow();
+    };
+    const handleOffline = () => {
+      setIsOnline(false);
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [syncPendingNow]);
 
   useEffect(() => {
     loadCache().then(() => syncWithCloud());
@@ -98,17 +150,20 @@ export const useBookData = () => {
     
     setBooks(prev => [book, ...prev]);
     await dbService.saveBook(book);
-  }, []);
+    await checkPendingCount();
+  }, [checkPendingCount]);
 
   const updateBook = useCallback(async (id: string, changes: Partial<Book>) => {
     const updated = await dbService.updateBook(id, changes);
     setBooks(prev => prev.map(b => b.id === id ? updated : b));
-  }, []);
+    await checkPendingCount();
+  }, [checkPendingCount]);
 
   const deleteBook = useCallback(async (id: string) => {
     setBooks(prev => prev.filter(b => b.id !== id));
     await dbService.deleteBook(id);
-  }, []);
+    await checkPendingCount();
+  }, [checkPendingCount]);
 
   const importBooks = useCallback(async (importedBooks: Book[]) => {
     const updatedBooks = await dbService.importBooks(importedBooks);
@@ -220,13 +275,13 @@ export const useBookData = () => {
           }
 
           // Agregação por Gênero (no período)
-          const genres = book.genre.split(',').map(g => g.trim()).filter(g => g !== '');
+          const genres = (book.genre || '').split(',').map(g => g.trim()).filter(g => g !== '');
           genres.forEach(g => {
             genreCountMap[g] = (genreCountMap[g] || 0) + 1;
           });
 
           // Agregação por Autor (no período)
-          const authors = book.author.split(',').map(a => a.trim()).filter(a => a !== '');
+          const authors = (book.author || '').split(',').map(a => a.trim()).filter(a => a !== '');
           authors.forEach(a => {
             authorCountMap[a] = (authorCountMap[a] || 0) + 1;
           });
@@ -291,10 +346,12 @@ export const useBookData = () => {
   }, [books, isBookInFilter]);
 
   const currentlyReading = useMemo(() => books.find(b => b.status === BookStatus.Reading) || null, [books]);
+  const clearSchemaError = useCallback(() => setSchemaError(null), []);
 
   return {
     books, stats, currentlyReading, addBook, updateBook, deleteBook, importBooks, refresh: syncWithCloud,
     dateFilter, setDateFilter, selectedYear, setSelectedYear, availableYears,
-    customRange, setCustomRange, isLocalMode, schemaError, isLoading
+    customRange, setCustomRange, isLocalMode, schemaError, clearSchemaError, isLoading,
+    isOnline, pendingCount, isSyncing, syncPendingNow
   };
 };

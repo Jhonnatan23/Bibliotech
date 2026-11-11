@@ -150,7 +150,7 @@ export const validateClientConfig = (cfg: {
   }
 };
 
-// Extrair variáveis brutas
+// Extrair variáveis brutas e definir fallbacks seguros
 const clientEnvObj = getSafeClientEnv();
 const rawSupabaseUrl = (clientEnvObj.VITE_SUPABASE_URL || '').trim();
 const rawSupabaseAnonKey = (clientEnvObj.VITE_SUPABASE_ANON_KEY || '').trim();
@@ -158,12 +158,18 @@ const rawEnableDemoData = clientEnvObj.VITE_ENABLE_DEMO_DATA;
 const rawMonitoringEnabled = clientEnvObj.VITE_MONITORING_ENABLED;
 const rawMonitoringDsn = (clientEnvObj.VITE_MONITORING_DSN || '').trim();
 
+const DEFAULT_SUPABASE_URL = 'https://rqomssyihwvbwtoyjwws.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxb21zc3lpaHd2Ynd0b3lqd3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwOTY5OTksImV4cCI6MjA4MjY3Mjk5OX0.Fb1JORY5LXRhJdnnVen68_VNzhlGna5GO7xW996uaQU';
+
+const resolvedSupabaseUrl = rawSupabaseUrl || DEFAULT_SUPABASE_URL;
+const resolvedSupabaseAnonKey = rawSupabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY;
+
 // Executa validação de avisos apenas se não estiver em ambiente de teste
 if (currentEnv !== 'test' && currentEnv !== 'teste') {
   try {
     validateClientConfig({
-      supabaseUrl: rawSupabaseUrl,
-      supabaseAnonKey: rawSupabaseAnonKey,
+      supabaseUrl: resolvedSupabaseUrl,
+      supabaseAnonKey: resolvedSupabaseAnonKey,
       monitoringEnabled: parseBool(rawMonitoringEnabled, false),
       monitoringDsn: rawMonitoringDsn,
       env: currentEnv
@@ -175,12 +181,9 @@ if (currentEnv !== 'test' && currentEnv !== 'teste') {
 
 const isProdOrStaging = currentEnv === 'production' || currentEnv === 'staging' || currentEnv === 'produção' || currentEnv === 'homologação';
 
-const DEFAULT_SUPABASE_URL = 'https://rqomssyihwvbwtoyjwws.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxb21zc3lpaHd2Ynd0b3lqd3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwOTY5OTksImV4cCI6MjA4MjY3Mjk5OX0.Fb1JORY5LXRhJdnnVen68_VNzhlGna5GO7xW996uaQU';
-
 export const config: ClientConfig = {
-  supabaseUrl: rawSupabaseUrl || DEFAULT_SUPABASE_URL,
-  supabaseAnonKey: rawSupabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY,
+  supabaseUrl: resolvedSupabaseUrl,
+  supabaseAnonKey: resolvedSupabaseAnonKey,
   enableDemoData: isProdOrStaging ? false : parseBool(rawEnableDemoData, false),
   env: currentEnv,
   monitoringEnabled: parseBool(rawMonitoringEnabled, false),

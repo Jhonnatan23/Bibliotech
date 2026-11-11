@@ -7,6 +7,7 @@ import { PencilIcon, TrashIcon, PlusIcon, XMarkIcon, MagnifyingGlassIcon, BookOp
 import { dbService } from '../services/database';
 import { motion, AnimatePresence } from 'motion/react';
 import { ConfirmationModal } from './ConfirmationModal';
+import { EmptyState } from './EmptyState';
 
 interface SeriesViewProps {
   books: Book[];
@@ -761,34 +762,31 @@ export const SeriesView: React.FC<SeriesViewProps> = React.memo(({ books, onEdit
           })}
         </div>
       ) : (
-        <div className="text-center py-32 bg-white dark:bg-slate-900 rounded-[4rem] border border-slate-100 dark:border-slate-800 flex flex-col items-center">
-          <div className="bg-slate-50 dark:bg-slate-800 w-24 h-24 rounded-full flex items-center justify-center mb-8 shadow-xl border border-slate-100 dark:border-slate-700">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10 text-slate-300">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75V12a2.25 2.25 0 0 1 2.25-2.25h15A2.25 2.25 0 0 1 21.75 12v.75m-8.625-12.125L4.5 9.75h15l-3.375-9.125A2.25 2.25 0 0 0 13.875 0h-3.75a2.25 2.25 0 0 0-2.25 2.25Z" />
-              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 12.75h19.5v8.25a2.25 2.25 0 0 1-2.25 2.25h-15a2.25 2.25 0 0 1-2.25-2.25v-8.25Z" />
-            </svg>
-          </div>
-          <h3 className="text-2xl font-black text-slate-900 dark:text-slate-50 mb-3 font-serif italic">Nenhuma Coleção Encontrada</h3>
-          <p className="text-xs font-bold text-slate-400 uppercase tracking-widest max-w-sm mx-auto leading-relaxed">
-            Nenhuma coleção ou série cadastrada corresponde ao seu filtro. Crie uma nova coleção ou mude os filtros para ver suas sagas.
-          </p>
-          <div className="flex gap-4 mt-10">
-            <button 
-                onClick={() => setIsCreating(true)}
-                className="bg-white dark:bg-slate-800 text-primary border border-primary/20 px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest hover:bg-primary/5 transition-all active:scale-95 flex items-center gap-2 shadow-lg"
-            >
-                <PlusIcon className="h-4 w-4" />
-                Criar Nova Saga
-            </button>
-            <button 
-                onClick={onAddBook}
-                className="bg-primary text-white px-10 py-4 rounded-2xl font-black text-[10px] uppercase tracking-widest shadow-2xl shadow-primary/20 hover:bg-slate-900 transition-all active:scale-95 flex items-center gap-2"
-            >
-                <PlusIcon className="h-4 w-4" />
-                Começar Coleção
-            </button>
-          </div>
-        </div>
+        <EmptyState
+          illustration="series"
+          title={searchQuery ? 'Nenhuma coleção encontrada' : 'Nenhuma coleção ou série cadastrada ainda'}
+          description={
+            searchQuery
+              ? `Não encontramos nenhuma série correspondente a "${searchQuery}". Tente outro termo ou crie uma nova saga.`
+              : 'Agrupe suas sagas, trilogias e volumes em ordem de leitura para acompanhar seu progresso em cada universo literário.'
+          }
+          primaryAction={{
+            label: 'Criar Nova Saga',
+            onClick: () => setIsCreating(true),
+            icon: <PlusIcon className="h-4 w-4" />,
+            'data-testid': 'series-empty-create-btn',
+          }}
+          secondaryAction={
+            searchQuery ? {
+              label: 'Limpar Pesquisa',
+              onClick: () => setSearchQuery(''),
+            } : {
+              label: 'Cadastrar Livro com Série',
+              onClick: onAddBook,
+              icon: <PlusIcon className="h-4 w-4" />,
+            }
+          }
+        />
       )}
 
       {/* Modal Vincular Livros */}

@@ -5,6 +5,7 @@ import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, 
     PieChart, Pie, Cell, Legend, LineChart, Line, AreaChart, Area
 } from 'recharts';
+import { EmptyState } from './EmptyState';
 
 interface StatsViewProps {
   books: Book[];
@@ -512,9 +513,13 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
                                 </PieChart>
                             </ResponsiveContainer>
                         ) : (
-                            <div className="h-full flex flex-col items-center justify-center text-center">
-                                <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Nenhuma obra lida para analisar gêneros</p>
-                            </div>
+                            <EmptyState
+                                compact
+                                illustration="stats"
+                                title="Nenhuma obra lida ainda"
+                                description="Conclua seu primeiro livro para destravar a análise visual de estilos e gêneros literários favoritos."
+                                className="h-full border-dashed"
+                            />
                         )}
                     </div>
                 </div>
@@ -554,9 +559,13 @@ export const StatsView: React.FC<StatsViewProps> = React.memo(({ books, availabl
                                 </div>
                             </>
                         ) : (
-                            <div className="text-center py-8">
-                                <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-relaxed">Adicione livros marcados como "Lido" para ver quais são os seus gêneros literários favoritos e ler estatísticas.</p>
-                            </div>
+                            <EmptyState
+                                compact
+                                illustration="bookshelf"
+                                title="Análise em espera"
+                                description="À medida que você conclui e avalia novos títulos, traçamos seu perfil de leitura e estilos dominantes."
+                                className="border-dashed py-8"
+                            />
                         )}
                     </div>
                 </div>

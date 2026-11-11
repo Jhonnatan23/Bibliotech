@@ -15,16 +15,19 @@ interface State {
 }
 
 export class ErrorBoundary extends Component<Props, State> {
-  public state: State = {
-    hasError: false,
-    error: null,
-    eventId: null,
-    resetAttempts: 0,
-  };
-
   private containerRef = React.createRef<HTMLDivElement>();
   private lastResetTime = 0;
   private hasLoggedThisError = false;
+
+  constructor(props: Props) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null,
+      eventId: null,
+      resetAttempts: 0,
+    };
+  }
 
   public static getDerivedStateFromError(error: Error): State {
     const eventId = typeof window !== 'undefined' && window.crypto?.randomUUID
@@ -93,27 +96,49 @@ export class ErrorBoundary extends Component<Props, State> {
 
   private handleReload = () => {
     this.hasLoggedThisError = false;
-    this.setState({
-      hasError: false,
-      error: null,
-      eventId: null,
-      resetAttempts: 0,
-    });
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && window.location?.reload) {
       window.location.reload();
+    } else {
+      this.setState({
+        hasError: false,
+        error: null,
+        eventId: null,
+        resetAttempts: 0,
+      });
     }
   };
 
   private handleGoHome = () => {
     this.hasLoggedThisError = false;
-    this.setState({
-      hasError: false,
-      error: null,
-      eventId: null,
-      resetAttempts: 0,
-    });
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && window.location) {
       window.location.href = '/';
+    } else {
+      this.setState({
+        hasError: false,
+        error: null,
+        eventId: null,
+        resetAttempts: 0,
+      });
+    }
+  };
+
+  private handleClearCacheAndReload = () => {
+    try {
+      if (typeof window !== 'undefined') {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('biblio_tech_') || key.startsWith('sb-'))) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        window.location.reload();
+      }
+    } catch (e) {
+      if (typeof window !== 'undefined') {
+        window.location.reload();
+      }
     }
   };
 
@@ -174,7 +199,7 @@ export class ErrorBoundary extends Component<Props, State> {
             )}
 
             {/* Ações disponíveis de forma acessível e com bom contraste */}
-            <div className="flex flex-col sm:flex-row gap-3 justify-center pt-4">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-3 justify-center pt-4">
               <button
                 onClick={this.handleTryContinue}
                 className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-100 text-white dark:text-slate-900 text-xs font-bold rounded-xl transition-all shadow-md active:scale-95 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-slate-500"
@@ -189,6 +214,15 @@ export class ErrorBoundary extends Component<Props, State> {
               >
                 <RefreshCw className="w-4 h-4" />
                 Recarregar Página
+              </button>
+
+              <button
+                onClick={this.handleClearCacheAndReload}
+                className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/30 dark:hover:bg-rose-900/40 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-900/50 text-xs font-bold rounded-xl transition-all active:scale-95 cursor-pointer focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-rose-500"
+                title="Limpar cache local potencialmente corrompido e reiniciar"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Limpar Cache e Reiniciar
               </button>
 
               <button

@@ -3,6 +3,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { CommunityPost, CommunityComment } from '../types';
 import { StarIcon, StarIconFilled } from './Icons';
+import { RatingStars } from './RatingStars';
 import { communityService } from '../services/communityService';
 
 interface CommunityPostCardProps {
@@ -119,19 +120,15 @@ export const CommunityPostCard: React.FC<CommunityPostCardProps> = ({
         </div>
 
         {/* Estrelas de Avaliação */}
-        <div className="flex items-center gap-0.5 bg-amber-500/5 px-2.5 py-1 rounded-full border border-amber-500/10">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <React.Fragment key={star}>
-              {star <= Math.round(post.rating) ? (
-                <StarIconFilled className="w-3.5 h-3.5 text-amber-500" />
-              ) : (
-                <StarIcon className="w-3.5 h-3.5 text-slate-300 dark:text-slate-600" />
-              )}
-            </React.Fragment>
-          ))}
-          <span className="text-[10px] font-black text-amber-600 dark:text-amber-400 ml-1">
-            {post.rating}
-          </span>
+        <div className="flex items-center gap-1.5 bg-amber-500/5 px-2.5 py-1 rounded-full border border-amber-500/10">
+          <RatingStars
+            rating={post.rating}
+            readOnly
+            size="xs"
+            showLabel={true}
+            formatLabel={(r) => `${r.toFixed(1)} / 5.0`}
+            labelClassName="text-[10px]"
+          />
         </div>
       </div>
 

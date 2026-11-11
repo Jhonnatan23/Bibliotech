@@ -1,6 +1,6 @@
 import { logger } from '../services/monitoring';
 import React, { useState, useEffect, useMemo } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'motion/react';
 import type { Book, Profile } from '../types';
 import { BookStatus } from '../types';
 import { supabase } from '../services/supabase';

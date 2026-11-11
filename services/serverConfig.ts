@@ -194,10 +194,16 @@ const googleBooksApiKey = (process.env.GOOGLE_BOOKS_API_KEY || '').trim();
 const emailEnabled = parseBool(process.env.EMAIL_ENABLED, false);
 const emailUser = (process.env.EMAIL_USER || '').trim();
 const emailPass = (process.env.EMAIL_PASS || '').trim();
-const port = parseInt(process.env.PORT || '3000', 10);
+const port = 3000;
 const enableDemoData = parseBool(process.env.VITE_ENABLE_DEMO_DATA, false);
 const monitoringEnabled = parseBool(process.env.VITE_MONITORING_ENABLED, false);
 const monitoringDsn = (process.env.VITE_MONITORING_DSN || '').trim();
+
+const DEFAULT_SUPABASE_URL = 'https://rqomssyihwvbwtoyjwws.supabase.co';
+const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxb21zc3lpaHd2Ynd0b3lqd3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwOTY5OTksImV4cCI6MjA4MjY3Mjk5OX0.Fb1JORY5LXRhJdnnVen68_VNzhlGna5GO7xW996uaQU';
+
+const resolvedSupabaseUrl = supabaseUrl || DEFAULT_SUPABASE_URL;
+const resolvedSupabaseAnonKey = supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY;
 
 export let serverConfigError: Error | null = null;
 
@@ -205,8 +211,8 @@ export let serverConfigError: Error | null = null;
 if (currentEnv !== 'test' && currentEnv !== 'teste') {
   try {
     validateServerConfig({
-      supabaseUrl,
-      supabaseAnonKey,
+      supabaseUrl: resolvedSupabaseUrl,
+      supabaseAnonKey: resolvedSupabaseAnonKey,
       geminiApiKey,
       googleBooksApiKey,
       emailEnabled,
@@ -231,12 +237,9 @@ ${err.message}
   }
 }
 
-const DEFAULT_SUPABASE_URL = 'https://rqomssyihwvbwtoyjwws.supabase.co';
-const DEFAULT_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJxb21zc3lpaHd2Ynd0b3lqd3dzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjcwOTY5OTksImV4cCI6MjA4MjY3Mjk5OX0.Fb1JORY5LXRhJdnnVen68_VNzhlGna5GO7xW996uaQU';
-
 export const serverConfig: ServerConfig = {
-  supabaseUrl: supabaseUrl || DEFAULT_SUPABASE_URL,
-  supabaseAnonKey: supabaseAnonKey || DEFAULT_SUPABASE_ANON_KEY,
+  supabaseUrl: resolvedSupabaseUrl,
+  supabaseAnonKey: resolvedSupabaseAnonKey,
   geminiApiKey,
   googleBooksApiKey,
   emailEnabled,

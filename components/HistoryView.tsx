@@ -50,10 +50,10 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
 
     // Search
     if (searchTerm) {
-      const query = searchTerm.toLowerCase();
+      const query = searchTerm.toLowerCase().trim();
       result = result.filter(b => 
-        b.title.toLowerCase().includes(query) || 
-        b.author.toLowerCase().includes(query)
+        (b.title || '').toLowerCase().includes(query) || 
+        (b.author || '').toLowerCase().includes(query)
       );
     }
 
@@ -79,7 +79,7 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
     // Genre Filter
     if (selectedGenres.length > 0) {
       result = result.filter(book => {
-        const bookGenres = book.genre.split(',').map(g => g.trim().toLowerCase());
+        const bookGenres = (book.genre || '').split(',').map(g => g.trim().toLowerCase()).filter(Boolean);
         return selectedGenres.some(sg => bookGenres.includes(sg.toLowerCase()));
       });
     }
@@ -95,7 +95,7 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
     // Sort
     result.sort((a, b) => {
       if (sortBy === 'title') {
-        return a.title.localeCompare(b.title);
+        return (a.title || '').localeCompare(b.title || '');
       } else if (sortBy === 'isDigital') {
         return (a.isDigital === b.isDigital ? 0 : a.isDigital ? -1 : 1);
       } else if (sortBy === 'isLoaned') {
@@ -105,9 +105,11 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
       } else if (sortBy === 'rating') {
         return (b.rating || 0) - (a.rating || 0);
       } else {
-        const dateA = a.dateFinished || a.dateAdded;
-        const dateB = b.dateFinished || b.dateAdded;
-        return new Date(dateB).getTime() - new Date(dateA).getTime();
+        const dateA = a.dateFinished || a.dateAdded || '';
+        const dateB = b.dateFinished || b.dateAdded || '';
+        const timeA = dateA ? new Date(dateA).getTime() : 0;
+        const timeB = dateB ? new Date(dateB).getTime() : 0;
+        return (isNaN(timeB) ? 0 : timeB) - (isNaN(timeA) ? 0 : timeA);
       }
     });
 
@@ -138,8 +140,14 @@ export const HistoryView: React.FC<HistoryViewProps> = React.memo(({ books, onUp
 
   const formatDate = (dateStr?: string) => {
     if (!dateStr) return '--';
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const [y, m, d] = parts;
+      const day = d.substring(0, 2);
+      return `${day}/${m}/${y}`;
+    }
     const date = new Date(dateStr);
-    return date.toLocaleDateString('pt-BR');
+    return isNaN(date.getTime()) ? '--' : date.toLocaleDateString('pt-BR');
   };
 
   return (

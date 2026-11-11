@@ -1,8 +1,9 @@
 
 import React, { useState } from 'react';
 import { searchGoogleBooks, mapGoogleToNewBook, type GoogleBookResult } from '../services/googleBooksService';
-import { MagnifyingGlassIcon, HeartIcon, XMarkIcon, StarIconFilled, ExternalLinkIcon, PlusIcon } from './Icons';
+import { MagnifyingGlassIcon, HeartIcon, XMarkIcon, StarIconFilled, ExternalLinkIcon, PlusIcon, CameraIcon } from './Icons';
 import type { NewBook, Book } from '../types';
+import { CoverScanCapture, type RecognizedData } from './CoverScanCapture';
 
 interface BookSearchProps {
   onAddWishlist: (book: NewBook) => Promise<void>;
@@ -10,6 +11,7 @@ interface BookSearchProps {
 }
 
 export const BookSearch: React.FC<BookSearchProps> = ({ onAddWishlist, existingBooks }) => {
+  const [searchTab, setSearchTab] = useState<'text' | 'camera'>('text');
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<GoogleBookResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -27,6 +29,36 @@ export const BookSearch: React.FC<BookSearchProps> = ({ onAddWishlist, existingB
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleScanApply = async (data: RecognizedData) => {
+    const searchQuery = [data.title, data.author].filter(Boolean).join(' ');
+    if (searchQuery) {
+      setQuery(searchQuery);
+      setIsLoading(true);
+      try {
+        const books = await searchGoogleBooks(searchQuery);
+        if (books.length > 0) {
+          setResults(books);
+        } else {
+          // If Google Books returned empty, generate a synthetic result from recognized data
+          const customResult: GoogleBookResult = {
+            id: 'scan-' + Date.now(),
+            title: data.title,
+            authors: data.author ? [data.author] : ['Autor Desconhecido'],
+            pageCount: data.pages || 0,
+            categories: data.categories || (data.isComicOrManga ? ['Quadrinhos & HQ'] : ['Geral']),
+            description: data.description || 'Obra reconhecida via fotografia da capa.',
+            publishedDate: new Date().getFullYear().toString(),
+            publisher: data.publisher
+          };
+          setResults([customResult]);
+        }
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    setSearchTab('text');
   };
 
   const isAlreadyOnShelf = (title: string, author: string) => {
@@ -47,29 +79,57 @@ export const BookSearch: React.FC<BookSearchProps> = ({ onAddWishlist, existingB
     <div className="max-w-4xl mx-auto space-y-10 pb-20 px-2 sm:px-0">
       <div className="text-center md:text-left">
         <h2 className="text-4xl font-black font-serif text-slate-900 dark:text-slate-50 tracking-tight italic">Descobrir Novas Obras</h2>
-        <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-[0.25em] mt-2 ml-1">✦ Busque em milhões de registros globais</p>
+        <p className="text-slate-500 dark:text-slate-400 text-[10px] font-black uppercase tracking-[0.25em] mt-2 ml-1">✦ Busque em milhões de registros globais ou use a câmera do seu celular</p>
       </div>
 
-      <form onSubmit={handleSearch} className="relative group">
-        <input
-          type="text"
-          placeholder="Busque por título, autor ou ISBN..."
-          value={query}
-          onFocus={(e) => e.target.select()}
-          onChange={(e) => setQuery(e.target.value)}
-          className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full py-5 pl-14 pr-32 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all shadow-xl text-lg font-medium"
-        />
-        <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
-          <MagnifyingGlassIcon className="h-6 w-6 text-slate-400 group-focus-within:text-primary transition-colors" />
+      <div className="flex items-center justify-between border-b border-slate-200/80 dark:border-slate-800 pb-3 flex-wrap gap-2">
+        <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl border border-slate-200/80 dark:border-slate-800">
+          <button
+            type="button"
+            onClick={() => setSearchTab('text')}
+            className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${searchTab === 'text' ? 'bg-white dark:bg-slate-800 text-slate-900 dark:text-slate-100 shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100'}`}
+          >
+            <MagnifyingGlassIcon className="w-4 h-4" />
+            Busca por Texto / ISBN
+          </button>
+          <button
+            type="button"
+            onClick={() => setSearchTab('camera')}
+            className={`px-5 py-2.5 rounded-xl font-black text-xs uppercase tracking-wider transition-all flex items-center gap-2 ${searchTab === 'camera' ? 'bg-primary text-white shadow-xs' : 'text-slate-500 hover:text-slate-900 dark:hover:text-slate-100'}`}
+          >
+            <CameraIcon className="w-4 h-4" />
+            Escanear Capa por Foto (IA)
+          </button>
         </div>
-        <button
-          type="submit"
-          disabled={isLoading || !query.trim()}
-          className="absolute right-2.5 top-2.5 bottom-2.5 px-8 rounded-full bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all disabled:opacity-50"
-        >
-          {isLoading ? 'Buscando...' : 'Pesquisar'}
-        </button>
-      </form>
+      </div>
+
+      {searchTab === 'camera' ? (
+        <CoverScanCapture
+          onApplyRecognized={handleScanApply}
+          onCancel={() => setSearchTab('text')}
+        />
+      ) : (
+        <form onSubmit={handleSearch} className="relative group">
+          <input
+            type="text"
+            placeholder="Busque por título, autor ou ISBN..."
+            value={query}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => setQuery(e.target.value)}
+            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full py-5 pl-14 pr-32 text-slate-900 dark:text-slate-100 placeholder:text-slate-400 focus:ring-4 focus:ring-primary/10 focus:border-primary outline-none transition-all shadow-xl text-lg font-medium"
+          />
+          <div className="absolute inset-y-0 left-0 pl-5 flex items-center pointer-events-none">
+            <MagnifyingGlassIcon className="h-6 w-6 text-slate-400 group-focus-within:text-primary transition-colors" />
+          </div>
+          <button
+            type="submit"
+            disabled={isLoading || !query.trim()}
+            className="absolute right-2.5 top-2.5 bottom-2.5 px-8 rounded-full bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all disabled:opacity-50"
+          >
+            {isLoading ? 'Buscando...' : 'Pesquisar'}
+          </button>
+        </form>
+      )}
 
       <div className="grid grid-cols-1 gap-4">
         {results.map((book) => {

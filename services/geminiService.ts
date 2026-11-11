@@ -4,19 +4,41 @@ import { supabase } from "./supabase";
 
 const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-async function fetchWithRetry(url: string, options: RequestInit, retries = 5, backoff = 1000): Promise<Response> {
-  const { data: { session } } = await supabase.auth.getSession();
-  const token = session?.access_token;
+const extractErrorMessage = (data: any): string => {
+  if (!data) return '';
+  if (typeof data === 'string') return data;
+  if (typeof data.error === 'string') return data.error;
+  if (data.error?.message && typeof data.error.message === 'string') return data.error.message;
+  if (data.message && typeof data.message === 'string') return data.message;
+  return '';
+};
 
-  const headers = {
+async function fetchWithRetry(url: string, options: RequestInit, retries = 4, backoff = 1000): Promise<Response> {
+  let { data: { session } } = await supabase.auth.getSession();
+  let token = session?.access_token;
+
+  const buildHeaders = (t?: string) => ({
     ...(options.headers || {}),
-    ...(token ? { "Authorization": `Bearer ${token}` } : {})
-  };
-  const updatedOptions = { ...options, headers };
+    ...(t ? { "Authorization": `Bearer ${t}` } : {})
+  });
 
   for (let i = 0; i < retries; i++) {
     try {
-      const response = await fetch(url, updatedOptions);
+      const response = await fetch(url, { ...options, headers: buildHeaders(token) });
+
+      // Se der 401 por token expirado ou inválido, tenta renovar a sessão uma vez
+      if (response.status === 401 && i === 0 && token) {
+        try {
+          const { data: refreshData } = await supabase.auth.refreshSession();
+          if (refreshData?.session?.access_token) {
+            token = refreshData.session.access_token;
+            continue;
+          }
+        } catch {
+          // Ignora falha de refresh silenciosamente
+        }
+      }
+
       const contentType = response.headers.get("content-type");
       
       if (!contentType || !contentType.includes("application/json")) {
@@ -63,18 +85,21 @@ export const generateBookSummary = async (title: string, author: string): Promis
     const data = await response.json();
 
     if (!response.ok) {
-      if (data.isQuotaExceeded) {
+      const errMsg = extractErrorMessage(data);
+      const errCode = data?.error?.code || data?.code || '';
+
+      if (data.isQuotaExceeded || response.status === 429 || errCode === 'LIMIT_EXCEEDED') {
         return "Resumo indisponível no momento devido ao limite de uso da IA. Tente mais tarde.";
       }
-      if (data.isHighDemand) {
+      if (data.isHighDemand || response.status === 503 || response.status === 504 || errCode === 'SERVICE_UNAVAILABLE') {
         return "O modelo de IA está com muita demanda no momento. O resumo falhou, mas você pode tentar novamente em instantes.";
       }
-      throw new Error(data.error || 'Falha no servidor ao gerar resumo');
+      throw new Error(errMsg || 'Falha no servidor ao gerar resumo');
     }
 
     return data.text || "Não foi possível gerar um resumo.";
   } catch (error: any) {
-    console.error("Erro ao gerar resumo:", error);
+    console.error("Erro ao gerar resumo:", error?.message || error);
     return `A IA não conseguiu processar o resumo no momento.`;
   }
 };
@@ -123,13 +148,34 @@ export const getAIRecommendations = async (readBooks: { title: string, genre: st
     const data = await response.json();
 
     if (!response.ok) {
-      if (data.isQuotaExceeded) {
+      const errMsg = extractErrorMessage(data);
+      const errCode = data?.error?.code || data?.code || '';
+      const lowerMsg = errMsg.toLowerCase();
+
+      const isQuota = data?.isQuotaExceeded ||
+        response.status === 429 ||
+        errCode === 'LIMIT_EXCEEDED' ||
+        lowerMsg.includes('quota') ||
+        lowerMsg.includes('resource_exhausted');
+
+      const isHighDemand = data?.isHighDemand ||
+        response.status === 503 ||
+        response.status === 504 ||
+        errCode === 'SERVICE_UNAVAILABLE' ||
+        errCode === 'GATEWAY_TIMEOUT' ||
+        lowerMsg.includes('high demand') ||
+        lowerMsg.includes('demanda') ||
+        lowerMsg.includes('indisponível') ||
+        lowerMsg.includes('unavailable') ||
+        lowerMsg.includes('deadline');
+
+      if (isQuota) {
         throw new Error('QUOTA_EXCEEDED');
       }
-      if (response.status === 503 || data.isHighDemand || data.error?.includes('high demand')) {
+      if (isHighDemand) {
         throw new Error('HIGH_DEMAND');
       }
-      throw new Error(data.error || 'Falha no servidor ao obter recomendações');
+      throw new Error(errMsg || 'Falha no servidor ao obter recomendações');
     }
 
     return JSON.parse(data.text || '[]');
@@ -143,7 +189,7 @@ export const getAIRecommendations = async (readBooks: { title: string, genre: st
     if (error.message === 'WARMUP') {
       throw new Error('O servidor ainda está inicializando as ferramentas literárias. Por favor, aguarde alguns segundos e tente novamente.');
     }
-    console.error("Erro ao obter recomendações:", error);
+    console.error("Erro ao obter recomendações:", error?.message || error);
     return [];
   }
 };
@@ -176,3 +222,77 @@ export const getAIInsights = async (booksList: { title: string; author: string; 
     return null;
   }
 };
+
+export interface IdentifiedCoverInfo {
+  title: string;
+  author: string;
+  publisher: string;
+  volumeOrIssue: string;
+  confidence: string;
+  isComicOrManga: boolean;
+  description: string;
+}
+
+export interface IdentifyCoverResult {
+  identified: IdentifiedCoverInfo;
+  searchResults: any[];
+}
+
+export const identifyCoverImage = async (imageBase64: string): Promise<IdentifyCoverResult> => {
+  const response = await fetchWithRetry('/api/identify-cover', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: imageBase64 })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const errMsg = extractErrorMessage(data);
+    const errCode = data?.error?.code || data?.code || '';
+    const lowerMsg = errMsg.toLowerCase();
+
+    if (data.isQuotaExceeded || response.status === 429 || errCode === 'LIMIT_EXCEEDED' || lowerMsg.includes('quota')) {
+      throw new Error('QUOTA_EXCEEDED');
+    }
+    if (response.status === 503 || response.status === 504 || data.isHighDemand || errCode === 'SERVICE_UNAVAILABLE' || lowerMsg.includes('demand') || lowerMsg.includes('demanda')) {
+      throw new Error('HIGH_DEMAND');
+    }
+    throw new Error(errMsg || 'Falha ao identificar capa do livro');
+  }
+
+  return data;
+};
+
+export interface ReadBarcodeResult {
+  isbn: string;
+  rawText: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export const readBarcodeFromImage = async (imageBase64: string): Promise<ReadBarcodeResult> => {
+  const response = await fetchWithRetry('/api/read-barcode', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ image: imageBase64 })
+  });
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const errMsg = extractErrorMessage(data);
+    const errCode = data?.error?.code || data?.code || '';
+    const lowerMsg = errMsg.toLowerCase();
+
+    if (data.isQuotaExceeded || response.status === 429 || errCode === 'LIMIT_EXCEEDED' || lowerMsg.includes('quota')) {
+      throw new Error('QUOTA_EXCEEDED');
+    }
+    if (response.status === 503 || response.status === 504 || data.isHighDemand || errCode === 'SERVICE_UNAVAILABLE' || lowerMsg.includes('demand') || lowerMsg.includes('demanda')) {
+      throw new Error('HIGH_DEMAND');
+    }
+    throw new Error(errMsg || 'Falha ao ler o código de barras');
+  }
+
+  return data;
+};
+

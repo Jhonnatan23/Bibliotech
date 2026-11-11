@@ -126,8 +126,7 @@ export const ShelfProgress: React.FC<ShelfProgressProps> = ({ books, stats }) =>
             
             <div className="space-y-4">
               <div>
-                <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 mb-1">Ritmo Atual</p>
-                <p className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight">{stats.avgPagesPerDay.toFixed(1)} <span className="text-xs font-medium opacity-50">páginas/dia</span></p>
+                <p className="text-lg font-black text-slate-900 dark:text-slate-100 tracking-tight">{(stats?.avgPagesPerDay ?? 0).toFixed(1)} <span className="text-xs font-medium opacity-50">páginas/dia</span></p>
               </div>
               
               <div className="pt-4 border-t border-slate-200 dark:border-slate-700">

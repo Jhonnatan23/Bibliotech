@@ -295,7 +295,7 @@ export const ShelfView: React.FC<ShelfViewProps> = React.memo(({ books, onViewDe
                         {/* Author Short Tag & Vol (Only shown if book is wide enough) */}
                         {finalWidth >= (windowWidth < 640 ? 23 : 33) && (
                           <div className="text-[6px] sm:text-[7.5px] font-bold tracking-widest uppercase opacity-75 leading-none mb-1.5 truncate max-w-full">
-                            {book.author.split(' ')[0]}
+                            {(book.author || '').split(' ')[0]}
                           </div>
                         )}
 

@@ -31,7 +31,7 @@ export interface ValidateBookFormParams {
 
 export function validateBookForm(params: ValidateBookFormParams): FormErrors {
   const newErrors: FormErrors = {};
-  const trimmedTitle = params.title.trim();
+  const trimmedTitle = (params.title || '').trim();
 
   if (!trimmedTitle) {
     newErrors.title = "O título é obrigatório";
@@ -56,7 +56,7 @@ export function validateBookForm(params: ValidateBookFormParams): FormErrors {
   }
 
   // Validations for Collection & Editions
-  const trimmedSeries = params.series.trim();
+  const trimmedSeries = (params.series || '').trim();
   const parsedVolume = params.volume ? parseInt(params.volume, 10) : undefined;
   const hasCollection = trimmedSeries !== '' || params.seriesId !== '';
 
@@ -212,16 +212,17 @@ export const useBookForm = ({
     loadSeries();
   }, []);
 
-  const uniqueTitles = useMemo(() => Array.from(new Set(existingBooks.map(b => b.title))), [existingBooks]);
+  const uniqueTitles = useMemo(() => Array.from(new Set(existingBooks.map(b => b.title || '').filter(Boolean))), [existingBooks]);
   const uniqueAuthors = useMemo(() => {
-    const all = existingBooks.flatMap(b => b.author.split(',').map(a => a.trim()));
+    const all = existingBooks.flatMap(b => (b.author || '').split(',').map(a => a.trim()).filter(Boolean));
     return Array.from(new Set(all));
   }, [existingBooks]);
 
   const linkableBooks = useMemo(() => {
+    const term = linkSearch.toLowerCase();
     return existingBooks
         .filter(b => b.id !== bookToEdit?.id)
-        .filter(b => b.title.toLowerCase().includes(linkSearch.toLowerCase()) || b.author.toLowerCase().includes(linkSearch.toLowerCase()))
+        .filter(b => (b.title || '').toLowerCase().includes(term) || (b.author || '').toLowerCase().includes(term))
         .slice(0, 5);
   }, [existingBooks, linkSearch, bookToEdit]);
 
@@ -328,10 +329,12 @@ export const useBookForm = ({
         finalAuthors.push(authorInput.trim());
     }
 
+    const effectiveGenres = selectedGenres.length > 0 ? selectedGenres : ['Geral'];
+
     const newErrors = validateBookForm({
       title: trimmedTitle,
       authors: finalAuthors,
-      selectedGenres,
+      selectedGenres: effectiveGenres,
       series,
       volume,
       seriesId,
@@ -361,10 +364,10 @@ export const useBookForm = ({
             title: trimmedTitle, 
             author: finalAuthors.join(', '), 
             pages, 
-            genre: selectedGenres.join(', '), 
+            genre: effectiveGenres.join(', '), 
             type, 
             status, 
-            summary, 
+            summary: summary ? summary.trim() : undefined, 
             notes: finalNotes,
             rating: (status === BookStatus.Read || rating > 0) ? (rating || undefined) : undefined,
             estimatedPrice: estimatedPrice ? parseFloat(estimatedPrice.replace(',', '.')) : undefined,
@@ -412,7 +415,8 @@ export const useBookForm = ({
     isEditMode, bookToEdit, isDuplicating, notes, pages, type, status, rating, estimatedPrice, pricePaid,
     buyLink, dateAdded, currentPage, dateFinished, daysToFinish, timesRead, linkedBookIds, selectedTags,
     isLoaned, borrowerName, loanDate, isDigital, historyObservation, onUpdateBook, onAddBook, isSubmitting,
-    condition, purchaseDate, store, physicalLocation, edition, isbn, signed, sealed, limitedEdition, firstEdition, variantCover
+    condition, purchaseDate, store, physicalLocation, edition, isbn, signed, sealed, limitedEdition, firstEdition, variantCover,
+    summary
   ]);
 
   const handleGenerateSummary = useCallback(async () => {
@@ -428,11 +432,15 @@ export const useBookForm = ({
     }
   }, [title, authors]);
 
-  const handleIsbnLookup = useCallback(async () => {
-    if (!isbn.trim()) return;
+  const handleIsbnLookup = useCallback(async (targetIsbn?: string) => {
+    const queryIsbn = (typeof targetIsbn === 'string' ? targetIsbn : isbn).trim();
+    if (!queryIsbn) return;
+    if (typeof targetIsbn === 'string') {
+      setIsbn(targetIsbn);
+    }
     setIsIsbnLoading(true);
     try {
-        const book = await fetchBookByIsbn(isbn);
+        const book = await fetchBookByIsbn(queryIsbn);
         if (book) {
             setTitle(book.title);
             setAuthors(book.authors);
@@ -451,13 +459,61 @@ export const useBookForm = ({
         }
     } catch (err: any) {
         logger.error("Erro ao buscar ISBN:", { error: err.message || err });
+        setErrors(prev => ({ ...prev, title: 'Falha temporária ao consultar dados do ISBN.' }));
+        setTimeout(() => setErrors(prev => ({ ...prev, title: undefined })), 4000);
     } finally {
         setIsIsbnLoading(false);
     }
   }, [isbn, selectedGenres]);
 
+  // Check if form is dirty compared to original values or empty defaults
+  const isDirty = useMemo(() => {
+    if (isEditMode && bookToEdit) {
+      const origAuthors = (bookToEdit.author || '').split(',').map(a => a.trim()).filter(Boolean);
+      const authorsChanged = JSON.stringify(authors) !== JSON.stringify(origAuthors) || authorInput.trim() !== '';
+      const titleChanged = (title || '') !== (bookToEdit.title || '');
+      const pagesChanged = (pages || 0) !== (bookToEdit.pages || 0);
+      const statusChanged = status !== bookToEdit.status;
+      const typeChanged = type !== bookToEdit.type;
+      const ratingChanged = (rating || 0) !== (bookToEdit.rating || 0);
+      const summaryChanged = (summary || '') !== (bookToEdit.summary || '');
+      const notesChanged = (notes || '').trim() !== (parseNotesField(bookToEdit.notes).generalNotes || '').trim();
+      const seriesChanged = (series || '') !== (bookToEdit.series || '');
+      const volumeChanged = (volume || '') !== (bookToEdit.volume?.toString() || '');
+      const isbnChanged = (isbn || '') !== (bookToEdit.isbn || '');
+      return (
+        authorsChanged ||
+        titleChanged ||
+        pagesChanged ||
+        statusChanged ||
+        typeChanged ||
+        ratingChanged ||
+        summaryChanged ||
+        notesChanged ||
+        seriesChanged ||
+        volumeChanged ||
+        isbnChanged
+      );
+    }
+    // New book mode: dirty if user typed anything meaningful
+    return Boolean(
+      title.trim() ||
+      authors.length > 0 ||
+      authorInput.trim() ||
+      (pages && pages > 0) ||
+      summary.trim() ||
+      notes.trim() ||
+      series.trim() ||
+      isbn.trim()
+    );
+  }, [
+    isEditMode, bookToEdit, authors, authorInput, title, pages, status, type,
+    rating, summary, notes, series, volume, isbn
+  ]);
+
   return {
     isEditMode,
+    isDirty,
     title, setTitle,
     isbn, setIsbn,
     isIsbnLoading,

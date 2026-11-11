@@ -7,6 +7,9 @@ import { BookListItem } from './BookListItem';
 import { ShelfProgress } from './ShelfProgress';
 import { XMarkIcon, TagIcon } from './Icons';
 import { ShelfView } from './ShelfView';
+import { Wishlist } from './Wishlist';
+import { SeriesView } from './SeriesView';
+import { EmptyState } from './EmptyState';
 
 interface BookListProps {
   books: Book[];
@@ -16,17 +19,50 @@ interface BookListProps {
   onDelete: (book: Book) => void;
   onDuplicate: (book: Book) => void;
   onViewDetails?: (book: Book) => void;
-  onUpdateBook?: (book: Book) => void;
+  onUpdateBook?: (book: Book) => Promise<void> | void;
   profile: Profile | null;
   onRandomPick: () => void;
+  onMoveToShelf?: (book: Book) => void;
+  onAddBook?: (status?: BookStatus) => void;
+  onRefresh?: () => Promise<void>;
+  initialTab?: string;
+  onTabChange?: (tab: string) => void;
 }
 
-type FilterStatus = 'all' | BookStatus;
+export type FilterStatus = 'all' | 'series' | BookStatus;
 type FormatFilter = 'all' | 'physical' | 'digital';
 type LoanFilter = 'all' | 'loaned' | 'not_loaned';
 type SortOrder = 'title' | 'dateAdded' | 'isDigital' | 'isLoaned';
 
-export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, stats, onEdit, onDelete, onDuplicate, onViewDetails, onUpdateBook, profile, onRandomPick }) => {
+const parseInitialFilter = (tab?: string): FilterStatus => {
+  if (!tab) return 'all';
+  const t = tab.toLowerCase();
+  if (t === 'wishlist' || t === 'desejos' || t === 'desejo') return BookStatus.Wishlist;
+  if (t === 'series' || t === 'séries') return 'series';
+  if (t === 'reading' || t === 'lendo') return BookStatus.Reading;
+  if (t === 'read' || t === 'lidos' || t === 'lido') return BookStatus.Read;
+  if (t === 'tbr' || t === 'queroler' || t === 'quero ler') return BookStatus.TBR;
+  if (t === 'dropped' || t === 'abandonados' || t === 'abandonado') return BookStatus.Dropped;
+  return 'all';
+};
+
+export const BookList: React.FC<BookListProps> = React.memo(({ 
+  books, 
+  allBooks, 
+  stats, 
+  onEdit, 
+  onDelete, 
+  onDuplicate, 
+  onViewDetails, 
+  onUpdateBook, 
+  profile, 
+  onRandomPick,
+  onMoveToShelf,
+  onAddBook,
+  onRefresh,
+  initialTab,
+  onTabChange
+}) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
 
@@ -36,13 +72,21 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
     }, 120);
     return () => clearTimeout(handler);
   }, [searchQuery]);
-  const [statusFilter, setStatusFilter] = useState<FilterStatus>('all');
+
+  const [statusFilter, setStatusFilter] = useState<FilterStatus>(() => parseInitialFilter(initialTab));
+
+  useEffect(() => {
+    if (initialTab) {
+      setStatusFilter(parseInitialFilter(initialTab));
+    }
+  }, [initialTab]);
   const [formatFilter, setFormatFilter] = useState<FormatFilter>('all');
   const [loanFilter, setLoanFilter] = useState<LoanFilter>('all');
   const [sortBy, setSortBy] = useState<SortOrder>('dateAdded');
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [genreSearch, setGenreSearch] = useState('');
+  const [quickReadFilter, setQuickReadFilter] = useState(false);
 
   // View mode preference with LocalStorage persistence
   const [viewMode, setViewMode] = useState<'list' | 'shelf'>(() => {
@@ -96,22 +140,47 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
     }
   };
 
+  const isGlobalSearching = Boolean(debouncedSearchQuery && debouncedSearchQuery.trim() !== '');
+
   const filteredBooks = useMemo(() => {
-    let result = books.filter(book => book.status !== BookStatus.Wishlist);
-    
-    // Sort
-    if (sortBy === 'title') {
-      result.sort((a, b) => a.title.localeCompare(b.title));
-    } else if (sortBy === 'isDigital') {
-      result.sort((a, b) => (a.isDigital === b.isDigital ? 0 : a.isDigital ? -1 : 1));
-    } else if (sortBy === 'isLoaned') {
-      result.sort((a, b) => (a.isLoaned === b.isLoaned ? 0 : a.isLoaned ? -1 : 1));
-    } else {
-      result.sort((a, b) => b.dateAdded.localeCompare(a.dateAdded));
+    // 3. When searching inside Estante, search against the entire user collection regardless of book status
+    if (isGlobalSearching) {
+      const query = debouncedSearchQuery.toLowerCase().trim();
+      let result = books.filter(book =>
+        book.title.toLowerCase().includes(query) ||
+        book.author.toLowerCase().includes(query) ||
+        (book.series && book.series.toLowerCase().includes(query)) ||
+        (book.genre && book.genre.toLowerCase().includes(query)) ||
+        (book.summary && book.summary.toLowerCase().includes(query)) ||
+        (book.notes && book.notes.toLowerCase().includes(query))
+      );
+
+      // Leitura Rápida (< 200 páginas) também na busca global
+      if (quickReadFilter) {
+        result = result.filter(book => book.pages > 0 && book.pages < 200);
+      }
+
+      // Sort
+      if (sortBy === 'title') {
+        result.sort((a, b) => a.title.localeCompare(b.title));
+      } else if (sortBy === 'isDigital') {
+        result.sort((a, b) => (a.isDigital === b.isDigital ? 0 : a.isDigital ? -1 : 1));
+      } else if (sortBy === 'isLoaned') {
+        result.sort((a, b) => (a.isLoaned === b.isLoaned ? 0 : a.isLoaned ? -1 : 1));
+      } else {
+        result.sort((a, b) => (b.dateAdded || '').localeCompare(a.dateAdded || ''));
+      }
+
+      return result;
     }
 
-    // Status Filter
-    if (statusFilter !== 'all') {
+    // Default: Entire collection without excluding Wishlist
+    let result = [...books];
+
+    // Status / Series / Wishlist Tab Filter
+    if (statusFilter === 'series') {
+      result = result.filter(book => Boolean(book.series && book.series.trim() !== ''));
+    } else if (statusFilter !== 'all') {
       result = result.filter(book => book.status === statusFilter);
     }
 
@@ -127,15 +196,6 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
       result = result.filter(book => book.isLoaned);
     } else if (loanFilter === 'not_loaned') {
       result = result.filter(book => !book.isLoaned);
-    }
-
-    // Search Query
-    if (debouncedSearchQuery) {
-      const query = debouncedSearchQuery.toLowerCase();
-      result = result.filter(book =>
-        book.title.toLowerCase().includes(query) ||
-        book.author.toLowerCase().includes(query)
-      );
     }
 
     // Genre Filter
@@ -177,21 +237,50 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
       }
     }
 
+    // Leitura Rápida (< 200 páginas)
+    if (quickReadFilter) {
+      result = result.filter(book => book.pages > 0 && book.pages < 200);
+    }
+
+    // Sort
+    if (sortBy === 'title') {
+      result.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sortBy === 'isDigital') {
+      result.sort((a, b) => (a.isDigital === b.isDigital ? 0 : a.isDigital ? -1 : 1));
+    } else if (sortBy === 'isLoaned') {
+      result.sort((a, b) => (a.isLoaned === b.isLoaned ? 0 : a.isLoaned ? -1 : 1));
+    } else {
+      result.sort((a, b) => (b.dateAdded || '').localeCompare(a.dateAdded || ''));
+    }
+
     return result;
-  }, [books, debouncedSearchQuery, statusFilter, formatFilter, loanFilter, sortBy, selectedGenres, selectedTags, minRating, selectedYear]);
+  }, [books, debouncedSearchQuery, isGlobalSearching, statusFilter, formatFilter, loanFilter, sortBy, selectedGenres, selectedTags, minRating, selectedYear, quickReadFilter]);
 
   const filteredGenresList = useMemo(() => {
     if (!genreSearch) return GENRES;
     return GENRES.filter(g => g.toLowerCase().includes(genreSearch.toLowerCase()));
   }, [genreSearch]);
 
+  // Top Filter Chips according to Requirement 2:
+  // Todos | Lendo | Quero Ler | Lidos | Séries | Desejos | Abandonados
   const filterButtons = [
-    { label: 'Todos', value: 'all' as FilterStatus },
-    { label: 'Lendo', value: BookStatus.Reading as FilterStatus },
-    { label: 'Lidos', value: BookStatus.Read as FilterStatus },
-    { label: 'Quero Ler', value: BookStatus.TBR as FilterStatus },
-    { label: 'Abandonados', value: BookStatus.Dropped as FilterStatus },
+    { label: 'Todos', value: 'all' as FilterStatus, tabKey: 'all', count: books.length },
+    { label: 'Lendo', value: BookStatus.Reading as FilterStatus, tabKey: 'reading', count: books.filter(b => b.status === BookStatus.Reading).length },
+    { label: 'Quero Ler', value: BookStatus.TBR as FilterStatus, tabKey: 'tbr', count: books.filter(b => b.status === BookStatus.TBR).length },
+    { label: 'Lidos', value: BookStatus.Read as FilterStatus, tabKey: 'read', count: books.filter(b => b.status === BookStatus.Read).length },
+    { label: 'Séries', value: 'series' as FilterStatus, tabKey: 'series', count: books.filter(b => Boolean(b.series && b.series.trim() !== '')).length },
+    { label: 'Desejos', value: BookStatus.Wishlist as FilterStatus, tabKey: 'wishlist', count: books.filter(b => b.status === BookStatus.Wishlist).length },
+    { label: 'Abandonados', value: BookStatus.Dropped as FilterStatus, tabKey: 'dropped', count: books.filter(b => b.status === BookStatus.Dropped).length },
   ];
+
+  const quickReadCount = useMemo(() => {
+    return books.filter(b => b.pages > 0 && b.pages < 200).length;
+  }, [books]);
+
+  const handleChipClick = (btn: typeof filterButtons[number]) => {
+    setStatusFilter(btn.value);
+    onTabChange?.(btn.tabKey);
+  };
 
   return (
     <div className="space-y-8">
@@ -274,21 +363,33 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
         {/* Status and Sort */}
         <div className="flex flex-col space-y-6 pb-6 border-b border-slate-50 dark:border-slate-800">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-            <div className="flex flex-wrap items-center gap-3">
-              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em] mr-1">Status:</span>
-              {filterButtons.map((btn) => (
-                <button
-                  key={btn.value}
-                  onClick={() => setStatusFilter(btn.value)}
-                  className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border ${
-                    statusFilter === btn.value
-                      ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25'
-                      : 'bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-100 dark:border-slate-700 hover:border-primary/30'
-                  }`}
-                >
-                  {btn.label}
-                </button>
-              ))}
+            <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+              <span className="text-[10px] font-black text-slate-400 dark:text-slate-50 uppercase tracking-[0.2em] mr-1">Filtros:</span>
+              {filterButtons.map((btn) => {
+                const isSelected = statusFilter === btn.value;
+                return (
+                  <button
+                    key={btn.tabKey}
+                    type="button"
+                    data-testid={`filter-chip-${btn.tabKey}`}
+                    onClick={() => handleChipClick(btn)}
+                    className={`flex items-center gap-1.5 px-3 sm:px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all border active:scale-95 cursor-pointer ${
+                      isSelected
+                        ? 'bg-primary text-white border-primary shadow-lg shadow-primary/25 ring-2 ring-primary/20'
+                        : 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200/60 dark:border-slate-700 hover:border-primary/40 hover:text-primary dark:hover:text-primary'
+                    }`}
+                  >
+                    <span>{btn.label}</span>
+                    <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ${
+                      isSelected 
+                        ? 'bg-white/20 text-white' 
+                        : 'bg-slate-200/70 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                    }`}>
+                      {btn.count}
+                    </span>
+                  </button>
+                );
+              })}
             </div>
 
             <div className="flex items-center gap-3">
@@ -343,6 +444,35 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
                   </button>
                 ))}
               </div>
+            </div>
+
+            {/* Leitura Rápida Filter (< 200 páginas) */}
+            <div className="flex items-center">
+              <button
+                type="button"
+                onClick={() => setQuickReadFilter(!quickReadFilter)}
+                data-testid="filter-quick-read"
+                aria-pressed={quickReadFilter}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest border transition-all cursor-pointer ${
+                  quickReadFilter
+                    ? 'bg-amber-500 text-white border-amber-500 shadow-sm shadow-amber-500/20'
+                    : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200/80 dark:border-slate-700 hover:border-amber-400 hover:text-amber-600 dark:hover:text-amber-400'
+                }`}
+                title="Exibir apenas livros curtos com menos de 200 páginas"
+              >
+                <span>⚡</span>
+                <span>Leitura Rápida (&lt;200p)</span>
+                <span className={`text-[9px] px-1.5 py-0.2 rounded-full font-bold ml-0.5 ${
+                  quickReadFilter
+                    ? 'bg-white/20 text-white'
+                    : 'bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-400'
+                }`}>
+                  {quickReadCount}
+                </span>
+                {quickReadFilter && (
+                  <span className="h-1.5 w-1.5 rounded-full bg-white ml-0.5" />
+                )}
+              </button>
             </div>
 
             {/* Toggle Filtros Avançados Button */}
@@ -542,7 +672,130 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
         </div>
       </div>
 
-      {viewMode === 'list' ? (
+      {/* 3. Global search results across all reading statuses */}
+      {isGlobalSearching ? (
+        <div className="space-y-6">
+          <div 
+            data-testid="global-search-banner"
+            className="bg-primary/5 dark:bg-primary/10 border border-primary/20 p-4 rounded-2xl flex items-center justify-between gap-4 animate-in fade-in duration-200"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="text-xl">🔍</span>
+              <div>
+                <p className="text-xs font-black text-slate-800 dark:text-slate-100">
+                  Buscando em todo o acervo por &quot;{debouncedSearchQuery}&quot;
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  {filteredBooks.length} livro(s) encontrado(s) em todos os status (Lendo, Lidos, Quero Ler, Séries, Desejos e Abandonados)
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setSearchQuery('')}
+              className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:text-primary border border-slate-200 dark:border-slate-700 transition-all active:scale-95 shadow-xs cursor-pointer"
+            >
+              Limpar busca
+            </button>
+          </div>
+
+          {viewMode === 'list' ? (
+            <motion.div 
+              className="space-y-6"
+              initial="hidden"
+              animate="visible"
+              variants={{
+                visible: {
+                  transition: {
+                    staggerChildren: 0.04
+                  }
+                }
+              }}
+            >
+              {filteredBooks.length > 0 ? (
+                filteredBooks.map((book) => (
+                  <motion.div
+                    key={book.id}
+                    variants={{
+                      hidden: { opacity: 0, y: 15 },
+                      visible: { 
+                        opacity: 1, 
+                        y: 0, 
+                        transition: { type: 'spring', stiffness: 280, damping: 25 } 
+                      }
+                    }}
+                  >
+                    <BookListItem 
+                      book={book} 
+                      allBooks={books}
+                      onEdit={onEdit} 
+                      onDelete={onDelete} 
+                      onDuplicate={onDuplicate}
+                      onViewDetails={onViewDetails}
+                      onUpdateStatus={handleUpdateStatus}
+                    />
+                  </motion.div>
+                ))
+              ) : (
+                <EmptyState
+                  illustration="search"
+                  title="Nenhum livro encontrado"
+                  description={`Nenhum livro no seu acervo corresponde a "${debouncedSearchQuery}". Tente buscar por outros termos, autores ou gêneros.`}
+                  primaryAction={{
+                    label: 'Limpar Busca',
+                    onClick: () => setSearchQuery(''),
+                    icon: (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    ),
+                    'data-testid': 'search-empty-clear-btn',
+                  }}
+                  secondaryAction={
+                    onAddBook ? {
+                      label: 'Cadastrar Este Livro',
+                      onClick: () => onAddBook(),
+                      icon: (
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                        </svg>
+                      ),
+                    } : undefined
+                  }
+                />
+              )}
+            </motion.div>
+          ) : (
+            <ShelfView books={filteredBooks} onViewDetails={onViewDetails} />
+          )}
+        </div>
+      ) : statusFilter === 'series' ? (
+        /* Dedicated Series View integrated inside Estante Hub */
+        <div className="pt-2 animate-in fade-in duration-200" data-testid="integrated-series-view">
+          <SeriesView 
+            books={books} 
+            profile={profile} 
+            onEdit={onEdit} 
+            onUpdateBook={onUpdateBook as any} 
+            onDelete={onDelete} 
+            onViewDetails={onViewDetails || (() => {})} 
+            onAddBook={() => onAddBook ? onAddBook() : undefined} 
+            onRefresh={onRefresh} 
+          />
+        </div>
+      ) : statusFilter === BookStatus.Wishlist ? (
+        /* Dedicated Wishlist View integrated inside Estante Hub */
+        <div className="pt-2 animate-in fade-in duration-200" data-testid="integrated-wishlist-view">
+          <Wishlist 
+            books={books.filter(b => b.status === BookStatus.Wishlist)} 
+            onEdit={onEdit} 
+            onDelete={onDelete} 
+            onDuplicate={onDuplicate} 
+            onMoveToShelf={onMoveToShelf || ((b) => handleUpdateStatus(b, BookStatus.Reading))} 
+            onAddWishlistItem={() => onAddBook ? onAddBook(BookStatus.Wishlist) : undefined} 
+          />
+        </div>
+      ) : viewMode === 'list' ? (
         <motion.div 
           className="space-y-6"
           initial="hidden"
@@ -562,9 +815,9 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
                 variants={{
                   hidden: { opacity: 0, y: 15 },
                   visible: { 
-                    opacity: 1, 
-                    y: 0, 
-                    transition: { type: 'spring', stiffness: 280, damping: 25 } 
+                        opacity: 1, 
+                        y: 0, 
+                        transition: { type: 'spring', stiffness: 280, damping: 25 } 
                   }
                 }}
               >
@@ -580,31 +833,53 @@ export const BookList: React.FC<BookListProps> = React.memo(({ books, allBooks, 
               </motion.div>
             ))
           ) : (
-            <div className="text-center py-24 bg-white dark:bg-slate-900 rounded-[2.5rem] border-2 border-dashed border-slate-100 dark:border-slate-800 flex flex-col items-center">
-              <div className="bg-slate-50 dark:bg-slate-800 w-20 h-20 rounded-full flex items-center justify-center mb-6">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-10 w-10 text-slate-200 dark:text-slate-700" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            <EmptyState
+              illustration={quickReadFilter ? 'filter' : statusFilter === 'all' ? 'bookshelf' : 'filter'}
+              title={
+                quickReadFilter 
+                  ? 'Nenhum livro de leitura rápida (< 200p)'
+                  : statusFilter !== 'all'
+                  ? `Nenhum livro nesta estante (${filterButtons.find(b => b.value === statusFilter)?.label || 'Filtro'})`
+                  : 'Nenhum livro corresponde aos filtros'
+              }
+              description={
+                quickReadFilter
+                  ? 'Você não possui livros com menos de 200 páginas nesta categoria. Experimente desativar o filtro de leitura rápida ou redefinir os filtros.'
+                  : 'Parece que seus filtros estão muito específicos ou esta categoria ainda não possui obras adicionadas.'
+              }
+              primaryAction={{
+                label: 'Redefinir Filtros',
+                onClick: () => { 
+                  setStatusFilter('all'); 
+                  setSearchQuery(''); 
+                  setSelectedGenres([]); 
+                  setSelectedTags([]); 
+                  setGenreSearch(''); 
+                  setFormatFilter('all');
+                  setLoanFilter('all');
+                  setMinRating('all');
+                  setSelectedYear('all');
+                  setQuickReadFilter(false);
+                },
+                icon: (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-              </div>
-              <h3 className="text-xl font-bold text-slate-900 dark:text-slate-50 font-serif">Nenhum livro corresponde à busca</h3>
-              <p className="text-slate-400 dark:text-slate-500 mt-2 max-w-xs mx-auto text-sm">Parece que seus filtros estão muito específicos.</p>
-              <button 
-                  onClick={() => { 
-                      setStatusFilter('all'); 
-                      setSearchQuery(''); 
-                      setSelectedGenres([]); 
-                      setSelectedTags([]); 
-                      setGenreSearch(''); 
-                      setFormatFilter('all');
-                      setLoanFilter('all');
-                      setMinRating('all');
-                      setSelectedYear('all');
-                  }}
-                  className="mt-8 px-6 py-2.5 rounded-xl bg-primary text-white font-black text-[10px] uppercase tracking-widest hover:bg-slate-900 transition-all shadow-lg active:scale-95"
-              >
-                  Redefinir Filtros
-              </button>
-            </div>
+                ),
+                'data-testid': 'shelf-reset-filters-btn',
+              }}
+              secondaryAction={
+                onAddBook ? {
+                  label: 'Adicionar Livro',
+                  onClick: () => onAddBook(statusFilter in BookStatus ? (statusFilter as BookStatus) : undefined),
+                  icon: (
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                    </svg>
+                  ),
+                } : undefined
+              }
+            />
           )}
         </motion.div>
       ) : (

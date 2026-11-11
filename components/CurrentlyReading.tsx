@@ -1,9 +1,12 @@
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import type { Book, Profile } from '../types';
 import { BookStatus } from '../types';
-import { StarIcon, StarIconFilled } from './Icons';
+import { StarIconFilled } from './Icons';
 import { ShareProgressModal } from './ShareProgressModal';
+import { RatingStars } from './RatingStars';
+import { CelebrationModal } from './CelebrationModal';
 
 interface CurrentlyReadingProps {
   book: Book;
@@ -11,32 +14,6 @@ interface CurrentlyReadingProps {
   profile: Profile | null;
   onOpenJournal?: (bookId: string) => void;
 }
-
-const StarRatingDisplay: React.FC<{ rating: number }> = ({ rating }) => {
-  return (
-    <div className="flex flex-wrap items-center justify-center gap-0.5">
-      {[...Array(10)].map((_, index) => {
-        const starIndex = index + 1;
-        const diff = rating - index;
-        const isFull = diff >= 1;
-        const isPartial = diff > 0 && diff < 1;
-        const fillPercentage = isPartial ? diff * 100 : (isFull ? 100 : 0);
-
-        return (
-          <div key={index} className="relative h-5 w-5 sm:h-6 sm:w-6">
-            <StarIcon className="absolute inset-0 h-5 w-5 sm:h-6 sm:w-6 text-slate-200 dark:text-slate-700" />
-            <div 
-              className="absolute inset-0 overflow-hidden" 
-              style={{ width: `${fillPercentage}%` }}
-            >
-              <StarIconFilled className="h-5 w-5 sm:h-6 sm:w-6 text-amber-400" />
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
-};
 
 const calculateDaysReading = (startDate?: string) => {
     if (!startDate) return 0;
@@ -56,10 +33,14 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
     const [selectedRating, setSelectedRating] = useState<number>(book.rating || 0);
     const [isSaving, setIsSaving] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
+    const [showCelebrationModal, setShowCelebrationModal] = useState(false);
+    const [microToast, setMicroToast] = useState<{ id: number; message: string; sub?: string } | null>(null);
+    const toastTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const prevPageRef = useRef(book.currentPage || 0);
     
     const daysReading = useMemo(() => calculateDaysReading(dateStarted), [dateStarted]);
     const progressPercentage = book.pages > 0 ? (currentPage / book.pages) * 100 : 0;
-    const pagesRemaining = book.pages - currentPage;
+    const pagesRemaining = Math.max(0, book.pages - currentPage);
     
     const pagesPerDay = useMemo(() => {
         const days = daysReading || 1;
@@ -71,13 +52,33 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
         return Math.ceil(pagesRemaining / pagesPerDay);
     }, [pagesRemaining, pagesPerDay]);
 
+    const estimatedFinishDate = useMemo(() => {
+        if (!estDaysToFinish || estDaysToFinish <= 0) return null;
+        const target = new Date();
+        target.setDate(target.getDate() + estDaysToFinish);
+        return target.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    }, [estDaysToFinish]);
+
     useEffect(() => {
         setCurrentPage(book.currentPage || 0);
+        prevPageRef.current = book.currentPage || 0;
         setDateStarted(book.dateStarted || new Date().toISOString().split('T')[0]);
         setIsFinishing(false);
         setSelectedRating(0);
         setIsSaving(false);
+        setShowCelebrationModal(false);
+        setMicroToast(null);
     }, [book.id]);
+
+    const triggerToast = (message: string, sub?: string) => {
+        if (toastTimeoutRef.current) {
+            clearTimeout(toastTimeoutRef.current);
+        }
+        setMicroToast({ id: Date.now(), message, sub });
+        toastTimeoutRef.current = setTimeout(() => {
+            setMicroToast(null);
+        }, 3400);
+    };
 
     const handleProgressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         const value = parseInt(e.target.value, 10);
@@ -92,6 +93,11 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
         setIsSaving(true);
         try {
             await updateBook({ ...book, currentPage, dateStarted });
+            if (currentPage >= book.pages && book.pages > 0) {
+                setShowCelebrationModal(true);
+            } else {
+                triggerToast(`Progresso salvo na página ${currentPage}!`, `Faltam ${pagesRemaining}p para concluir.`);
+            }
         } finally {
             setIsSaving(false);
         }
@@ -129,9 +135,57 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                 timesRead: (book.timesRead || 0) + 1
             };
             await updateBook(updatedBook);
+            setIsFinishing(false);
+            setShowCelebrationModal(false);
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handleSaveCelebrationRating = async (rating: number, review?: string) => {
+        setIsSaving(true);
+        try {
+            const updatedBook: Book = {
+                ...book,
+                currentPage: book.pages,
+                status: BookStatus.Read,
+                rating,
+                notes: review || book.notes,
+                dateFinished: new Date().toISOString().split('T')[0],
+                daysToFinish: daysReading,
+                timesRead: (book.timesRead || 0) + 1
+            };
+            await updateBook(updatedBook);
+            setShowCelebrationModal(false);
+            setIsFinishing(false);
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    const updatePage = (newPage: number, incLabel?: number) => {
+        const boundedPage = Math.min(book.pages, Math.max(0, newPage));
+        const diff = boundedPage - currentPage;
+        setCurrentPage(boundedPage);
+
+        if (boundedPage >= book.pages && book.pages > 0) {
+            // Milestone: Completed book!
+            setShowCelebrationModal(true);
+            setIsFinishing(true);
+        } else if (diff > 0) {
+            const remaining = book.pages - boundedPage;
+            const label = incLabel ? `+${incLabel}` : `+${diff}`;
+            triggerToast(
+                `${label} páginas registradas!`,
+                remaining > 0 ? `Faltam ${remaining}p para concluir.` : 'Meta de páginas alcançada!'
+            );
+        }
+    };
+
+    const handleCompleteBook = () => {
+        setCurrentPage(book.pages);
+        setIsFinishing(true);
+        setShowCelebrationModal(true);
     };
 
     const genresList = book.genre ? book.genre.split(',').map(g => g.trim()).filter(g => g !== '') : [];
@@ -148,9 +202,9 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
               Lendo agora
             </span>
           </div>
-          {daysReading > 0 && (
-            <span className="bg-slate-50 dark:bg-slate-800 text-slate-400 dark:text-slate-500 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full border border-slate-100 dark:border-slate-700">
-               Há {daysReading} {daysReading === 1 ? 'dia' : 'dias'}
+          {daysReading >= 0 && (
+            <span className="bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 text-[9px] sm:text-[10px] font-bold uppercase tracking-widest px-4 py-1.5 rounded-full border border-slate-100 dark:border-slate-700">
+              Lendo há {daysReading} {daysReading === 1 ? 'dia' : 'dias'}
             </span>
           )}
         </div>
@@ -208,21 +262,63 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                     </div>
                     <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-2xl h-4 overflow-hidden p-1 border border-slate-200/50 dark:border-slate-700">
                       <div 
-                          className="bg-gradient-to-r from-primary via-blue-500 to-indigo-400 h-full rounded-xl transition-all duration-1000 ease-out shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
+                          className="bg-gradient-to-r from-primary via-blue-500 to-indigo-400 h-full rounded-xl transition-all duration-500 ease-out shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
                           style={{ width: `${progressPercentage}%` }}
                       ></div>
+                    </div>
+
+                    {/* Quick Increment Buttons & Direct Concluir Livro */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      <span className="text-xs text-slate-400 dark:text-slate-500 font-bold mr-1 flex items-center gap-1 select-none">
+                        <span className="text-amber-500">⚡</span> Avanço rápido:
+                      </span>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {[5, 10, 20, 50].map((inc) => (
+                          <button
+                            key={inc}
+                            type="button"
+                            disabled={isSaving || currentPage >= book.pages}
+                            data-testid={`quick-inc-${inc}`}
+                            onClick={() => updatePage(Math.min(book.pages, currentPage + inc), inc)}
+                            className="px-2.5 py-1 text-[11px] font-black bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-primary hover:text-white dark:hover:bg-primary dark:hover:text-white rounded-lg transition-all duration-150 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed shadow-xs"
+                            title={`Avançar +${inc} páginas`}
+                          >
+                            +{inc}p
+                          </button>
+                        ))}
+
+                        <button
+                          type="button"
+                          disabled={isSaving}
+                          data-testid="complete-book-btn"
+                          onClick={handleCompleteBook}
+                          className="px-2.5 py-1 text-[11px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500 hover:text-white dark:hover:bg-emerald-500 dark:hover:text-white border border-emerald-200/80 dark:border-emerald-800/60 rounded-lg transition-all duration-150 active:scale-95 shadow-xs flex items-center gap-1 ml-auto sm:ml-1"
+                          title="Marcar todas as páginas e concluir leitura"
+                        >
+                          <span>✓</span> Concluir Livro
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div className="bg-slate-50/50 dark:bg-slate-800/20 p-4 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-center items-center text-center">
                         <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Páginas/Dia</p>
                         <p className="text-xl font-black text-slate-700 dark:text-slate-300">{pagesPerDay}</p>
                     </div>
                     <div className="bg-slate-50/50 dark:bg-slate-800/20 p-4 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-center items-center text-center">
-                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Faltam</p>
-                        <p className="text-xl font-black text-slate-700 dark:text-slate-300">{estDaysToFinish ? `${estDaysToFinish}d` : '--'}</p>
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Tempo Lendo</p>
+                        <p className="text-xl font-black text-slate-700 dark:text-slate-300">{daysReading} {daysReading === 1 ? 'dia' : 'dias'}</p>
+                    </div>
+                    <div className="bg-slate-50/50 dark:bg-slate-800/20 p-4 rounded-[2rem] border border-slate-100 dark:border-slate-800 flex flex-col justify-center items-center text-center">
+                        <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1 leading-none">Previsão Término</p>
+                        <p className="text-xl font-black text-slate-700 dark:text-slate-300">
+                            {estimatedFinishDate ? estimatedFinishDate : (estDaysToFinish ? `${estDaysToFinish}d` : '--')}
+                        </p>
+                        <p className="text-[9px] font-bold text-slate-400 dark:text-slate-500 mt-0.5">
+                            {estDaysToFinish ? `Faltam ${estDaysToFinish} ${estDaysToFinish === 1 ? 'dia' : 'dias'} • Lendo há ${daysReading}d` : `Lendo há ${daysReading} ${daysReading === 1 ? 'dia' : 'dias'}`}
+                        </p>
                     </div>
                 </div>
               </div>
@@ -279,21 +375,26 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                 <h3 className="text-2xl sm:text-3xl font-black text-slate-900 dark:text-slate-50 mb-1 sm:mb-2 leading-tight font-serif italic">Parabéns!</h3>
                 <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mb-4 sm:mb-6 font-medium italic">Sua avaliação para "{book.title}":</p>
                 
-                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] border border-slate-100 mb-6 sm:mb-8">
+                <div className="bg-slate-50 dark:bg-slate-800/50 p-4 sm:p-6 rounded-[1.5rem] sm:rounded-[2rem] border border-slate-100 dark:border-slate-800 mb-6 sm:mb-8">
                     <div className="flex items-center justify-between mb-3 sm:mb-4">
-                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest">Nota:</span>
+                        <span className="text-[9px] sm:text-[10px] font-black text-slate-400 uppercase tracking-widest">Nota (0 a 5.0):</span>
                         <div className="flex items-center gap-1.5 sm:gap-2">
                              <input 
                                 type="number" 
                                 step="0.1" 
                                 min="0" 
-                                max="10" 
+                                max="5" 
                                 value={selectedRating} 
                                 disabled={isSaving}
                                 onFocus={(e) => e.target.select()}
-                                onChange={(e) => setSelectedRating(parseFloat(e.target.value) || 0)}
-                                className="w-12 sm:w-16 bg-white dark:bg-slate-900 border border-slate-200 rounded-lg px-1.5 sm:px-2 py-0.5 sm:py-1 text-center font-black text-amber-500 text-sm sm:text-base"
+                                onChange={(e) => {
+                                  const val = parseFloat(e.target.value);
+                                  setSelectedRating(isNaN(val) ? 0 : Math.min(5, Math.max(0, val)));
+                                }}
+                                className="w-16 sm:w-20 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg px-1.5 sm:px-2 py-0.5 sm:py-1 text-center font-black text-amber-500 text-sm sm:text-base font-mono"
+                                aria-label="Nota numérica de 0 a 5.0"
                             />
+                            <span className="text-xs font-black text-slate-400 dark:text-slate-500 font-mono">/ 5.0</span>
                             <StarIconFilled className="h-4 w-4 sm:h-5 sm:w-5 text-amber-500" />
                         </div>
                     </div>
@@ -301,15 +402,25 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                     <input 
                         type="range" 
                         min="0" 
-                        max="10" 
+                        max="5" 
                         step="0.1" 
                         value={selectedRating} 
                         disabled={isSaving}
                         onChange={(e) => setSelectedRating(parseFloat(e.target.value))}
-                        className="w-full h-1.5 sm:h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500 mb-4 sm:mb-6"
+                        className="w-full h-1.5 sm:h-2 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer accent-amber-500 mb-5 sm:mb-6"
+                        aria-label="Controle deslizante de nota"
                     />
                     
-                    <StarRatingDisplay rating={selectedRating} />
+                    <div className="flex flex-col items-center justify-center pt-1 pb-2">
+                      <RatingStars 
+                        rating={selectedRating} 
+                        onChange={(val) => setSelectedRating(val)} 
+                        size="lg" 
+                        precision={0.1}
+                        showLabel={true} 
+                        className="justify-center"
+                      />
+                    </div>
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-3 sm:gap-4">
@@ -331,6 +442,48 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
             </div>
           )}
       </div>
+
+      {/* Floating Micro-Toast Notification (Dopaminergic incremental feedback) */}
+      <AnimatePresence>
+        {microToast && (
+          <motion.div
+            key={microToast.id}
+            initial={{ opacity: 0, y: 16, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -12, scale: 0.95 }}
+            transition={{ type: 'spring', damping: 20, stiffness: 300 }}
+            data-testid="reading-micro-toast"
+            className="absolute bottom-5 right-5 sm:bottom-8 sm:right-8 z-40 bg-slate-900/95 dark:bg-white/95 text-white dark:text-slate-900 px-4 py-2.5 rounded-2xl shadow-xl backdrop-blur-md border border-slate-700/50 dark:border-slate-200/50 flex items-center gap-3 pointer-events-none max-w-xs"
+          >
+            <div className="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 dark:text-amber-600 flex items-center justify-center font-black text-sm flex-shrink-0">
+              ⚡
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-black tracking-tight leading-tight">
+                {microToast.message}
+              </p>
+              {microToast.sub && (
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 font-bold truncate">
+                  {microToast.sub}
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Celebratory Milestone Modal (Completing book / 100% reading goal) */}
+      <CelebrationModal
+        isOpen={showCelebrationModal}
+        book={book}
+        initialRating={selectedRating}
+        onClose={() => setShowCelebrationModal(false)}
+        onSaveRatingAndFinish={handleSaveCelebrationRating}
+        onShare={() => {
+          setShowCelebrationModal(false);
+          setShowShareModal(true);
+        }}
+      />
 
       <ShareProgressModal
         isOpen={showShareModal}

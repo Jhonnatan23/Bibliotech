@@ -10,6 +10,7 @@ import type { Book, NewBook, Profile } from './types';
 import { ConfirmationModal } from './components/ConfirmationModal';
 import { BookStatus } from './types';
 import { BottomNav } from './components/BottomNav';
+import { LibrarySubNav, ProfileSubNav } from './components/UnifiedSubNav';
 import { Auth } from './components/Auth';
 import { PricePaidModal } from './components/PricePaidModal'; 
 import { BookDetailsModal } from './components/BookDetailsModal';
@@ -32,6 +33,7 @@ const SeriesView = lazy(() => import('./components/SeriesView').then(m => ({ def
 const ReadingChallenges = lazy(() => import('./components/ReadingChallenges').then(m => ({ default: m.ReadingChallenges })));
 const CommunityView = lazy(() => import('./components/CommunityView').then(m => ({ default: m.CommunityView })));
 const ReadingJournal = lazy(() => import('./components/ReadingJournal').then(m => ({ default: m.ReadingJournal })));
+const DesignSystemView = lazy(() => import('./components/DesignSystemView').then(m => ({ default: m.DesignSystemView })));
 
 import { ShareToCommunityModal } from './components/ShareToCommunityModal';
 
@@ -87,7 +89,9 @@ export default function App() {
           () => import('./components/LoansView'),
           () => import('./components/BookSearch'),
           () => import('./components/SeriesView'),
-          () => import('./components/ReadingChallenges')
+          () => import('./components/ReadingChallenges'),
+          () => import('./components/ReadingJournal'),
+          () => import('./components/DesignSystemView')
         ];
         const scheduler = (window as any).requestIdleCallback || ((cb: any) => setTimeout(cb, 1000));
         scheduler(() => {
@@ -113,7 +117,8 @@ export default function App() {
   const { 
     books, stats, currentlyReading, addBook, updateBook, deleteBook, importBooks, refresh,
     dateFilter, setDateFilter, selectedYear, setSelectedYear, availableYears,
-    customRange, setCustomRange, isLocalMode, schemaError, isLoading
+    customRange, setCustomRange, isLocalMode, schemaError, clearSchemaError, isLoading,
+    isOnline, pendingCount, isSyncing, syncPendingNow
   } = useBookData();
 
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'light');
@@ -148,9 +153,66 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [unreadNotifCount, setUnreadNotifCount] = useState(0);
-  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community' | 'journal'>('dashboard');
+  const [view, setView] = useState<'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community' | 'journal' | 'design-system'>('dashboard');
+  const [libraryTab, setLibraryTab] = useState<string>('all');
   const [selectedJournalBookId, setSelectedJournalBookId] = useState<string | null>(null);
   const [sharingBook, setSharingBook] = useState<Book | null>(null);
+
+  // 4. Update router/navigation logic: sync URL on load & popstate and redirect legacy links
+  useEffect(() => {
+    const handleUrlSync = () => {
+      if (typeof window === 'undefined') return;
+      const pathname = window.location.pathname.toLowerCase();
+      const searchParams = new URLSearchParams(window.location.search);
+      const tabParam = searchParams.get('tab')?.toLowerCase();
+
+      // Legacy links to /wishlist -> redirect to /library?tab=wishlist
+      if (pathname === '/wishlist' || (pathname === '/' && tabParam === 'wishlist')) {
+        window.history.replaceState(null, '', '/library?tab=wishlist');
+        setView('list');
+        setLibraryTab('wishlist');
+        return;
+      }
+
+      // Legacy links to /series -> redirect to /library?tab=series
+      if (pathname === '/series' || (pathname === '/' && tabParam === 'series')) {
+        window.history.replaceState(null, '', '/library?tab=series');
+        setView('list');
+        setLibraryTab('series');
+        return;
+      }
+
+      // /library or /library?tab=...
+      if (pathname === '/library') {
+        setView('list');
+        if (tabParam) {
+          setLibraryTab(tabParam);
+        }
+        return;
+      }
+    };
+
+    handleUrlSync();
+    window.addEventListener('popstate', handleUrlSync);
+    return () => window.removeEventListener('popstate', handleUrlSync);
+  }, []);
+
+  // Redirect legacy state navigation if setView is called with 'wishlist' or 'series'
+  useEffect(() => {
+    if (view === 'wishlist') {
+      setView('list');
+      setLibraryTab('wishlist');
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', '/library?tab=wishlist');
+      }
+    } else if (view === 'series') {
+      setView('list');
+      setLibraryTab('series');
+      if (typeof window !== 'undefined') {
+        window.history.replaceState(null, '', '/library?tab=series');
+      }
+    }
+  }, [view]);
 
   useEffect(() => {
     if (userProfile?.id) {
@@ -355,10 +417,10 @@ export default function App() {
     }
 
     // Regra 3: Mesmo Tema (Genre)
-    const finishedGenres = finishedBook.genre.split(',').map(g => g.trim()).filter(g => g !== '');
+    const finishedGenres = (finishedBook.genre || '').split(',').map(g => g.trim().toLowerCase()).filter(g => g !== '');
     if (finishedGenres.length > 0) {
         const genreCandidates = candidates.filter(b => {
-            const bGenres = b.genre.split(',').map(g => g.trim()).filter(g => g !== '');
+            const bGenres = (b.genre || '').split(',').map(g => g.trim().toLowerCase()).filter(g => g !== '');
             return bGenres.some(bg => finishedGenres.includes(bg));
         });
         if (genreCandidates.length > 0) {
@@ -432,7 +494,7 @@ export default function App() {
   };
 
   if (isAuthLoading) return <div className="min-h-screen bg-background flex items-center justify-center"><div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin"></div></div>;
-  if (!session) return <Auth />;
+  if (!session) return <Auth onGuestAccess={() => setSession({ user: { id: 'local_guest', email: 'convidado@bibliotech.local' } } as any)} />;
   if (isLoading) return <div className="min-h-screen bg-background flex flex-col items-center justify-center p-4"><div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mb-4"></div><p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Sincronizando...</p></div>;
 
   return (
@@ -444,6 +506,10 @@ export default function App() {
         setView={setView}
         onNotifClick={() => setIsNotifOpen(true)}
         unreadCount={unreadNotifCount}
+        isOnline={isOnline}
+        pendingCount={pendingCount}
+        isSyncing={isSyncing}
+        onSyncClick={syncPendingNow}
       />
 
       {config.enableDemoData && (
@@ -453,10 +519,30 @@ export default function App() {
       )}
       
       {schemaError && (
-        <div className="bg-red-600 text-white px-6 py-3 text-center text-[10px] font-black uppercase tracking-widest flex items-center justify-center gap-4 animate-in slide-in-from-top duration-500">
-          <div className="flex-1">
-             ⚠️ Erro de Sincronização: {schemaError.detail || "O banco de dados está desatualizado."} 
-             <span className="block mt-1 font-bold opacity-80">Rode o script SQL do arquivo instrucoes_sql.txt no painel do Supabase!</span>
+        <div className="bg-rose-600 text-white px-6 py-3 text-xs font-bold flex items-center justify-between gap-4 animate-in slide-in-from-top duration-300 shadow-md">
+          <div className="flex-1 text-left sm:text-center">
+             ⚠️ Erro de Sincronização: {schemaError.detail || "Estrutura do banco de dados precisa de verificação."} 
+             <span className="block text-[11px] font-medium opacity-90 mt-0.5">Seus dados locais estão seguros no dispositivo.</span>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                clearSchemaError();
+                refresh();
+              }}
+              className="px-3 py-1 bg-white text-rose-700 rounded-lg text-[10px] font-black uppercase tracking-wider hover:bg-rose-50 transition-colors shadow-sm cursor-pointer"
+            >
+              Reconectar
+            </button>
+            <button
+              type="button"
+              onClick={clearSchemaError}
+              className="p-1 hover:bg-white/20 rounded-lg transition-colors cursor-pointer"
+              title="Fechar aviso"
+            >
+              <XMarkIcon className="w-4 h-4" />
+            </button>
           </div>
         </div>
       )}
@@ -476,6 +562,12 @@ export default function App() {
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.2, ease: "easeInOut" }}
           >
+            {['list', 'wishlist', 'series', 'history', 'loans'].includes(view) && (
+              <LibrarySubNav currentView={view} setView={setView} />
+            )}
+            {['stats', 'community', 'challenges', 'journal', 'design-system'].includes(view) && (
+              <ProfileSubNav currentView={view} setView={setView} onOpenSettings={() => setIsSettingsOpen(true)} />
+            )}
             <Suspense fallback={<ViewLoader />}>
               {view === 'dashboard' && (
                 <Dashboard 
@@ -504,15 +596,25 @@ export default function App() {
               {view === 'list' && (
                 <BookList 
                   profile={userProfile} 
-                  books={books.filter(b => b.status !== BookStatus.Wishlist)} 
+                  books={books} 
                   allBooks={books}
                   stats={stats}
+                  initialTab={libraryTab}
+                  onTabChange={(tab) => {
+                    setLibraryTab(tab);
+                    if (typeof window !== 'undefined') {
+                      window.history.replaceState(null, '', tab !== 'all' ? `/library?tab=${tab}` : '/library');
+                    }
+                  }}
                   onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} 
                   onDelete={setDeletingBook} 
                   onDuplicate={handleDuplicateRequest} 
                   onViewDetails={setViewingBook} 
                   onUpdateBook={handleUpdateBook}
                   onRandomPick={handleRandomPick}
+                  onMoveToShelf={(b) => setConvertingBook(b)}
+                  onAddBook={(status) => openAddModal(status)}
+                  onRefresh={refresh}
                 />
               )}
               {view === 'wishlist' && <Wishlist books={books.filter(b => b.status === BookStatus.Wishlist)} onEdit={(b) => { setEditingBook(b); setIsDuplicating(false); setIsModalOpen(true); }} onDelete={setDeletingBook} onDuplicate={handleDuplicateRequest} onMoveToShelf={(b) => setConvertingBook(b)} onAddWishlistItem={() => openAddModal(BookStatus.Wishlist)} />}
@@ -565,6 +667,9 @@ export default function App() {
                   onClosePreselect={() => setSelectedJournalBookId(null)}
                 />
               )}
+              {view === 'design-system' && (
+                <DesignSystemView onBackToApp={() => setView('list')} />
+              )}
             </Suspense>
           </motion.div>
         </AnimatePresence>
@@ -574,16 +679,32 @@ export default function App() {
         <button onClick={() => openAddModal()} className="bg-primary text-white p-4 rounded-full shadow-2xl hover:bg-tertiary transition-all z-40 active:scale-95"><PlusIcon className="h-6 w-6" /></button>
       </div>
 
-      <BottomNav view={view} setView={setView} />
+      <BottomNav view={view} setView={setView} onOpenSettings={() => setIsSettingsOpen(true)} />
       {toastMessage && <div className="fixed bottom-32 left-1/2 -translate-x-1/2 z-[60] animate-in fade-in slide-in-from-bottom-4 duration-500"><div className="bg-slate-900 text-white px-6 py-3.5 rounded-2xl shadow-2xl border border-white/10 flex items-center gap-3"><p className="text-[11px] font-black uppercase tracking-widest">{toastMessage}</p></div></div>}
       
       {isModalOpen && <AddBookModal onClose={() => setIsModalOpen(false)} onAddBook={handleAddBook} onUpdateBook={handleUpdateBook} bookToEdit={editingBook} isDuplicating={isDuplicating} defaultStatus={defaultStatusForModal} existingBooks={books} profile={userProfile} />}
       
-      {viewingBook && <BookDetailsModal book={viewingBook} allBooks={books} onClose={() => setViewingBook(null)} onNavigateToBook={(b) => setViewingBook(b)} profile={userProfile} onUpdateBook={handleUpdateBook} />}
+      {viewingBook && (
+        <BookDetailsModal 
+          book={viewingBook} 
+          allBooks={books} 
+          onClose={() => setViewingBook(null)} 
+          onNavigateToBook={(b) => setViewingBook(b)} 
+          profile={userProfile} 
+          onUpdateBook={handleUpdateBook}
+          onEdit={(b) => {
+            // Smoothly replace details modal with edit modal to prevent modal stacking
+            setViewingBook(null);
+            setEditingBook(b);
+            setIsDuplicating(false);
+            setIsModalOpen(true);
+          }}
+        />
+      )}
       
       {convertingBook && <PricePaidModal book={convertingBook} onClose={() => setConvertingBook(null)} onConfirm={handleFinishConversion} />}
       
-      {isSettingsOpen && <ProfileModal books={books} onClose={() => setIsSettingsOpen(false)} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} profile={userProfile} onUpdateProfile={handleUpdateProfile} onImportBooks={importBooks} />}
+      {isSettingsOpen && <ProfileModal books={books} onClose={() => setIsSettingsOpen(false)} readingGoal={readingGoal} onSetReadingGoal={handleSetReadingGoal} profile={userProfile} onUpdateProfile={handleUpdateProfile} onImportBooks={importBooks} onOpenDesignSystem={() => setView('design-system')} />}
       
       {isNotifOpen && <NotificationModal isOpen={isNotifOpen} onClose={() => setIsNotifOpen(false)} books={books} profile={userProfile} />}
       

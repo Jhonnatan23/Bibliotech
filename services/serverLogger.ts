@@ -278,19 +278,27 @@ export function errorHandlerMiddleware(err: any, req: LoggerRequest, res: Respon
   const requestId = req.requestId || crypto.randomUUID();
   const serviceAffected = req.baseUrl || req.path.split('/')[2] || 'core';
 
-  // Registrar exceção técnica completa de forma sanitizada no log
-  serverCaptureException(err, {
-    requestId,
-    endpoint: req.originalUrl || req.url,
-    method: req.method,
-    service: serviceAffected,
-    category: 'express_middleware_error',
-  });
-
   // Normalizar erro para nossa estrutura controlada AppError
   const appError = normalizeError(err);
   const statusCode = appError.statusCode;
   const isProduction = serverConfig.env === 'produção';
+
+  // Registrar exceção técnica completa de forma sanitizada no log apenas para falhas de servidor 5xx reais (não para 4xx de cliente nem 503/504 de alta demanda externa)
+  if (statusCode >= 500 && statusCode !== 503 && statusCode !== 504) {
+    serverCaptureException(err, {
+      requestId,
+      endpoint: req.originalUrl || req.url,
+      method: req.method,
+      service: serviceAffected,
+      category: 'express_middleware_error',
+    });
+  } else if (statusCode >= 400) {
+    serverLogger.warn(`API_REJECT: [${appError.code}] ${req.method} ${req.originalUrl || req.url} -> ${appError.safeMessage}`, {
+      requestId,
+      code: appError.code,
+      statusCode,
+    });
+  }
 
   // Determinar mensagem pública segura
   let message = appError.safeMessage;
@@ -307,6 +315,8 @@ export function errorHandlerMiddleware(err: any, req: LoggerRequest, res: Respon
       code: appError.code,
       message: message,
       requestId: requestId
-    }
+    },
+    isHighDemand: statusCode === 503 || appError.code === 'SERVICE_UNAVAILABLE',
+    isQuotaExceeded: statusCode === 429 || appError.code === 'LIMIT_EXCEEDED',
   });
 }

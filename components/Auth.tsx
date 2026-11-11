@@ -4,7 +4,11 @@ import { supabase } from '../services/supabase';
 import { Logo } from './Logo';
 import { XMarkIcon } from './Icons';
 
-export const Auth: React.FC = () => {
+interface AuthProps {
+  onGuestAccess?: () => void;
+}
+
+export const Auth: React.FC<AuthProps> = ({ onGuestAccess }) => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -163,7 +167,10 @@ export const Auth: React.FC = () => {
               type="email"
               placeholder="exemplo@email.com"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (errorMsg) setErrorMsg(null);
+              }}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-medium dark:text-white transition-all shadow-sm"
               required
             />
@@ -180,7 +187,10 @@ export const Auth: React.FC = () => {
               type={showPassword ? 'text' : 'password'}
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errorMsg) setErrorMsg(null);
+              }}
               className="w-full bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-3.5 outline-none focus:border-primary font-medium dark:text-white transition-all shadow-sm"
               required
             />
@@ -202,6 +212,16 @@ export const Auth: React.FC = () => {
           >
             {loading ? 'Acessando...' : mode === 'login' ? 'Entrar' : 'Cadastrar'}
           </button>
+
+          {onGuestAccess && (
+            <button
+              type="button"
+              onClick={onGuestAccess}
+              className="w-full bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold text-[10px] uppercase tracking-wider py-3 rounded-2xl transition-all active:scale-95"
+            >
+              Continuar como Convidado (Modo Local)
+            </button>
+          )}
           
           {mode === 'login' && (
               <button type="button" onClick={handleForgotPassword} className="w-full text-center text-[9px] font-black text-slate-400 uppercase tracking-widest hover:text-primary transition-colors">Esqueci minha senha</button>

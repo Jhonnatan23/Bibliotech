@@ -16,6 +16,7 @@ export interface GoogleBookResult {
   ratingsCount?: number;
   previewLink?: string;
   infoLink?: string;
+  coverUrl?: string | null;
 }
 
 export const searchGoogleBooks = async (query: string): Promise<GoogleBookResult[]> => {

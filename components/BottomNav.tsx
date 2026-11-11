@@ -1,147 +1,196 @@
+import React from 'react';
+import { motion } from 'motion/react';
+import { BookOpenIcon, ChartBarIcon, MagnifyingGlassIcon, UserIcon } from './Icons';
 
-import React, { useState, useRef, useEffect } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
-import { BookOpenIcon, ChartBarIcon, HeartIcon, MagnifyingGlassIcon, Bars3Icon } from './Icons';
+export type AppView = 
+  | 'dashboard' 
+  | 'list' 
+  | 'wishlist' 
+  | 'stats' 
+  | 'search' 
+  | 'history' 
+  | 'loans' 
+  | 'series' 
+  | 'challenges' 
+  | 'community' 
+  | 'journal' 
+  | 'design-system';
 
 interface BottomNavProps {
-  view: 'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community' | 'journal';
-  setView: (view: 'dashboard' | 'list' | 'wishlist' | 'stats' | 'search' | 'history' | 'loans' | 'series' | 'challenges' | 'community' | 'journal') => void;
+  view: AppView;
+  setView: (view: AppView) => void;
+  onOpenSettings?: () => void;
+}
+
+interface NavDestination {
+  id: 'dashboard' | 'list' | 'search' | 'profile';
+  label: string;
+  targetView: AppView;
+  ariaLabel: string;
+  isActive: (currentView: AppView) => boolean;
+  renderIcon: (active: boolean) => React.ReactNode;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = React.memo(({ view, setView }) => {
-  const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsMenuOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  const navItems = [
-    { id: 'dashboard', label: 'Início', icon: <ChartBarIcon className="h-6 w-6" /> },
-    { id: 'list', label: 'Estante', icon: <BookOpenIcon className="h-6 w-6" /> },
-    { id: 'series', label: 'Séri.', icon: <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 9h16.5m-16.5 6.75h16.5" /></svg> },
-    { id: 'history', label: 'Hist.', icon: <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-6 w-6"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" /></svg> },
-    { id: 'search', label: 'Explor.', icon: <MagnifyingGlassIcon className="h-6 w-6" /> },
-    { id: 'wishlist', label: 'Desej.', icon: <HeartIcon className="h-6 w-6" /> },
-  ] as const;
+  // Consolidate down to exactly 4 primary destinations (Material Design 3 / iOS HIG standard)
+  const destinations: NavDestination[] = [
+    {
+      id: 'dashboard',
+      label: 'Início',
+      targetView: 'dashboard',
+      ariaLabel: 'Ir para Início (leituras em andamento, log diário e meta)',
+      isActive: (currentView) => currentView === 'dashboard',
+      renderIcon: (active) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill={active ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          strokeWidth={active ? 2 : 1.75}
+          className="h-6 w-6 transition-transform duration-200"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="m2.25 12 8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25"
+          />
+        </svg>
+      ),
+    },
+    {
+      id: 'list',
+      label: 'Estante',
+      targetView: 'list',
+      ariaLabel: 'Ir para Estante (biblioteca unificada, séries, desejos e histórico)',
+      isActive: (currentView) => ['list', 'wishlist', 'series', 'history', 'loans'].includes(currentView),
+      renderIcon: (active) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill={active ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          strokeWidth={active ? 2 : 1.75}
+          className="h-6 w-6 transition-transform duration-200"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M12 6.042A8.967 8.967 0 0 0 6 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 0 1 6 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 0 1 6-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0 0 18 18a8.967 8.967 0 0 0-6 2.292m0-14.25v14.25"
+          />
+        </svg>
+      ),
+    },
+    {
+      id: 'search',
+      label: 'Explorar',
+      targetView: 'search',
+      ariaLabel: 'Ir para Explorar (busca global, scanner e recomendações)',
+      isActive: (currentView) => currentView === 'search',
+      renderIcon: (active) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={active ? 2.5 : 1.75}
+          className="h-6 w-6 transition-transform duration-200"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z"
+          />
+        </svg>
+      ),
+    },
+    {
+      id: 'profile',
+      label: 'Você',
+      targetView: 'stats',
+      ariaLabel: 'Ir para Você (comunidade, estatísticas, desafios e diário)',
+      isActive: (currentView) => ['stats', 'community', 'challenges', 'journal', 'design-system'].includes(currentView),
+      renderIcon: (active) => (
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          fill={active ? 'currentColor' : 'none'}
+          stroke="currentColor"
+          strokeWidth={active ? 2 : 1.75}
+          className="h-6 w-6 transition-transform duration-200"
+          aria-hidden="true"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M15.75 6a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.501 20.118a7.5 7.5 0 0 1 14.998 0A17.933 17.933 0 0 1 12 21.75c-2.676 0-5.216-.584-7.499-1.632Z"
+          />
+        </svg>
+      ),
+    },
+  ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white/90 dark:bg-slate-900/90 backdrop-blur-lg border-t border-slate-200/60 dark:border-slate-800 z-40 pb-safe shadow-[0_-8px_30px_rgb(0,0,0,0.04)]">
-      <div className="max-w-xl mx-auto flex justify-around items-center px-2 h-20">
-        {navItems.map((item) => {
-          const isActive = view === item.id;
+    <nav
+      role="navigation"
+      aria-label="Navegação Principal"
+      className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl border-t border-slate-200/80 dark:border-slate-800 z-40 pb-safe shadow-[0_-4px_24px_rgba(0,0,0,0.06)]"
+    >
+      <div className="max-w-md sm:max-w-lg mx-auto flex items-stretch justify-around px-2 h-18 sm:h-20">
+        {destinations.map((item) => {
+          const active = item.isActive(view);
+
           return (
             <button
               key={item.id}
-              onClick={() => setView(item.id)}
-              className={`flex flex-col items-center justify-center gap-1.5 transition-all duration-300 w-16 relative cursor-pointer ${
-                isActive ? 'text-primary' : 'text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-400'
+              type="button"
+              data-testid={`bottom-nav-${item.id}`}
+              onClick={() => setView(item.targetView)}
+              aria-label={item.ariaLabel}
+              aria-selected={active}
+              role="tab"
+              className={`flex-1 flex flex-col items-center justify-center min-w-[48px] min-h-[48px] h-full py-1.5 px-1 relative select-none cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-primary rounded-2xl transition-all duration-200 group active:scale-95 ${
+                active
+                  ? 'text-primary dark:text-primary'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
               }`}
             >
-              <div className={`transition-transform duration-300 ${isActive ? 'scale-110 -translate-y-1' : ''}`}>
-                {item.icon}
+              {/* MD3 Active Indicator Pill container with minimum touch target size */}
+              <div className="relative flex items-center justify-center w-14 sm:w-16 h-8 sm:h-8.5 rounded-full">
+                {active && (
+                  <motion.div
+                    layoutId="md3ActivePill"
+                    className="absolute inset-0 bg-primary/12 dark:bg-primary/25 rounded-full"
+                    transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                  />
+                )}
+                <div
+                  className={`relative z-10 transition-transform duration-200 ${
+                    active ? 'scale-105' : 'group-hover:scale-105'
+                  }`}
+                >
+                  {item.renderIcon(active)}
+                </div>
               </div>
-              <span className={`text-[10px] font-black uppercase tracking-widest transition-opacity ${isActive ? 'opacity-100' : 'opacity-70'}`}>
+
+              {/* High-legibility full text label (Inter, no truncation) */}
+              <span
+                className={`text-[11px] sm:text-xs tracking-tight transition-all duration-200 mt-0.5 ${
+                  active
+                    ? 'font-black text-primary dark:text-primary scale-100'
+                    : 'font-semibold text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200'
+                }`}
+              >
                 {item.label}
               </span>
-              
-              {isActive && (
-                <motion.div 
-                  layoutId="activeTabDot"
-                  className="absolute -bottom-1 w-1.5 h-1.5 bg-primary rounded-full shadow-sm shadow-primary/40"
-                  transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                />
-              )}
             </button>
           );
         })}
-
-        <div className="relative" ref={menuRef}>
-          <button
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            className={`flex flex-col items-center justify-center gap-1.5 transition-all duration-300 w-16 relative cursor-pointer ${
-              isMenuOpen ? 'text-primary' : 'text-slate-400 dark:text-slate-600 hover:text-slate-600 dark:hover:text-slate-400'
-            }`}
-          >
-            <div className={`transition-transform duration-300 ${isMenuOpen ? 'scale-110 -translate-y-1' : ''}`}>
-              <Bars3Icon className="h-6 w-6" />
-            </div>
-            <span className={`text-[10px] font-black uppercase tracking-widest transition-opacity ${isMenuOpen ? 'opacity-100' : 'opacity-70'}`}>
-              Mais
-            </span>
-          </button>
-
-          <AnimatePresence>
-            {isMenuOpen && (
-              <motion.div 
-                initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 28 }}
-                className="absolute bottom-full right-0 mb-4 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl z-50 py-2 overflow-hidden origin-bottom-right"
-              >
-                <button
-                  onClick={() => {
-                    setView('journal');
-                    setIsMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors text-left cursor-pointer ${
-                    view === 'journal' ? 'bg-primary/10 text-primary' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <span>📝</span> Diário de Leitura
-                </button>
-
-                <button
-                  onClick={() => {
-                    setView('community');
-                    setIsMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors text-left border-t border-slate-100 dark:border-slate-800/60 cursor-pointer ${
-                    view === 'community' ? 'bg-primary/10 text-primary' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <span>👥</span> Comunidade
-                </button>
-
-                <button
-                  onClick={() => {
-                    setView('challenges');
-                    setIsMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors text-left border-t border-slate-100 dark:border-slate-800/60 cursor-pointer ${
-                    view === 'challenges' ? 'bg-primary/10 text-primary' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-5 w-5 text-slate-500">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 18.75h-9m9 0a3 3 0 0 1 3 3h-15a3 3 0 0 1 3-3m9 0v-3.375c0-.621-.503-1.125-1.125-1.125h-5.25a1.125 1.125 0 0 0-1.125 1.125v3.375m9 0h-9M12 2.25v2.25m0 3h.008v.008H12V7.5Zm0 2.25h.008v.008H12V9.75Zm0 2.25h.008v.008H12v-.008ZM12 15h.008v.008H12V15Zm-6.75-3.375a3 3 0 0 0-3 3H3h2.25a3 3 0 0 0 3-3Zm11.25 3h2.25a3 3 0 0 0-3-3H16.5a3 3 0 0 0 3 3Z" />
-                  </svg>
-                  🏆 Desafios
-                </button>
-
-                <button
-                  onClick={() => {
-                    setView('stats');
-                    setIsMenuOpen(false);
-                  }}
-                  className={`w-full flex items-center gap-3 px-4 py-3 text-sm font-bold transition-colors text-left border-t border-slate-100 dark:border-slate-800/60 cursor-pointer ${
-                    view === 'stats' ? 'bg-primary/10 text-primary' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
-                  }`}
-                >
-                  <svg xmlns="http://www.w3.org/2005/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="h-5 w-5 text-slate-500"><path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" /><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" /></svg>
-                  Dados
-                </button>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
       </div>
     </nav>
   );
 });
+
+export default BottomNav;

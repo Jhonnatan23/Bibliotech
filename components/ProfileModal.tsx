@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { 
     XMarkIcon, Cog6ToothIcon, PlusIcon, TagIcon, 
     UserIcon, KeyIcon, PhotoIcon, EnvelopeIcon,
-    CameraIcon, CheckIcon
+    CameraIcon, CheckIcon, SwatchIcon
 } from './Icons';
 import type { Profile, Book } from '../types';
 import { supabase } from '../services/supabase';
@@ -19,6 +19,7 @@ interface ProfileModalProps {
   onUpdateProfile: (updates: Partial<Profile>) => Promise<void>;
   books: Book[];
   onImportBooks: (importedBooks: Book[]) => Promise<void>;
+  onOpenDesignSystem?: () => void;
 }
 
 type Tab = 'profile' | 'preferences' | 'security' | 'backup';
@@ -30,7 +31,8 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
   profile,
   onUpdateProfile,
   books,
-  onImportBooks
+  onImportBooks,
+  onOpenDesignSystem
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>('profile');
   const [isSaving, setIsSaving] = useState(false);
@@ -427,6 +429,19 @@ export const ProfileModal: React.FC<ProfileModalProps> = ({
                 </svg>
                 Backup
             </button>
+
+            {onOpenDesignSystem && (
+              <button 
+                  onClick={() => {
+                    onClose();
+                    onOpenDesignSystem();
+                  }}
+                  className="flex items-center gap-3 px-4 py-3 rounded-2xl text-[10px] font-black uppercase tracking-widest text-tertiary hover:bg-tertiary/10 transition-all whitespace-nowrap md:mt-auto border border-tertiary/20"
+              >
+                  <SwatchIcon className="h-4 w-4" />
+                  Design System
+              </button>
+            )}
         </div>
 
         {/* Content Area */}

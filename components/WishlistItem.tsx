@@ -12,11 +12,17 @@ interface WishlistItemProps {
   onMoveToShelf: (book: Book) => void;
 }
 
-const formatDate = (dateStr: string) => {
-    if (!dateStr) return '';
-    const [year, month, day] = dateStr.split('-');
-    return `${day}/${month}/${year}`;
-}
+const formatDate = (dateStr?: string) => {
+  if (!dateStr) return '';
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [year, month, day] = parts;
+    const cleanDay = day.substring(0, 2);
+    return `${cleanDay}/${month}/${year}`;
+  }
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? '' : date.toLocaleDateString('pt-BR');
+};
 
 export const WishlistItem: React.FC<WishlistItemProps> = ({ book, onEdit, onDelete, onDuplicate, onMoveToShelf }) => {
   const genresList = book.genre ? book.genre.split(',').map(g => g.trim()).filter(g => g !== '') : [];

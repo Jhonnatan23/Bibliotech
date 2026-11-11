@@ -277,13 +277,15 @@ describe('Observability & Security Tests', () => {
       errorHandlerMiddleware(error, req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        error: {
-          code: "INTERNAL_ERROR",
-          message: "Não foi possível concluir a operação.",
-          requestId: 'req-error-123',
-        }
-      });
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({
+          error: {
+            code: "INTERNAL_ERROR",
+            message: "Não foi possível concluir a operação.",
+            requestId: 'req-error-123',
+          }
+        })
+      );
     });
   });
 

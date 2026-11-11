@@ -67,9 +67,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
           {data.rating !== undefined && (
             <div className="flex justify-between items-center">
               <span className="text-slate-400 font-bold uppercase tracking-wider text-[8px]">Avaliação</span>
-              <div className="flex items-center gap-0.5">
-                <StarIconFilled className="h-3 w-3 text-amber-400" />
-                <span className="font-black text-slate-800 dark:text-slate-200">{data.rating}/10</span>
+              <div className="flex items-center gap-1">
+                <StarIconFilled className="h-3 w-3 text-amber-500" />
+                <span className="font-black text-slate-800 dark:text-slate-200">{Number(data.rating).toFixed(1)} / 5.0</span>
               </div>
             </div>
           )}
@@ -343,8 +343,10 @@ export const CronogramaLeitura: React.FC<CronogramaLeituraProps> = ({ books }) =
                     <div className="flex justify-between items-start gap-2 mb-1">
                       <span className="text-[8px] font-black text-slate-400 uppercase tracking-widest">{displayDate}</span>
                       <div className="flex items-center gap-0.5">
-                        <StarIconFilled className="h-2.5 w-2.5 text-amber-400" />
-                        <span className="text-[10px] font-black text-slate-700 dark:text-slate-300">{b.rating || '-'}</span>
+                        <StarIconFilled className="h-2.5 w-2.5 text-amber-500" />
+                        <span className="text-[10px] font-black text-slate-700 dark:text-slate-300 font-mono">
+                          {b.rating !== undefined ? Number(b.rating).toFixed(1) : '-'}
+                        </span>
                       </div>
                     </div>
                     <h4 className="text-xs font-black text-slate-900 dark:text-slate-50 leading-tight line-clamp-1 group-hover:text-primary transition-colors">{b.title}</h4>

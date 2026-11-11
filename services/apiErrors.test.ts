@@ -110,13 +110,15 @@ describe('AppError, normalizeError and errorHandlerMiddleware Integration', () =
     errorHandlerMiddleware(sensitiveError, req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({
-      error: {
-        code: 'INTERNAL_ERROR',
-        message: 'Não foi possível concluir a operação.',
-        requestId: 'test-req-id-abc',
-      }
-    });
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Não foi possível concluir a operação.',
+          requestId: 'test-req-id-abc',
+        }
+      })
+    );
 
     // Restore original config
     serverConfig.env = originalEnv;

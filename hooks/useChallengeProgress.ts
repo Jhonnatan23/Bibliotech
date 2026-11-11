@@ -15,27 +15,28 @@ export function useChallengeProgress(allChallenges: ChallengeType[], books: Book
     // 2. By genre keywords
     if (challenge.genreKeywords && challenge.genreKeywords.length > 0) {
       matchedBooks = matchedBooks.filter(b => {
-        if (!b.genre) return false;
-        const g = b.genre.trim().toLowerCase();
-        return challenge.genreKeywords.some(kw => 
-          g === kw.toLowerCase() || g.includes(kw.toLowerCase())
-        );
+        const genreStr = (b.genre || '').trim().toLowerCase();
+        if (!genreStr) return false;
+        return challenge.genreKeywords.some(kw => {
+          const kwLower = (kw || '').trim().toLowerCase();
+          return kwLower ? (genreStr === kwLower || genreStr.includes(kwLower)) : false;
+        });
       });
     }
 
     // 3. By minimum page length
     if (challenge.minPages && challenge.minPages > 0) {
-      matchedBooks = matchedBooks.filter(b => b.pages >= challenge.minPages!);
+      matchedBooks = matchedBooks.filter(b => (b.pages || 0) >= challenge.minPages!);
     }
 
     // 4. By star rating
     if (challenge.minRating && challenge.minRating > 0) {
-      matchedBooks = matchedBooks.filter(b => b.rating && b.rating >= challenge.minRating!);
+      matchedBooks = matchedBooks.filter(b => b.rating !== undefined && b.rating !== null && b.rating >= challenge.minRating!);
     }
 
     // 5. By series attachment
     if (challenge.requiresSeries) {
-      matchedBooks = matchedBooks.filter(b => b.series && b.series.trim() !== '');
+      matchedBooks = matchedBooks.filter(b => Boolean((b.series || '').trim()));
     }
 
     return {
@@ -48,12 +49,13 @@ export function useChallengeProgress(allChallenges: ChallengeType[], books: Book
   const challengesWithStats = useMemo(() => {
     return allChallenges.map(chal => {
       const stats = getChallengeProgress(chal);
-      const percentage = Math.min(100, Math.round((stats.current / chal.targetCount) * 100));
+      const target = (chal.targetCount && chal.targetCount > 0) ? chal.targetCount : 1;
+      const percentage = Math.min(100, Math.max(0, Math.round((stats.current / target) * 100)));
       return {
         ...chal,
         currentCount: stats.current,
         percentage,
-        isCompleted: stats.current >= chal.targetCount,
+        isCompleted: stats.current >= target,
         matchedBooks: stats.matchedList
       };
     });

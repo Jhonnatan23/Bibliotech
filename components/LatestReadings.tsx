@@ -8,8 +8,14 @@ interface LatestReadingsProps {
 
 const formatDate = (dateStr?: string) => {
   if (!dateStr) return '';
-  const [y, m, d] = dateStr.split('-');
-  return `${d}/${m}/${y}`;
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    const [y, m, d] = parts;
+    const day = d.substring(0, 2);
+    return `${day}/${m}/${y}`;
+  }
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? '' : date.toLocaleDateString('pt-BR');
 };
 
 export const LatestReadings: React.FC<LatestReadingsProps> = ({ books }) => {

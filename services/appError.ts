@@ -82,6 +82,8 @@ export function normalizeError(err: any): AppError {
   if (
     lowerMessage.includes('jwt') ||
     lowerMessage.includes('token') ||
+    lowerMessage.includes('signature') ||
+    lowerMessage.includes('claims') ||
     lowerMessage.includes('invalid_grant') ||
     lowerMessage.includes('unauthorized') ||
     lowerMessage.includes('auth') ||
@@ -92,10 +94,11 @@ export function normalizeError(err: any): AppError {
     const isUnauthenticated =
       lowerMessage.includes('expired') ||
       lowerMessage.includes('invalid') ||
+      lowerMessage.includes('unable to parse') ||
       lowerMessage.includes('ausente') ||
       lowerMessage.includes('não fornecido') ||
       lowerMessage.includes('expirado') ||
-      lowerMessage.includes('401');
+      status === 401;
 
     return new AppError(
       isUnauthenticated ? 401 : 403,
@@ -115,20 +118,65 @@ export function normalizeError(err: any): AppError {
     lowerMessage.includes('nodemailer') ||
     lowerMessage.includes('smtp') ||
     lowerMessage.includes('api-key') ||
+    lowerMessage.includes('high demand') ||
+    lowerMessage.includes('deadline expired') ||
+    lowerMessage.includes('deadline_exceeded') ||
+    lowerMessage.includes('unavailable') ||
     err?.name === 'FetchError' ||
-    status === 502
+    status === 502 ||
+    status === 503 ||
+    status === 504
   ) {
     const isRateLimit =
       lowerMessage.includes('resource_exhausted') ||
+      lowerMessage.includes('quota') ||
       lowerMessage.includes('429') ||
       status === 429;
 
+    const isHighDemand =
+      lowerMessage.includes('high demand') ||
+      lowerMessage.includes('unavailable') ||
+      lowerMessage.includes('503') ||
+      status === 503;
+
+    const isTimeout =
+      lowerMessage.includes('deadline expired') ||
+      lowerMessage.includes('deadline_exceeded') ||
+      lowerMessage.includes('timeout') ||
+      lowerMessage.includes('504') ||
+      status === 504;
+
+    if (isRateLimit) {
+      return new AppError(
+        429,
+        'LIMIT_EXCEEDED',
+        'Limite de requisições excedido. Tente novamente mais tarde.',
+        message
+      );
+    }
+
+    if (isHighDemand) {
+      return new AppError(
+        503,
+        'SERVICE_UNAVAILABLE',
+        'O modelo de IA está temporariamente indisponível devido à alta demanda.',
+        message
+      );
+    }
+
+    if (isTimeout) {
+      return new AppError(
+        504,
+        'GATEWAY_TIMEOUT',
+        'O tempo limite da operação da IA foi excedido.',
+        message
+      );
+    }
+
     return new AppError(
-      isRateLimit ? 429 : 502,
-      isRateLimit ? 'LIMIT_EXCEEDED' : 'INTEGRATION_ERROR',
-      isRateLimit
-        ? 'Limite de requisições excedido. Tente novamente mais tarde.'
-        : 'Falha na comunicação com o serviço externo.',
+      502,
+      'INTEGRATION_ERROR',
+      'Falha na comunicação com o serviço externo.',
       message
     );
   }
