@@ -347,7 +347,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
               />
 
               {/* Card de Atalho para o Diário de Leitura */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col justify-between flex-1">
+              <div className="dashboard-card bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/90 dark:border-slate-750/80 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] flex flex-col justify-between flex-1 transition-all hover:shadow-lg">
                 <div>
                   <div className="flex items-center justify-between mb-3">
                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Rotina do Leitor</span>
@@ -405,7 +405,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
             </div>
 
             {/* Banner de Transição para Análise Completa */}
-            <div className="lg:col-span-12 bg-slate-50 dark:bg-slate-800/40 border border-slate-200/60 dark:border-slate-800 p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="dashboard-card lg:col-span-12 bg-slate-50 dark:bg-slate-850/60 border border-slate-200/90 dark:border-slate-750/80 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] p-5 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span className="p-2.5 rounded-xl bg-primary/10 text-primary">
                   <ChartBarIcon className="h-5 w-5" />
@@ -432,7 +432,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
       {dashboardTab === 'analytics' && (
         <div className="space-y-6 md:space-y-8 animate-in fade-in duration-300">
           {/* Header do Analytics com Seletor de Período */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 md:p-5 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+          <div className="dashboard-card flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white dark:bg-slate-900 p-4 md:p-5 rounded-2xl border border-slate-200/90 dark:border-slate-750/80 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05]">
             <div>
               <h3 className="text-lg md:text-xl font-bold font-serif italic text-slate-900 dark:text-slate-100">
                 Relatórios & Métricas Analíticas
@@ -532,7 +532,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
             </div>
 
             {/* EVOLUÇÃO DE LEITURA (MONTHLY CHART) */}
-            <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-5 sm:p-7 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="dashboard-card lg:col-span-8 bg-white dark:bg-slate-900 p-5 sm:p-7 rounded-2xl border border-slate-200/90 dark:border-slate-750/80 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05]">
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                 <div>
                   <h2 className="text-xl md:text-2xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Evolução de Leitura</h2>
@@ -557,7 +557,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
             {/* TOP AUTORES & MIX DE STATUS */}
             <div className="lg:col-span-4 flex flex-col gap-6">
               {/* TOP AUTORES */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex-1">
+              <div className="dashboard-card bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/90 dark:border-slate-750/80 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] flex-1">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-base font-bold font-serif text-slate-900 dark:text-slate-50 italic">Top Autores</h2>
                   <div className="bg-amber-50 dark:bg-amber-900/20 p-1.5 rounded-lg border border-amber-100 dark:border-amber-800/50">
@@ -587,7 +587,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
               </div>
 
               {/* MIX DE STATUS */}
-              <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+              <div className="dashboard-card bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/90 dark:border-slate-750/80 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05]">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-base font-bold font-serif text-slate-900 dark:text-slate-50 italic">Mix de Leitura</h2>
                   <div className="bg-primary/5 dark:bg-primary/10 p-1.5 rounded-lg border border-primary/20">
@@ -611,7 +611,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
             </div>
 
             {/* TIPOS DE MÍDIA & GÊNEROS */}
-            <div className="lg:col-span-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs flex flex-col min-h-[320px]">
+            <div className="dashboard-card lg:col-span-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/90 dark:border-slate-750/80 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] flex flex-col min-h-[320px]">
               <h2 className="text-lg font-bold font-serif text-slate-900 dark:text-slate-50 mb-4 italic text-center">Tipos de Mídia</h2>
               <div className="flex-1 flex items-center justify-center">
                 <TypePieChart data={stats.byType} />
@@ -619,7 +619,7 @@ export const Dashboard: React.FC<DashboardProps> = React.memo(({
               <p className="text-[8px] font-bold text-slate-400 uppercase tracking-wider text-center mt-4">Proporção Livros vs HQs</p>
             </div>
 
-            <div className="lg:col-span-8 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/80 dark:border-slate-800 shadow-xs">
+            <div className="dashboard-card lg:col-span-8 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200/90 dark:border-slate-750/80 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05]">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h2 className="text-xl md:text-2xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Gêneros Favoritos</h2>

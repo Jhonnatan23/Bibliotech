@@ -129,4 +129,13 @@ describe('Dashboard Component Restructuring Tests', () => {
     expect(mockOpenJournal).toHaveBeenCalledTimes(1);
     expect(mockOpenJournal).toHaveBeenCalledWith('book-reading-1');
   });
+
+  it('renders dashboard cards with subtle high-contrast mode classes', () => {
+    const { container } = render(<Dashboard {...defaultProps} />);
+    const cards = container.querySelectorAll('.dashboard-card');
+    expect(cards.length).toBeGreaterThan(0);
+    cards.forEach(card => {
+      expect(card).toHaveClass('border-slate-200/90');
+    });
+  });
 });

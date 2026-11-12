@@ -94,7 +94,7 @@ export const YearlyGoalChart: React.FC<YearlyGoalChartProps> = ({ books, reading
   const isGoalMet = totalFinishedThisYear >= readingGoal && readingGoal > 0;
 
   return (
-    <div className="bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 transition-all hover:shadow-2xl">
+    <div className="dashboard-card bg-white dark:bg-slate-900 p-5 sm:p-8 rounded-[1.5rem] sm:rounded-[2.5rem] shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] transition-all hover:shadow-2xl">
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-8 gap-4">
         <div>
           <h2 className="text-2xl md:text-3xl font-black font-serif text-slate-900 dark:text-slate-50 italic flex items-center gap-2">

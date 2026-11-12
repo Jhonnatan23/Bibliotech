@@ -56,7 +56,7 @@ export const ShelfProgress: React.FC<ShelfProgressProps> = ({ books, stats }) =>
   if (totalBooks === 0) return null;
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 md:p-8 shadow-soft border border-slate-100 dark:border-slate-800 mb-8 overflow-hidden relative group">
+    <div className="dashboard-card bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 md:p-8 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] mb-8 overflow-hidden relative group transition-all hover:shadow-xl">
       <div className="absolute -right-20 -top-20 w-64 h-64 bg-primary/5 rounded-full blur-3xl group-hover:bg-primary/10 transition-colors duration-700"></div>
       
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 relative z-10">
@@ -73,10 +73,17 @@ export const ShelfProgress: React.FC<ShelfProgressProps> = ({ books, stats }) =>
 
           <div className="space-y-6">
             {/* Multi-segment Progress Bar */}
-            <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded-full flex overflow-hidden shadow-inner">
+            <div className={`h-4 bg-slate-100 dark:bg-slate-800 rounded-full flex overflow-hidden shadow-inner transition-all duration-500 ${
+              counts.lidosPct >= 100 ? 'ring-1 ring-emerald-400/50 shadow-[0_0_12px_rgba(16,185,129,0.35)]' : ''
+            }`}>
               <div 
+                data-testid="shelf-progress-read-bar"
                 style={{ width: `${counts.lidosPct}%` }} 
-                className="h-full bg-green-500 transition-all duration-1000 relative group/bar"
+                className={`h-full transition-all duration-1000 relative group/bar ${
+                  counts.lidosPct >= 100 
+                    ? 'bg-gradient-to-r from-emerald-500 to-teal-400 progress-glow-100 shadow-[0_0_16px_rgba(16,185,129,0.7)]' 
+                    : 'bg-green-500'
+                }`}
               >
                 <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover/bar:opacity-100 transition-opacity whitespace-nowrap z-20">Lidos: {counts.lidosPct.toFixed(0)}%</div>
               </div>

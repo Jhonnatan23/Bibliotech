@@ -125,5 +125,33 @@ describe('CurrentlyReading Component Rating Scale', () => {
     expect(screen.getByTestId('celebration-confirm-btn')).toBeInTheDocument();
     expect(screen.getByTestId('celebration-share-btn')).toBeInTheDocument();
   });
+
+  it('renders with subtle high-contrast dashboard card classes', () => {
+    const { container } = render(<CurrentlyReading {...defaultProps} />);
+    const card = container.querySelector('.dashboard-card');
+    expect(card).toBeInTheDocument();
+    expect(card).toHaveClass('border-slate-200/90');
+    expect(card).toHaveClass('ring-1');
+  });
+
+  it('applies soft glow effect to the progress bar when it reaches 100%', () => {
+    const completedBook: Book = {
+      ...mockBook,
+      currentPage: 310,
+      pages: 310,
+    };
+    render(<CurrentlyReading {...defaultProps} book={completedBook} />);
+
+    const progressBar = screen.getByTestId('currently-reading-progress');
+    expect(progressBar).toBeInTheDocument();
+    expect(progressBar).toHaveClass('progress-glow-100');
+  });
+
+  it('does not apply 100% soft glow effect to the progress bar when under 100%', () => {
+    render(<CurrentlyReading {...defaultProps} />);
+    const progressBar = screen.getByTestId('currently-reading-progress');
+    expect(progressBar).toBeInTheDocument();
+    expect(progressBar).not.toHaveClass('progress-glow-100');
+  });
 });
 

@@ -36,7 +36,7 @@ export const LatestReadings: React.FC<LatestReadingsProps> = ({ books }) => {
         {books.map((book, idx) => (
           <div 
             key={book.id} 
-            className="group bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-100 dark:border-slate-800 shadow-soft hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 animate-in fade-in slide-in-from-bottom-6"
+            className="dashboard-card group bg-white dark:bg-slate-900 p-6 rounded-[2.5rem] border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 animate-in fade-in slide-in-from-bottom-6"
             style={{ animationDelay: `${idx * 100}ms` }}
           >
             <div className="mb-4">

@@ -192,7 +192,7 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
     const authorsList = book.author ? book.author.split(',').map(a => a.trim()).filter(a => a !== '') : [];
 
   return (
-    <div className="bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2.5rem] shadow-soft border border-slate-100 dark:border-slate-800 h-full flex flex-col relative overflow-hidden group transition-all hover:shadow-2xl">
+    <div className="dashboard-card bg-white dark:bg-slate-900 p-6 md:p-10 rounded-[2.5rem] shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] h-full flex flex-col relative overflow-hidden group transition-all hover:shadow-2xl">
       <div className="absolute -top-24 -right-24 w-64 h-64 bg-primary/5 dark:bg-primary/10 rounded-full blur-3xl pointer-events-none group-hover:bg-primary/10 transition-colors duration-700"></div>
       
       <div className="flex items-center justify-between mb-6 relative z-10 w-full gap-4">
@@ -260,9 +260,18 @@ export const CurrentlyReading: React.FC<CurrentlyReadingProps> = ({ book, update
                             <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{currentPage} de {book.pages}</p>
                         </div>
                     </div>
-                    <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-2xl h-4 overflow-hidden p-1 border border-slate-200/50 dark:border-slate-700">
+                    <div className={`w-full bg-slate-100 dark:bg-slate-800 rounded-2xl h-4 overflow-hidden p-1 border transition-all duration-500 ${
+                      progressPercentage >= 100
+                        ? 'border-emerald-300/80 dark:border-emerald-600/80 shadow-[0_0_12px_rgba(16,185,129,0.25)]'
+                        : 'border-slate-200/50 dark:border-slate-700'
+                    }`}>
                       <div 
-                          className="bg-gradient-to-r from-primary via-blue-500 to-indigo-400 h-full rounded-xl transition-all duration-500 ease-out shadow-[0_0_15px_rgba(59,130,246,0.3)]" 
+                          data-testid="currently-reading-progress"
+                          className={`h-full rounded-xl transition-all duration-500 ease-out ${
+                            progressPercentage >= 100
+                              ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 progress-glow-100 shadow-[0_0_18px_rgba(16,185,129,0.7)] ring-1 ring-emerald-300 dark:ring-emerald-400/60'
+                              : 'bg-gradient-to-r from-primary via-blue-500 to-indigo-400 shadow-[0_0_15px_rgba(59,130,246,0.3)]'
+                          }`}
                           style={{ width: `${progressPercentage}%` }}
                       ></div>
                     </div>

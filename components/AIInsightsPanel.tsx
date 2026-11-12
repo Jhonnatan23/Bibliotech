@@ -146,7 +146,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ books }) => {
             className="grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8"
           >
             {/* PROFILE CARD */}
-            <div className="md:col-span-12 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-soft relative overflow-hidden group">
+            <div className="dashboard-card md:col-span-12 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 relative overflow-hidden group">
               <div className="absolute -right-24 -top-24 w-60 h-60 bg-primary/5 rounded-full blur-3xl group-hover:scale-125 transition-transform duration-1000"></div>
               
               <div className="relative z-10 space-y-4">
@@ -166,7 +166,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ books }) => {
             </div>
 
             {/* STRENGTHS COLUMN */}
-            <div className="md:col-span-6 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-soft flex flex-col justify-between">
+            <div className="dashboard-card md:col-span-6 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 flex flex-col justify-between">
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-500 rounded-xl">
@@ -197,7 +197,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ books }) => {
             </div>
 
             {/* GROWTH OPPORTUNITIES COLUMN */}
-            <div className="md:col-span-6 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-100 dark:border-slate-800/50 shadow-soft flex flex-col justify-between">
+            <div className="dashboard-card md:col-span-6 bg-white dark:bg-slate-900 p-8 rounded-[2.5rem] border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 flex flex-col justify-between">
               <div className="space-y-6">
                 <div className="flex items-center gap-3">
                   <div className="p-2 bg-indigo-50 dark:bg-indigo-950/20 text-indigo-500 rounded-xl">
@@ -228,7 +228,7 @@ export const AIInsightsPanel: React.FC<AIInsightsPanelProps> = ({ books }) => {
             </div>
 
             {/* CURATED QUOTE */}
-            <div className="md:col-span-12 bg-slate-900 dark:bg-slate-950/50 text-slate-100 p-8 md:p-10 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
+            <div className="dashboard-card md:col-span-12 bg-slate-900 dark:bg-slate-950/70 border border-slate-800/80 dark:border-slate-800 ring-1 ring-white/[0.06] text-slate-100 p-8 md:p-10 rounded-[2.5rem] shadow-xl relative overflow-hidden group">
               <div className="absolute right-6 top-6 opacity-5">
                 <Quote className="h-32 w-32" />
               </div>

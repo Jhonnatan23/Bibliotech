@@ -548,7 +548,7 @@ export const Achievements: React.FC<AchievementsProps> = ({ books }) => {
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 md:p-8 shadow-soft border border-slate-100 dark:border-slate-800 transition-all">
+    <div className="dashboard-card bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 md:p-8 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] transition-all">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
           <h2 className="text-2xl md:text-3xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Salão de Conquistas</h2>
@@ -629,10 +629,14 @@ export const Achievements: React.FC<AchievementsProps> = ({ books }) => {
                   </span>
                 </div>
                 {/* Progress bar container */}
-                <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div className={`h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden transition-all ${
+                  badge.isUnlocked ? 'ring-1 ring-emerald-400/40' : ''
+                }`}>
                   <div 
                     className={`h-full rounded-full transition-all duration-1000 ${
-                      badge.isUnlocked ? badge.theme.accent : 'bg-slate-350 dark:bg-slate-650'
+                      badge.isUnlocked 
+                        ? `${badge.theme.accent} progress-glow-100 shadow-[0_0_10px_rgba(16,185,129,0.65)]` 
+                        : 'bg-slate-350 dark:bg-slate-650'
                     }`}
                     style={{ width: `${badge.progressPercent}%` }}
                   />

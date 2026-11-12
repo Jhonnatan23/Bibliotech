@@ -32,7 +32,7 @@ export const ReadingGoal: React.FC<ReadingGoalProps> = ({ current, goal, onSetGo
   };
 
   return (
-    <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-soft border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
+    <div className="dashboard-card bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] relative overflow-hidden group transition-all hover:shadow-lg">
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-xs font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest">Meta de Leitura {currentYear}</h3>
@@ -71,11 +71,20 @@ export const ReadingGoal: React.FC<ReadingGoalProps> = ({ current, goal, onSetGo
       <div className="space-y-2">
         <div className="flex justify-between text-[10px] font-black uppercase tracking-widest">
             <span className="text-slate-400 dark:text-slate-500">Progresso Anual</span>
-            <span className="text-primary">{percentage}%</span>
+            <span className={`transition-colors ${percentage >= 100 ? 'text-emerald-500 font-black' : 'text-primary'}`}>{percentage}%</span>
         </div>
-        <div className="w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden p-0.5 border border-slate-50 dark:border-slate-700">
+        <div className={`w-full bg-slate-100 dark:bg-slate-800 h-2.5 rounded-full overflow-hidden p-0.5 border transition-all duration-500 ${
+          percentage >= 100
+            ? 'border-emerald-300/80 dark:border-emerald-600/80 shadow-[0_0_10px_rgba(16,185,129,0.25)]'
+            : 'border-slate-50 dark:border-slate-700'
+        }`}>
             <div 
-              className="bg-primary h-full rounded-full transition-all duration-1000 ease-out shadow-sm"
+              data-testid="reading-goal-progress"
+              className={`h-full rounded-full transition-all duration-1000 ease-out ${
+                percentage >= 100
+                  ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-400 progress-glow-100 shadow-[0_0_16px_rgba(16,185,129,0.75)] ring-1 ring-emerald-300 dark:ring-emerald-400/60'
+                  : 'bg-primary shadow-sm'
+              }`}
               style={{ width: `${percentage}%` }}
             ></div>
         </div>

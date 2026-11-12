@@ -1,7 +1,16 @@
 
-import type { Book, Profile, Loan } from '../types';
+import type { 
+  Book, 
+  Profile, 
+  Loan, 
+  DbBookRow, 
+  DbBookInsert, 
+  DbBookUpdate, 
+  DbProfileRow, 
+  DbSeriesRow 
+} from '../types';
 import { supabase } from './supabase';
-import { BookStatus } from '../types';
+import { BookStatus, BookType } from '../types';
 import { logger } from './monitoring';
 
 const TABLE_NAME = 'books';
@@ -77,18 +86,83 @@ export function parseNullableNumber(value: unknown): number | undefined {
   return undefined;
 }
 
-export const mapPartialBookToDb = (changes: Partial<Book>): any => {
-  const dbPayload: any = {};
+/**
+ * Converte com segurança qualquer valor para número inteiro não-negativo (>= 0).
+ * Previne falhas de NaN, números negativos ou strings inválidas para 'pages' e 'current_page'.
+ */
+export function parseNonNegativeInteger(value: unknown, fallback: number = 0): number {
+  if (value === null || value === undefined) return fallback;
+  const parsed = typeof value === 'number' ? value : Number(String(value).trim());
+  if (Number.isNaN(parsed) || !Number.isFinite(parsed)) return fallback;
+  return Math.max(0, Math.floor(parsed));
+}
+
+/**
+ * Normaliza e tipa fortemente qualquer valor de entrada para o enum BookStatus.
+ * Mapeia aliases conhecidos ou strings históricas para garantir integridade com o schema.
+ */
+export function parseBookStatus(rawStatus: unknown): BookStatus {
+  if (!rawStatus || typeof rawStatus !== 'string') {
+    return BookStatus.TBR;
+  }
+  const trimmed = rawStatus.trim();
+  if (Object.values(BookStatus).includes(trimmed as BookStatus)) {
+    return trimmed as BookStatus;
+  }
+  const lower = trimmed.toLowerCase();
+  if (lower === 'lendo' || lower === 'reading' || lower === 'lendo atualmente') {
+    return BookStatus.Reading;
+  }
+  if (lower === 'lido' || lower === 'read' || lower === 'concluído' || lower === 'concluido') {
+    return BookStatus.Read;
+  }
+  if (lower === 'não lido' || lower === 'nao lido' || lower === 'tbr' || lower === 'quero ler') {
+    return BookStatus.TBR;
+  }
+  if (lower === 'lista de desejos' || lower === 'wishlist' || lower === 'desejo') {
+    return BookStatus.Wishlist;
+  }
+  if (lower === 'abandonado' || lower === 'dropped' || lower === 'desistido') {
+    return BookStatus.Dropped;
+  }
+  return BookStatus.TBR;
+}
+
+/**
+ * Normaliza e tipa fortemente o campo BookType conforme a constraint chk_books_type do Supabase.
+ */
+export function parseBookType(rawType: unknown): BookType {
+  if (!rawType || typeof rawType !== 'string') {
+    return BookType.Book;
+  }
+  const trimmed = rawType.trim();
+  if (trimmed === BookType.HQ || trimmed.toLowerCase() === 'hq') return BookType.HQ;
+  if (trimmed === BookType.Manga || trimmed.toLowerCase() === 'mangá' || trimmed.toLowerCase() === 'manga') return BookType.Manga;
+  return BookType.Book;
+}
+
+/**
+ * Valida e formata avaliações garantindo escala numérica de 0.0 a 5.0 (DECIMAL(3,1)).
+ */
+export function parseRating(value: unknown): number | undefined {
+  const num = parseNullableNumber(value);
+  if (num === undefined) return undefined;
+  const clamped = Math.max(0, Math.min(5, num));
+  return Math.round(clamped * 10) / 10;
+}
+
+export const mapPartialBookToDb = (changes: Partial<Book>): DbBookUpdate => {
+  const dbPayload: DbBookUpdate = {};
   
   if (changes.title !== undefined) dbPayload.title = changes.title || 'Sem Título';
   if (changes.author !== undefined) dbPayload.author = changes.author || 'Autor Desconhecido';
-  if (changes.pages !== undefined) dbPayload.pages = Math.floor(parseInt(String(changes.pages !== undefined ? parseNullableNumber(changes.pages) ?? 0 : 0), 10));
+  if (changes.pages !== undefined) dbPayload.pages = parseNonNegativeInteger(changes.pages, 0);
   if (changes.genre !== undefined) dbPayload.genre = changes.genre || '';
-  if (changes.type !== undefined) dbPayload.type = changes.type;
-  if (changes.status !== undefined) dbPayload.status = changes.status;
+  if (changes.type !== undefined) dbPayload.type = parseBookType(changes.type);
+  if (changes.status !== undefined) dbPayload.status = parseBookStatus(changes.status);
   
   if (changes.rating !== undefined) {
-    dbPayload.rating = parseNullableNumber(changes.rating) ?? null;
+    dbPayload.rating = parseRating(changes.rating) ?? null;
   }
   if (changes.summary !== undefined) dbPayload.summary = changes.summary || null;
   if (changes.notes !== undefined) dbPayload.notes = changes.notes || null;
@@ -102,7 +176,7 @@ export const mapPartialBookToDb = (changes: Partial<Book>): any => {
   if (changes.buyLink !== undefined) dbPayload.buy_link = changes.buyLink || null;
   
   if (changes.currentPage !== undefined) {
-    dbPayload.current_page = Math.floor(parseInt(String(changes.currentPage !== undefined ? parseNullableNumber(changes.currentPage) ?? 0 : 0), 10));
+    dbPayload.current_page = parseNonNegativeInteger(changes.currentPage, 0);
   }
   if (changes.dateAdded !== undefined) dbPayload.date_added = changes.dateAdded;
   if (changes.dateStarted !== undefined) dbPayload.date_started = changes.dateStarted || null;
@@ -112,7 +186,7 @@ export const mapPartialBookToDb = (changes: Partial<Book>): any => {
     dbPayload.days_to_finish = parseNullableNumber(changes.daysToFinish) ?? null;
   }
   if (changes.timesRead !== undefined) {
-    dbPayload.times_read = parseNullableNumber(changes.timesRead) ?? 0;
+    dbPayload.times_read = parseNonNegativeInteger(changes.timesRead, 0);
   }
   if (changes.wasWishlist !== undefined) dbPayload.was_wishlist = changes.wasWishlist === true;
   if (changes.linkedBookIds !== undefined) dbPayload.linked_book_ids = changes.linkedBookIds || [];
@@ -145,29 +219,29 @@ export const mapPartialBookToDb = (changes: Partial<Book>): any => {
   return dbPayload;
 };
 
-export const mapBookToDb = (book: any) => {
+export const mapBookToDb = (book: any): DbBookRow => {
     const dateAddedValue = book.dateAdded || new Date().toISOString().split('T')[0];
     return {
-        id: book.id,
-        user_id: book.user_id,
+        id: book.id || crypto.randomUUID(),
+        user_id: book.user_id || '',
         title: book.title || 'Sem Título',
         author: book.author || 'Autor Desconhecido',
-        pages: Math.floor(parseInt(String(book.pages !== undefined ? parseNullableNumber(book.pages) ?? 0 : 0), 10)),
+        pages: parseNonNegativeInteger(book.pages, 0),
         genre: book.genre || '',
-        type: book.type || 'Livro',
-        status: book.status || 'Não lido',
-        rating: parseNullableNumber(book.rating) ?? null,
+        type: parseBookType(book.type),
+        status: parseBookStatus(book.status),
+        rating: parseRating(book.rating) ?? null,
         summary: book.summary || null,
         notes: book.notes || null,
         estimated_price: parseNullableNumber(book.estimatedPrice) ?? null,
         price_paid: parseNullableNumber(book.pricePaid) ?? null,
         buy_link: book.buyLink || null,
-        current_page: Math.floor(parseInt(String(book.currentPage !== undefined ? parseNullableNumber(book.currentPage) ?? 0 : 0), 10)),
+        current_page: parseNonNegativeInteger(book.currentPage, 0),
         date_added: dateAddedValue,
         date_started: book.dateStarted || null,
         date_finished: book.dateFinished || null,
         days_to_finish: parseNullableNumber(book.daysToFinish) ?? null,
-        times_read: parseNullableNumber(book.timesRead) ?? 0,
+        times_read: parseNonNegativeInteger(book.timesRead, 0),
         was_wishlist: book.wasWishlist === true,
         linked_book_ids: book.linkedBookIds || [],
         tags: book.tags || [],
@@ -193,7 +267,7 @@ export const mapBookToDb = (book: any) => {
     };
 };
 
-const mapSeriesToDb = (series: any) => ({
+const mapSeriesToDb = (series: any): DbSeriesRow => ({
     id: series.id,
     user_id: series.user_id,
     name: series.name,
@@ -208,27 +282,27 @@ const mapDbToSeries = (db: any): any => ({
     created_at: db.created_at
 });
 
-export const mapDbToBook = (db: any): Book => ({
+export const mapDbToBook = (db: DbBookRow | Record<string, any>): Book => ({
     id: db.id,
     user_id: db.user_id,
     title: db.title,
     author: db.author,
-    pages: parseNullableNumber(db.pages) ?? 0,
+    pages: parseNonNegativeInteger(db.pages, 0),
     genre: db.genre || '',
-    type: db.type,
-    status: db.status as BookStatus,
-    rating: parseNullableNumber(db.rating),
+    type: parseBookType(db.type),
+    status: parseBookStatus(db.status),
+    rating: parseRating(db.rating),
     summary: db.summary,
     notes: db.notes,
     estimatedPrice: parseNullableNumber(db.estimated_price),
     pricePaid: parseNullableNumber(db.price_paid),
     buyLink: db.buy_link,
-    currentPage: parseNullableNumber(db.current_page) ?? 0,
+    currentPage: parseNonNegativeInteger(db.current_page, 0),
     dateAdded: db.date_added,
     dateStarted: db.date_started,
     dateFinished: db.date_finished,
     daysToFinish: (db.days_to_finish !== null && db.days_to_finish !== undefined ? parseNullableNumber(db.days_to_finish) : null) as any,
-    timesRead: parseNullableNumber(db.times_read) ?? 0,
+    timesRead: parseNonNegativeInteger(db.times_read, 0),
     wasWishlist: db.was_wishlist === true,
     linkedBookIds: db.linked_book_ids || [],
     tags: db.tags || [],
@@ -617,16 +691,17 @@ export class DatabaseService {
       const data = await withRetry<any[]>(() => 
         supabase.from(TABLE_NAME).select('status, is_loaned').eq('user_id', user.id)
       );
-      const counts = (data || []).reduce((acc: any, curr: any) => {
-        acc[curr.status] = (acc[curr.status] || 0) + 1;
+      const counts = (data || []).reduce((acc: Record<string, number>, curr: any) => {
+        const normalized = parseBookStatus(curr.status);
+        acc[normalized] = (acc[normalized] || 0) + 1;
         if (curr.is_loaned) acc.loaned = (acc.loaned || 0) + 1;
         return acc;
       }, {});
       return {
-        readCount: counts['Lido'] || 0,
-        tbrCount: counts['Não lido'] || 0,
-        wishlistCount: counts['Lista de Desejos'] || 0,
-        droppedCount: counts['Abandonado'] || 0,
+        readCount: counts[BookStatus.Read] || 0,
+        tbrCount: counts[BookStatus.TBR] || 0,
+        wishlistCount: counts[BookStatus.Wishlist] || 0,
+        droppedCount: counts[BookStatus.Dropped] || 0,
         loanedCount: counts.loaned || 0
       };
     } catch (e) { return null; }

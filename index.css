@@ -19,10 +19,34 @@
   box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.08);
 }
 
+/* Dashboard Card - Subtle high-contrast differentiation */
+.dashboard-card {
+  transition: box-shadow 0.3s ease, border-color 0.3s ease, transform 0.2s ease;
+}
+
+/* 100% Progress Bar Soft Glow */
+.progress-glow-100 {
+  box-shadow: 0 0 16px 2px rgba(16, 185, 129, 0.65), 0 0 6px 1px rgba(52, 211, 153, 0.45);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-glow-100 {
+    animation: none !important;
+  }
+}
+
 .glass-effect {
   backdrop-filter: blur(8px);
   background: rgba(255, 255, 255, 0.7);
 }
 .dark .glass-effect {
   background: rgba(15, 23, 42, 0.7);
+}
+
+/* Global Dark Mode White Button Hover Fix */
+.dark .dark\:bg-white:hover,
+.dark .dark\:bg-slate-100:hover,
+.dark button.dark\:bg-white:hover,
+.dark button.dark\:bg-slate-100:hover {
+  color: #0f172a !important; /* slate-950 */
 }

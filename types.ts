@@ -98,6 +98,80 @@ export interface Book {
   variantCover?: boolean;
 }
 
+/**
+ * Representação fiel do Schema da tabela 'public.books' do Supabase
+ */
+export interface DbBookRow {
+  id: string;
+  user_id: string;
+  title: string;
+  author: string;
+  pages: number;
+  genre: string | null;
+  type: string;
+  status: string;
+  rating: number | null;
+  summary: string | null;
+  notes: string | null;
+  estimated_price: number | null;
+  price_paid: number | null;
+  buy_link: string | null;
+  current_page: number;
+  date_added: string;
+  date_started: string | null;
+  date_finished: string | null;
+  days_to_finish: number | null;
+  times_read: number;
+  was_wishlist: boolean;
+  linked_book_ids: string[];
+  tags: string[];
+  history_observation: string | null;
+  is_loaned: boolean;
+  borrower_name: string | null;
+  loan_date: string | null;
+  is_digital: boolean;
+  series: string | null;
+  volume: number | null;
+  series_id: string | null;
+  condition: string | null;
+  purchase_date: string | null;
+  store: string | null;
+  physical_location: string | null;
+  edition: string | null;
+  isbn: string | null;
+  signed: boolean;
+  sealed: boolean;
+  limited_edition: boolean;
+  first_edition: boolean;
+  variant_cover: boolean;
+}
+
+export type DbBookInsert = Omit<DbBookRow, 'id'> & { id?: string };
+export type DbBookUpdate = Partial<DbBookRow>;
+
+/**
+ * Representação fiel do Schema da tabela 'public.profiles' do Supabase
+ */
+export interface DbProfileRow {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  reading_goal: number | null;
+  custom_tags: string[] | null;
+  updated_at: string | null;
+}
+
+/**
+ * Representação fiel do Schema da tabela 'public.series' do Supabase
+ */
+export interface DbSeriesRow {
+  id: string;
+  user_id: string;
+  name: string;
+  total_volumes: number | null;
+  created_at?: string;
+}
+
 export interface Series {
   id: string;
   user_id: string;

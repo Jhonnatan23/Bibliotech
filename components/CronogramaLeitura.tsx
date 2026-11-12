@@ -165,7 +165,7 @@ export const CronogramaLeitura: React.FC<CronogramaLeituraProps> = ({ books }) =
 
   if (completedBooksThisYear.length === 0) {
     return (
-      <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 md:p-12 shadow-soft border border-slate-100 dark:border-slate-800 transition-all">
+      <div className="dashboard-card bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 md:p-12 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] transition-all">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h2 className="text-xl md:text-2xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Cronograma de Leitura</h2>
@@ -190,7 +190,7 @@ export const CronogramaLeitura: React.FC<CronogramaLeituraProps> = ({ books }) =
   const pagesTotal = completedBooksThisYear.reduce((acc, curr) => acc + (curr.pages || 0), 0);
 
   return (
-    <div className="bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 md:p-8 shadow-soft border border-slate-100 dark:border-slate-800 transition-all hover:shadow-2xl">
+    <div className="dashboard-card bg-white dark:bg-slate-900 rounded-[2.5rem] p-6 md:p-8 shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] transition-all hover:shadow-2xl">
       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-8">
         <div>
           <h2 className="text-2xl md:text-3xl font-black font-serif text-slate-900 dark:text-slate-50 italic">Cronograma de Leitura</h2>

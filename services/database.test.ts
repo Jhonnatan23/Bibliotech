@@ -1,5 +1,15 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { mapBookToDb, mapDbToBook, parseNullableNumber, mapPartialBookToDb, DatabaseService } from './database';
+import { 
+  mapBookToDb, 
+  mapDbToBook, 
+  parseNullableNumber, 
+  mapPartialBookToDb, 
+  DatabaseService,
+  parseNonNegativeInteger,
+  parseBookStatus,
+  parseBookType,
+  parseRating
+} from './database';
 import { Book, BookStatus, BookType } from '../types';
 import { supabase } from './supabase';
 
@@ -401,5 +411,124 @@ describe('DatabaseService.updateBook Isolation and Cache Behavior', () => {
     const localBooks = await service.getLocalBooks();
     const cachedBook = localBooks.find((b: Book) => b.id === 'book-123');
     expect(cachedBook?.physicalLocation).toBe('Prateleira A');
+  });
+});
+
+describe('Strong Typing & Schema Consistency Tests', () => {
+  describe('parseNonNegativeInteger', () => {
+    it('should sanitize pages to non-negative integer values', () => {
+      expect(parseNonNegativeInteger(150)).toBe(150);
+      expect(parseNonNegativeInteger('350')).toBe(350);
+      expect(parseNonNegativeInteger(' 420 ')).toBe(420);
+      expect(parseNonNegativeInteger(312.8)).toBe(312);
+      expect(parseNonNegativeInteger(-10)).toBe(0);
+      expect(parseNonNegativeInteger('-50')).toBe(0);
+      expect(parseNonNegativeInteger(null)).toBe(0);
+      expect(parseNonNegativeInteger(undefined)).toBe(0);
+      expect(parseNonNegativeInteger('invalid')).toBe(0);
+      expect(parseNonNegativeInteger(NaN)).toBe(0);
+    });
+  });
+
+  describe('parseBookStatus', () => {
+    it('should strictly return official BookStatus enum members', () => {
+      expect(parseBookStatus(BookStatus.Reading)).toBe(BookStatus.Reading);
+      expect(parseBookStatus(BookStatus.Read)).toBe(BookStatus.Read);
+      expect(parseBookStatus(BookStatus.TBR)).toBe(BookStatus.TBR);
+      expect(parseBookStatus(BookStatus.Wishlist)).toBe(BookStatus.Wishlist);
+      expect(parseBookStatus(BookStatus.Dropped)).toBe(BookStatus.Dropped);
+    });
+
+    it('should normalize legacy and lowercase aliases into official BookStatus enum members', () => {
+      expect(parseBookStatus('lendo')).toBe(BookStatus.Reading);
+      expect(parseBookStatus('Lendo')).toBe(BookStatus.Reading);
+      expect(parseBookStatus('reading')).toBe(BookStatus.Reading);
+      expect(parseBookStatus('lido')).toBe(BookStatus.Read);
+      expect(parseBookStatus('concluído')).toBe(BookStatus.Read);
+      expect(parseBookStatus('read')).toBe(BookStatus.Read);
+      expect(parseBookStatus('não lido')).toBe(BookStatus.TBR);
+      expect(parseBookStatus('tbr')).toBe(BookStatus.TBR);
+      expect(parseBookStatus('quero ler')).toBe(BookStatus.TBR);
+      expect(parseBookStatus('wishlist')).toBe(BookStatus.Wishlist);
+      expect(parseBookStatus('lista de desejos')).toBe(BookStatus.Wishlist);
+      expect(parseBookStatus('abandonado')).toBe(BookStatus.Dropped);
+      expect(parseBookStatus('dropped')).toBe(BookStatus.Dropped);
+    });
+
+    it('should fallback to BookStatus.TBR for invalid or missing values', () => {
+      expect(parseBookStatus(null)).toBe(BookStatus.TBR);
+      expect(parseBookStatus(undefined)).toBe(BookStatus.TBR);
+      expect(parseBookStatus('')).toBe(BookStatus.TBR);
+      expect(parseBookStatus('status_desconhecido')).toBe(BookStatus.TBR);
+    });
+  });
+
+  describe('parseBookType', () => {
+    it('should strictly return BookType matching Supabase chk_books_type constraint', () => {
+      expect(parseBookType(BookType.Book)).toBe(BookType.Book);
+      expect(parseBookType(BookType.HQ)).toBe(BookType.HQ);
+      expect(parseBookType(BookType.Manga)).toBe(BookType.Manga);
+      expect(parseBookType('hq')).toBe(BookType.HQ);
+      expect(parseBookType('manga')).toBe(BookType.Manga);
+      expect(parseBookType('mangá')).toBe(BookType.Manga);
+      expect(parseBookType('unknown')).toBe(BookType.Book);
+      expect(parseBookType(null)).toBe(BookType.Book);
+    });
+  });
+
+  describe('parseRating', () => {
+    it('should clamp ratings to [0.0, 5.0] and round to 1 decimal place matching DECIMAL(3,1)', () => {
+      expect(parseRating(4.5)).toBe(4.5);
+      expect(parseRating('4.8')).toBe(4.8);
+      expect(parseRating(5.0)).toBe(5.0);
+      expect(parseRating(0)).toBe(0);
+      expect(parseRating(7.5)).toBe(5.0);
+      expect(parseRating(-2)).toBe(0);
+      expect(parseRating(4.26)).toBe(4.3);
+      expect(parseRating(null)).toBeUndefined();
+      expect(parseRating(undefined)).toBeUndefined();
+    });
+  });
+
+  describe('Round-trip resilience with strong typing', () => {
+    it('should enforce strong types when mapping raw/loose DB row to Book', () => {
+      const rawDbRow = {
+        id: 'book-loose-1',
+        user_id: 'user-xyz',
+        title: 'Livro Teste',
+        author: 'Autor Teste',
+        pages: '-40', // string negative
+        genre: 'Aventura',
+        type: 'hq', // lowercase
+        status: 'lendo', // alias string
+        rating: '4.75', // string float
+        current_page: '120.9',
+        date_added: '2026-07-20',
+      };
+
+      const book = mapDbToBook(rawDbRow);
+      expect(book.pages).toBe(0); // clamped to 0
+      expect(book.type).toBe(BookType.HQ);
+      expect(book.status).toBe(BookStatus.Reading);
+      expect(book.rating).toBe(4.8); // rounded
+      expect(book.currentPage).toBe(120); // floor integer
+    });
+
+    it('should enforce strong types when mapping partial changes to DB payload', () => {
+      const partialChanges: Partial<Book> = {
+        pages: 350,
+        status: 'Lendo' as any,
+        type: 'HQ' as any,
+        rating: 4.5,
+        currentPage: 50,
+      };
+
+      const dbUpdate = mapPartialBookToDb(partialChanges);
+      expect(dbUpdate.pages).toBe(350);
+      expect(dbUpdate.status).toBe(BookStatus.Reading);
+      expect(dbUpdate.type).toBe(BookType.HQ);
+      expect(dbUpdate.rating).toBe(4.5);
+      expect(dbUpdate.current_page).toBe(50);
+    });
   });
 });

@@ -11,7 +11,7 @@ interface StatCardProps {
 
 export const StatCard: React.FC<StatCardProps> = React.memo(({ icon, title, value, subtitle, description }) => {
   return (
-    <div className="relative group bg-white dark:bg-slate-900 p-6 sm:p-7 md:p-8 lg:p-10 rounded-[2rem] md:rounded-[3rem] shadow-soft border border-slate-100 dark:border-slate-800 flex flex-row items-center gap-4 sm:gap-6 md:gap-7 lg:gap-8 transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 hover:border-primary/10 dark:hover:border-primary/30 cursor-default overflow-hidden">
+    <div className="dashboard-card relative group bg-white dark:bg-slate-900 p-6 sm:p-7 md:p-8 lg:p-10 rounded-[2rem] md:rounded-[3rem] shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] flex flex-row items-center gap-4 sm:gap-6 md:gap-7 lg:gap-8 transition-all duration-500 hover:shadow-2xl hover:-translate-y-1.5 hover:border-primary/30 dark:hover:border-primary/50 cursor-default overflow-hidden">
       <div className="absolute -right-8 -bottom-8 w-24 md:w-32 h-24 md:h-32 bg-primary/5 dark:bg-primary/10 rounded-full blur-3xl opacity-0 group-hover:opacity-100 transition-opacity duration-700"></div>
       
       {description && (

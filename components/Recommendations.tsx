@@ -127,7 +127,7 @@ export const Recommendations: React.FC<RecommendationsProps> = ({
             suggestions.map((rec, idx) => {
                 const alreadyAdded = isAlreadyInLibrary(rec.title);
                 return (
-                    <div key={idx} className="group bento-card bg-white dark:bg-slate-900 p-8 md:p-10 rounded-[3rem] border border-slate-100 dark:border-slate-800 shadow-soft relative overflow-hidden flex flex-col h-[450px]">
+                    <div key={idx} className="dashboard-card group bento-card bg-white dark:bg-slate-900 p-8 md:p-10 rounded-[3rem] border border-slate-200/90 dark:border-slate-750/80 ring-1 ring-slate-900/[0.03] dark:ring-white/[0.05] shadow-md shadow-slate-900/[0.04] dark:shadow-black/40 relative overflow-hidden flex flex-col h-[450px]">
                         {/* Interactive Background */}
                         <div className="absolute -right-20 -top-20 w-56 h-56 bg-primary/5 dark:bg-primary/10 rounded-full blur-[60px] group-hover:scale-150 group-hover:bg-primary/10 transition-all duration-1000"></div>
                         <div className="absolute -left-20 -bottom-20 w-48 h-48 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-[60px] group-hover:scale-150 transition-all duration-1000"></div>
